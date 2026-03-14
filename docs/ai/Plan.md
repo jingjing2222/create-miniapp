@@ -121,6 +121,15 @@ docs/
 4. 릴리스 후속 작업
    - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 patch changeset을 추가한다.
 
+## 현재 CLI UX 개선 작업
+1. `yargs` 기반 CLI 옵션 파싱은 유지하고, 옵션으로 주어지지 않은 값만 `execa` 기반 인터랙티브 입력으로 보완한다.
+2. 누락된 값은 쉘 인터랙션으로 텍스트 입력 또는 선택 입력을 받는다.
+3. CLI가 직접 출력하는 도움말, 오류, 진행 메시지는 한국어로 통일한다.
+4. 테스트 범위
+   - 옵션 파싱 단위 테스트
+   - 빠진 값에 대해 인터랙티브 입력기로 위임되는지 검증
+   - 기존 명령 계획/릴리스 테스트와 함께 `pnpm verify` 통과
+
 ## 남은 작업
 1. npm publish 준비
    - Changesets 설정
