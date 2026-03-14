@@ -6,11 +6,11 @@ import {
   runCommandWithOutput,
   type CommandOutput,
   type CommandSpec,
-} from './commands.js'
-import type { CliPrompter } from './cli.js'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
-import type { ProvisioningNote, ServerProjectMode } from './server-project.js'
-import { pathExists, SUPABASE_DEFAULT_FUNCTION_NAME } from './templates.js'
+} from '../../commands.js'
+import type { CliPrompter } from '../../cli.js'
+import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
+import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
+import { pathExists, SUPABASE_DEFAULT_FUNCTION_NAME } from '../../templates/index.js'
 
 type SupabaseProject = {
   id: string

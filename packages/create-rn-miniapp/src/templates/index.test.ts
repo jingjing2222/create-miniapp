@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
   FIREBASE_DEFAULT_FUNCTION_REGION,
+  applyDocsTemplates,
   applyRootTemplates,
   applyFirebaseServerWorkspaceTemplate,
   applyServerPackageTemplate,
   applyWorkspaceProjectTemplate,
   pathExists,
+  syncOptionalDocsTemplates,
   syncRootWorkspaceManifest,
   type TemplateTokens,
-} from './templates.js'
+} from './index.js'
 
 function createTokens(packageManager: 'pnpm' | 'yarn'): TemplateTokens {
   return {
@@ -77,6 +79,112 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
     await readFile(path.join(targetRoot, 'pnpm-workspace.yaml'), 'utf8'),
     'packages:\n  - frontend\n',
   )
+})
+
+test('applyDocsTemplates keeps optional workspace docs out of the base copy', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyDocsTemplates(targetRoot, tokens)
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+
+  assert.doesNotMatch(agents, /backoffice-react-best-practices/)
+  assert.doesNotMatch(agents, /server-provider-supabase/)
+  assert.doesNotMatch(agents, /server-provider-cloudflare/)
+  assert.doesNotMatch(agents, /server-provider-firebase/)
+  assert.doesNotMatch(docsIndex, /Backoffice React best practices/)
+  assert.doesNotMatch(docsIndex, /Server provider guide/)
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, 'docs', 'engineering', 'backoffice-react-best-practices.md'),
+    ),
+    false,
+  )
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-supabase.md')),
+    false,
+  )
+})
+
+test('syncOptionalDocsTemplates copies and indexes selected backoffice and server provider docs', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('yarn')
+
+  await applyDocsTemplates(targetRoot, tokens)
+  await syncOptionalDocsTemplates(targetRoot, tokens, {
+    hasBackoffice: true,
+    serverProvider: 'firebase',
+  })
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+
+  assert.match(agents, /backoffice-react-best-practices/)
+  assert.match(agents, /server-provider-firebase/)
+  assert.doesNotMatch(agents, /server-provider-supabase/)
+  assert.doesNotMatch(agents, /server-provider-cloudflare/)
+  assert.match(docsIndex, /Backoffice React best practices/)
+  assert.match(docsIndex, /Server provider guide \(Firebase\)/)
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, 'docs', 'engineering', 'backoffice-react-best-practices.md'),
+    ),
+    true,
+  )
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-firebase.md')),
+    true,
+  )
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-supabase.md')),
+    false,
+  )
+})
+
+test('syncOptionalDocsTemplates can patch legacy docs files without markers', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await mkdir(path.join(targetRoot, 'docs'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'AGENTS.md'),
+    [
+      '## 어떤 문서를 볼지',
+      '- `docs/engineering/tds-react-native-index.md`',
+      '  - TDS 컴포넌트와 UI 구현 참고',
+      '- `docs/engineering/native-modules-policy.md`',
+      '  - 네이티브 연동 제약과 허용 범위',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'docs', 'index.md'),
+    [
+      '## 주요 문서',
+      '- TDS RN index: `engineering/tds-react-native-index.md`',
+      '- Native modules policy: `engineering/native-modules-policy.md`',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  await syncOptionalDocsTemplates(targetRoot, tokens, {
+    hasBackoffice: true,
+    serverProvider: 'supabase',
+  })
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+
+  assert.match(agents, /optional-doc-links:start/)
+  assert.match(agents, /backoffice-react-best-practices/)
+  assert.match(agents, /server-provider-supabase/)
+  assert.match(docsIndex, /optional-engineering-links:start/)
+  assert.match(docsIndex, /Backoffice React best practices/)
+  assert.match(docsIndex, /Server provider guide \(Supabase\)/)
 })
 
 test('applyRootTemplates and workspace templates emit yarn-specific files and commands', async (t) => {

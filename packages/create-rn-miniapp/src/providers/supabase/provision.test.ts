@@ -10,7 +10,7 @@ import {
   resolveSupabaseClientApiKey,
   writeSupabaseServerLocalEnvFile,
   writeSupabaseLocalEnvFiles,
-} from './supabase-provision.js'
+} from './provision.js'
 
 test('resolveSupabaseClientApiKey prefers publishable keys over anon keys', () => {
   const key = resolveSupabaseClientApiKey([

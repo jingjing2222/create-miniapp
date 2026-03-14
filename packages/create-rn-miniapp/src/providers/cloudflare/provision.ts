@@ -3,12 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { log } from '@clack/prompts'
-import { patchWranglerConfigSource } from './ast.js'
-import { runCommand, runCommandWithOutput, type CommandSpec } from './commands.js'
-import type { CliPrompter } from './cli.js'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
-import type { ProvisioningNote, ServerProjectMode } from './server-project.js'
-import { pathExists } from './templates.js'
+import { patchWranglerConfigSource } from '../../patching/jsonc.js'
+import { runCommand, runCommandWithOutput, type CommandSpec } from '../../commands.js'
+import type { CliPrompter } from '../../cli.js'
+import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
+import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
+import { pathExists } from '../../templates/index.js'
 
 type WranglerAuth = {
   oauthToken: string

@@ -11,7 +11,7 @@
 - 루트는 `{{packageManagerCommand}} + nx + biome`
 - `frontend`: AppInToss + Granite + `@apps-in-toss/framework` + TDS 기반 MiniApp
 - `backoffice`: optional Vite 기반 workspace
-- `server`: optional Supabase workspace
+- `server`: optional server workspace
 
 ## 주요 문서
 - 제품 명세: `product/기능명세서.md`
@@ -21,6 +21,8 @@
 - AppsInToss + Granite full index: `engineering/appsintoss-granite-full-api-index.md`
 - Granite SSoT: `engineering/granite-ssot.md`
 - TDS RN index: `engineering/tds-react-native-index.md`
+<!-- optional-engineering-links:start -->
+<!-- optional-engineering-links:end -->
 - Native modules policy: `engineering/native-modules-policy.md`
 - AI harness stack
   1. `ai/Plan.md`

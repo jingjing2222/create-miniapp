@@ -79,4 +79,18 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     packResult.files.some((file) => file.path === 'root/yarnrc.yml'),
     true,
   )
+  assert.equal(
+    packResult.files.some(
+      (file) =>
+        file.path === 'optional/backoffice/docs/engineering/backoffice-react-best-practices.md',
+    ),
+    true,
+  )
+  assert.equal(
+    packResult.files.some(
+      (file) =>
+        file.path === 'optional/server-supabase/docs/engineering/server-provider-supabase.md',
+    ),
+    true,
+  )
 })

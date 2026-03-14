@@ -7,18 +7,18 @@ import {
   runCommandWithOutput,
   type CommandOutput,
   type CommandSpec,
-} from './commands.js'
-import type { CliPrompter } from './cli.js'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
-import type { ProvisioningNote, ServerProjectMode } from './server-project.js'
-import { extractJsonPayload } from './supabase-provision.js'
+} from '../../commands.js'
+import type { CliPrompter } from '../../cli.js'
+import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
+import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
+import { extractJsonPayload } from '../../providers/supabase/provision.js'
 import {
   FIREBASE_DEFAULT_FUNCTION_NAME,
   FIREBASE_DEFAULT_FUNCTION_REGION,
   patchFirebaseFunctionRegion,
   patchFirebaseServerProjectId,
   pathExists,
-} from './templates.js'
+} from '../../templates/index.js'
 
 type FirebaseProject = {
   projectId: string

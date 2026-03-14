@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import type { CliPrompter } from './cli.js'
+import type { CliPrompter } from '../../cli.js'
 import {
   buildFirebaseCommand,
   ensureFirebaseBuildServiceAccountPermissions,
@@ -22,7 +22,7 @@ import {
   resolveGoogleCloudCliArchiveSpec,
   writeFirebaseLocalEnvFiles,
   writeFirebaseServerLocalEnvFile,
-} from './firebase-provision.js'
+} from './provision.js'
 
 test('buildFirebaseCommand uses package-manager dlx for pnpm and yarn', () => {
   assert.deepEqual(buildFirebaseCommand('pnpm', '/tmp/ebook', 'Firebase 테스트', ['login']), {

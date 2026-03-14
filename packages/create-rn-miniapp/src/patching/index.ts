@@ -1,15 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
-  patchPackageJsonSource,
   patchBackofficeAppSource,
   patchBackofficeMainSource,
   patchGraniteConfigSource,
-  patchTsconfigModuleSource,
-  patchWranglerConfigSource,
-} from './ast.js'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
-import type { ServerProvider } from './server-provider.js'
+} from './ast/index.js'
+import { patchTsconfigModuleSource, patchWranglerConfigSource } from './jsonc.js'
+import { patchPackageJsonSource } from './package-json.js'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import type { ServerProvider } from '../providers/index.js'
 import {
   type TemplateTokens,
   applyServerPackageTemplate,
@@ -18,7 +17,7 @@ import {
   pathExists,
   removePathIfExists,
   SUPABASE_DEFAULT_FUNCTION_NAME,
-} from './templates.js'
+} from '../templates/index.js'
 
 const STATIC_TOOLING_FILES = [
   'biome.json',

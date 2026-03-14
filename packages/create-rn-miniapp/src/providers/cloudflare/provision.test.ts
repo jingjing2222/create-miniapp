@@ -13,7 +13,7 @@ import {
   getWranglerConfigCandidates,
   writeCloudflareServerLocalEnvFile,
   writeCloudflareLocalEnvFiles,
-} from './cloudflare-provision.js'
+} from './provision.js'
 
 test('buildCloudflareWorkersDevUrl builds a workers.dev URL from worker and account subdomain', () => {
   assert.equal(

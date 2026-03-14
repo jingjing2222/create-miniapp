@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { readGraniteConfigMetadata } from './ast.js'
+import { readGraniteConfigMetadata } from './patching/ast/index.js'
 import { toDefaultDisplayName } from './layout.js'
 import type { PackageManager } from './package-manager.js'
-import { detectServerProvider, type ServerProvider } from './server-provider.js'
-import { pathExists } from './templates.js'
+import { detectServerProvider, type ServerProvider } from './providers/index.js'
+import { pathExists } from './templates/index.js'
 
 type RootPackageJson = {
   packageManager?: string

@@ -9,7 +9,7 @@ import {
   patchFirebaseServerWorkspace,
   patchFrontendWorkspace,
   patchSupabaseServerWorkspace,
-} from './patch.js'
+} from './index.js'
 
 async function createTempWorkspace(t: test.TestContext) {
   const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-patch-'))

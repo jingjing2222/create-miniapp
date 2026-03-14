@@ -28,6 +28,8 @@
   - 라우팅, 페이지 구조, 검증 규칙처럼 반드시 지켜야 하는 기준
 - `docs/engineering/tds-react-native-index.md`
   - TDS 컴포넌트와 UI 구현 참고
+<!-- optional-doc-links:start -->
+<!-- optional-doc-links:end -->
 - `docs/engineering/native-modules-policy.md`
   - 네이티브 연동 제약과 허용 범위
 - `docs/engineering/하네스-실행가이드.md`
@@ -38,7 +40,7 @@
 ## Workspace Mental Model
 - `frontend`: AppInToss + Granite 기반 MiniApp
 - `backoffice`: optional Vite 기반 운영 도구
-- `server`: optional Supabase workspace
+- `server`: optional server workspace
 - `docs`: 제품, 엔지니어링, AI 하네스 문서
 
 현재 기준선:

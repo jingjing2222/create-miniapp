@@ -16,6 +16,8 @@
 - `base/AGENTS.md`
 - `base/docs/ai/*`
 - `base/docs/product/기능명세서.md`
+- `optional/*`
+  - backoffice, server provider처럼 선택된 워크스페이스에만 복사하는 문서 템플릿
 
 ## Non-goals
 - Granite app source template를 들고 있지 않아요.

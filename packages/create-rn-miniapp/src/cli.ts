@@ -8,7 +8,7 @@ import {
   SERVER_PROVIDERS,
   SERVER_PROVIDER_OPTIONS,
   type ServerProvider,
-} from './server-provider.js'
+} from './providers/index.js'
 import type { WorkspaceInspection } from './workspace-inspector.js'
 
 export type ParsedCliArgs = {

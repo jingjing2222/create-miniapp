@@ -11,7 +11,7 @@ import {
   resolveCliOptions,
 } from './cli.js'
 import { generatedWorkspaceLayout } from './layout.js'
-import { addWorkspaces, scaffoldWorkspace } from './scaffold.js'
+import { addWorkspaces, scaffoldWorkspace } from './scaffold/index.js'
 import { inspectWorkspace } from './workspace-inspector.js'
 
 const require = createRequire(import.meta.url)
