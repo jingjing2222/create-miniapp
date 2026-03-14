@@ -10,6 +10,8 @@
    - frontend-only 생성 시 root manifest에 `frontend`만 들어가는지 검증
    - 선택된 workspace만 root manifest에 들어가는지 검증
    - add mode에서 새 workspace 추가 후 root manifest가 갱신되는지 검증
+6. 릴리스 후속 작업
+   - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates`를 같은 patch changeset에 넣어 함께 배포한다.
 
 ## 목표
 1. Granite miniapp, optional Supabase server, optional Vite backoffice를 공식 CLI로 생성한 뒤 필요한 수정만 자동으로 적용하는 CLI를 만든다.
