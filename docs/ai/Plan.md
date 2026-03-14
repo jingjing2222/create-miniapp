@@ -531,3 +531,11 @@ docs/
    - 기존 fallback 경로도 계속 읽을 수 있는지 검증
 5. 완료 기준
    - `pnpm verify` 통과
+
+## 현재 Cloudflare account verify 에러 안내 개선
+1. Cloudflare deploy 실패 시 API code 10034(이메일 미인증)를 별도 메시지로 안내한다.
+2. Wrangler stderr를 읽어 사용자가 바로 다음 액션을 알 수 있게 URL과 원인을 포함한다.
+3. 테스트 범위
+   - code 10034 또는 verify-email-address 문구가 있으면 사용자 친화 메시지로 바뀌는지 검증
+4. 완료 기준
+   - `pnpm verify` 통과

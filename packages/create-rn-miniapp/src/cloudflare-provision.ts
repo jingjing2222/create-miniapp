@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import process from 'node:process'
 import { log } from '@clack/prompts'
 import { patchWranglerConfigSource } from './ast.js'
-import { runCommand, type CommandSpec } from './commands.js'
+import { runCommand, runCommandWithOutput, type CommandSpec } from './commands.js'
 import type { CliPrompter } from './cli.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from './server-project.js'
@@ -46,6 +47,8 @@ type ProvisionCloudflareWorkerOptions = {
 }
 
 const CREATE_CLOUDFLARE_WORKER_SENTINEL = '__create_cloudflare_worker__'
+const CLOUDFLARE_VERIFY_EMAIL_URL =
+  'https://developers.cloudflare.com/fundamentals/setup/account/verify-email-address/'
 
 type CloudflareApiEnvelope<T> = {
   success: boolean
@@ -355,13 +358,40 @@ async function deployCloudflareWorker(
   workerName: string,
 ) {
   log.step('Cloudflare Worker 배포')
-  await runCommand(
-    buildWranglerCommand(packageManager, serverRoot, 'Cloudflare Worker deploy', [
-      'deploy',
-      '--name',
-      workerName,
-    ]),
-  )
+
+  try {
+    const output = await runCommandWithOutput(
+      buildWranglerCommand(packageManager, serverRoot, 'Cloudflare Worker deploy', [
+        'deploy',
+        '--name',
+        workerName,
+      ]),
+    )
+
+    if (output.stdout.trim().length > 0) {
+      process.stdout.write(output.stdout)
+    }
+
+    if (output.stderr.trim().length > 0) {
+      process.stderr.write(output.stderr)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(formatCloudflareDeployFailureMessage(message))
+  }
+}
+
+export function formatCloudflareDeployFailureMessage(message: string) {
+  if (message.includes('[code: 10034]') || message.includes('verify your email address')) {
+    return [
+      'Cloudflare 계정 이메일 인증이 필요해서 Worker 배포를 계속할 수 없습니다.',
+      '',
+      '아래 문서에 따라 이메일 인증을 마친 뒤 다시 실행하세요.',
+      CLOUDFLARE_VERIFY_EMAIL_URL,
+    ].join('\n')
+  }
+
+  return message
 }
 
 export function buildCloudflareWorkersDevUrl(workerName: string, accountSubdomain: string) {

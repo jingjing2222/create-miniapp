@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   buildCloudflareWorkersDevUrl,
   finalizeCloudflareProvisioning,
+  formatCloudflareDeployFailureMessage,
   formatCloudflareManualSetupNote,
   getWranglerConfigCandidates,
   writeCloudflareServerLocalEnvFile,
@@ -31,6 +32,19 @@ test('getWranglerConfigCandidates includes the macOS preferences path', () => {
     '/Users/tester/Library/Application Support/.wrangler/config/default.toml',
     '/Users/tester/Library/Preferences/.wrangler/config/default.toml',
   ])
+})
+
+test('formatCloudflareDeployFailureMessage rewrites email verification failures', () => {
+  const message = formatCloudflareDeployFailureMessage(
+    [
+      'Cloudflare Worker deploy 단계가 실패했습니다. (pnpm dlx wrangler deploy --name test)',
+      '[ERROR] You need to verify your email address to use Workers. [code: 10034]',
+    ].join('\n'),
+  )
+
+  assert.match(message, /Cloudflare 계정 이메일 인증이 필요/)
+  assert.match(message, /verify-email-address/)
+  assert.doesNotMatch(message, /^Cloudflare Worker deploy 단계가 실패했습니다/m)
 })
 
 test('formatCloudflareManualSetupNote includes frontend and backoffice env guidance', () => {
