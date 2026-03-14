@@ -521,3 +521,13 @@ docs/
 7. 이 저장소 안에는 source scaffold template가 남아 있지 않다. ✅
 8. 공개 패키지 릴리스용 Changesets 흐름이 설정된다.
 9. PR 검증과 main 릴리스 자동화용 GitHub Actions가 설정된다.
+
+## 현재 Cloudflare Wrangler auth 경로 회귀 수정
+1. `wrangler login` 이후 인증 토큰을 찾지 못하는 회귀를 수정한다.
+2. 실제 Wrangler 4.73.0이 쓰는 auth 저장 위치와 포맷을 로컬에서 확인한다.
+3. `desktop/code/hot-updater/plugins/cloudflare/iac/getWranglerLoginAuthToken.ts` 구현을 참고해 현재 reader를 교체하거나 보강한다.
+4. 테스트 범위
+   - 새로운 Wrangler auth 파일 포맷을 읽을 수 있는지 검증
+   - 기존 fallback 경로도 계속 읽을 수 있는지 검증
+5. 완료 기준
+   - `pnpm verify` 통과

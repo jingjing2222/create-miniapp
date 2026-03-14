@@ -7,6 +7,7 @@ import {
   buildCloudflareWorkersDevUrl,
   finalizeCloudflareProvisioning,
   formatCloudflareManualSetupNote,
+  getWranglerConfigCandidates,
   writeCloudflareServerLocalEnvFile,
   writeCloudflareLocalEnvFiles,
 } from './cloudflare-provision.js'
@@ -16,6 +17,20 @@ test('buildCloudflareWorkersDevUrl builds a workers.dev URL from worker and acco
     buildCloudflareWorkersDevUrl('ebook-miniapp', 'team-ebook'),
     'https://ebook-miniapp.team-ebook.workers.dev',
   )
+})
+
+test('getWranglerConfigCandidates includes the macOS preferences path', () => {
+  const candidates = getWranglerConfigCandidates({
+    homeDir: '/Users/tester',
+    xdgConfigHome: '/Users/tester/.config',
+  })
+
+  assert.deepEqual(candidates, [
+    '/Users/tester/.wrangler/config/default.toml',
+    '/Users/tester/.config/.wrangler/config/default.toml',
+    '/Users/tester/Library/Application Support/.wrangler/config/default.toml',
+    '/Users/tester/Library/Preferences/.wrangler/config/default.toml',
+  ])
 })
 
 test('formatCloudflareManualSetupNote includes frontend and backoffice env guidance', () => {

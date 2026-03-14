@@ -101,17 +101,22 @@ function parseWranglerAuthValue(source: string, key: string) {
   return match?.[1] ?? null
 }
 
-function getWranglerConfigCandidates() {
-  const homeDir = os.homedir()
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME ?? path.join(homeDir, '.config')
+export function getWranglerConfigCandidates(options?: {
+  homeDir?: string
+  xdgConfigHome?: string
+  appData?: string
+}) {
+  const homeDir = options?.homeDir ?? os.homedir()
+  const xdgConfigHome =
+    options?.xdgConfigHome ?? process.env.XDG_CONFIG_HOME ?? path.join(homeDir, '.config')
+  const appData = options?.appData ?? process.env.APPDATA
 
   return [
     path.join(homeDir, '.wrangler', 'config', 'default.toml'),
     path.join(xdgConfigHome, '.wrangler', 'config', 'default.toml'),
     path.join(homeDir, 'Library', 'Application Support', '.wrangler', 'config', 'default.toml'),
-    ...(process.env.APPDATA
-      ? [path.join(process.env.APPDATA, '.wrangler', 'config', 'default.toml')]
-      : []),
+    path.join(homeDir, 'Library', 'Preferences', '.wrangler', 'config', 'default.toml'),
+    ...(appData ? [path.join(appData, '.wrangler', 'config', 'default.toml')] : []),
   ]
 }
 
