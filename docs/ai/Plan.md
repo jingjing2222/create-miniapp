@@ -1,6 +1,16 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 현재 root workspace manifest 동적화 작업
+1. 루트 workspace 등록은 고정 템플릿이 아니라 실제 생성된 workspace 목록 기준으로 계산한다.
+2. 초기 생성 시점에는 `frontend`와 선택된 `server`/`backoffice`만 root manifest에 등록한다.
+3. `--add`로 `server`나 `backoffice`를 나중에 추가할 때는 root manifest에도 해당 workspace를 함께 추가한다.
+4. `yarn`은 root `package.json.workspaces`, `pnpm`은 `pnpm-workspace.yaml`을 각각 동적으로 맞춘다.
+5. 테스트 범위
+   - frontend-only 생성 시 root manifest에 `frontend`만 들어가는지 검증
+   - 선택된 workspace만 root manifest에 들어가는지 검증
+   - add mode에서 새 workspace 추가 후 root manifest가 갱신되는지 검증
+
 ## 목표
 1. Granite miniapp, optional Supabase server, optional Vite backoffice를 공식 CLI로 생성한 뒤 필요한 수정만 자동으로 적용하는 CLI를 만든다.
 2. 이 저장소는 생성 결과물 source template를 들고 있지 않고, 하네스/문서 템플릿만 유지한다.

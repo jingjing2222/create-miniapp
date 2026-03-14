@@ -8,6 +8,7 @@ import {
   applyServerPackageTemplate,
   applyWorkspaceProjectTemplate,
   pathExists,
+  syncRootWorkspaceManifest,
   type TemplateTokens,
 } from './templates.js'
 
@@ -38,7 +39,7 @@ const NX_PROJECT_SCHEMA_URL =
 test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
 
-  await applyRootTemplates(targetRoot, createTokens('pnpm'))
+  await applyRootTemplates(targetRoot, createTokens('pnpm'), ['frontend'])
 
   const packageJson = JSON.parse(await readFile(path.join(targetRoot, 'package.json'), 'utf8')) as {
     packageManager?: string
@@ -68,13 +69,17 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.doesNotMatch(gitignore, /^\.pnp\.\*$/m)
   assert.doesNotMatch(biomeJson, /\*\*\/\.yarn\/\*\*/)
   assert.doesNotMatch(biomeJson, /\*\*\/\.pnp\.\*/)
+  assert.equal(
+    await readFile(path.join(targetRoot, 'pnpm-workspace.yaml'), 'utf8'),
+    'packages:\n  - frontend\n',
+  )
 })
 
 test('applyRootTemplates and workspace templates emit yarn-specific files and commands', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('yarn')
 
-  await applyRootTemplates(targetRoot, tokens)
+  await applyRootTemplates(targetRoot, tokens, ['frontend', 'server'])
   await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
   await applyServerPackageTemplate(targetRoot, tokens)
 
@@ -101,7 +106,7 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   }
 
   assert.equal(packageJson.packageManager, 'yarn@4.13.0')
-  assert.deepEqual(packageJson.workspaces, ['frontend', 'server', 'backoffice'])
+  assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
   assert.ok(
     packageJsonSource.indexOf('"packageManager"') < packageJsonSource.indexOf('"workspaces"'),
@@ -126,4 +131,25 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     serverPackageJson.scripts?.['db:reset'],
     'yarn dlx supabase db reset --local --workdir .',
   )
+})
+
+test('syncRootWorkspaceManifest adds newly added workspaces to existing root manifests', async (t) => {
+  const pnpmRoot = await createTempTargetRoot(t)
+  const yarnRoot = await createTempTargetRoot(t)
+
+  await applyRootTemplates(pnpmRoot, createTokens('pnpm'), ['frontend'])
+  await applyRootTemplates(yarnRoot, createTokens('yarn'), ['frontend'])
+
+  await syncRootWorkspaceManifest(pnpmRoot, 'pnpm', ['frontend', 'server'])
+  await syncRootWorkspaceManifest(yarnRoot, 'yarn', ['frontend', 'backoffice'])
+
+  const pnpmWorkspaceManifest = await readFile(path.join(pnpmRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const yarnPackageJson = JSON.parse(
+    await readFile(path.join(yarnRoot, 'package.json'), 'utf8'),
+  ) as {
+    workspaces?: string[]
+  }
+
+  assert.equal(pnpmWorkspaceManifest, 'packages:\n  - frontend\n  - server\n')
+  assert.deepEqual(yarnPackageJson.workspaces, ['frontend', 'backoffice'])
 })

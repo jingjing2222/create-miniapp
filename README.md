@@ -91,6 +91,7 @@ pnpm verify
 - `src/lib/supabase.ts`
 
 `yarn`을 선택하면 root에는 `.yarnrc.yml`과 `package.json.workspaces`가 생성되고, `pnpm-workspace.yaml`은 생성되지 않습니다.
+루트 workspace 등록도 고정되지 않고, 실제로 생성된 `frontend`/`server`/`backoffice`만 포함됩니다.
 
 생성 후에는 예시 파일을 참고해서 실제 `.env.local`을 채우면 됩니다.
 
@@ -111,7 +112,7 @@ create-miniapp --add --with-backoffice
 create-miniapp --add --root-dir /path/to/existing-miniapp --with-server --with-backoffice
 ```
 
-`--add`는 root `package.json.packageManager`와 `frontend/granite.config.ts`를 읽어 기존 워크스페이스 정보를 감지한 뒤, 아직 없는 워크스페이스만 추가합니다.
+`--add`는 root `package.json.packageManager`와 `frontend/granite.config.ts`를 읽어 기존 워크스페이스 정보를 감지한 뒤, 아직 없는 워크스페이스만 추가하고 root workspace manifest도 함께 갱신합니다.
 
 ## 생성 기준
 
