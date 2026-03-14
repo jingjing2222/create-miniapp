@@ -1,6 +1,19 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 현재 changeset / PR 설명 정리 작업
+1. PR `#22`는 초기 Cloudflare provider 추가를 넘어서 provider별 IaC, env bootstrap, server README, root README 개편까지 포함하게 됐다.
+2. 기존 changeset 한 줄 요약으로는 실제 변경 범위를 설명하지 못하므로, 사용자 관점 release note로 다시 쓴다.
+3. PR 본문도 현재 구현 범위에 맞게 다시 정리한다.
+   - provider adapter registry
+   - Supabase / Cloudflare 인증 및 원격 리소스 선택/생성
+   - frontend / backoffice / server env bootstrap
+   - provider별 server README
+   - root README 및 docs 컨텍스트 보강
+4. 완료 기준
+   - changeset이 두 패키지 patch 배포 범위를 자세히 설명한다.
+   - PR 본문만 읽어도 현재 브랜치의 사용자 영향과 검증 범위를 이해할 수 있다.
+
 ## 현재 root README 포지셔닝 보강 작업
 1. 루트 README의 첫 설명을 "MiniApp을 생성하는 CLI" 수준에서 끝내지 않고, Granite, `@apps-in-toss/framework`, TDS를 바로 활용할 수 있도록 컨텍스트를 patch하는 스캐폴딩 도구라는 점까지 드러낸다.
 2. 공식 CLI 우선 원칙과 함께, 이 저장소가 실제로 덧입히는 가치가 무엇인지 README 앞부분에서 설명한다.
