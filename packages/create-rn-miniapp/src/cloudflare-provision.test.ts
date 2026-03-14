@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   buildCloudflareWorkersDevUrl,
   buildCloudflareProvisionExecutionOrder,
+  canRecoverCloudflareDeployFailure,
   finalizeCloudflareProvisioning,
   formatCloudflareDeployFailureMessage,
   formatCloudflareManualSetupNote,
@@ -73,6 +74,47 @@ test('formatCloudflareDeployFailureMessage rewrites workers.dev onboarding failu
   assert.match(message, /workers\.dev 서브도메인 등록이 필요/)
   assert.match(message, /workers\/onboarding/)
   assert.doesNotMatch(message, /^Cloudflare Worker deploy 단계가 실패했습니다/m)
+})
+
+test('canRecoverCloudflareDeployFailure returns true for workers.dev false negatives', () => {
+  assert.equal(
+    canRecoverCloudflareDeployFailure({
+      message: [
+        'Cloudflare Worker deploy 단계가 실패했습니다. (pnpm dlx wrangler deploy --name test)',
+        '▲ [WARNING] You need to register a workers.dev subdomain before publishing to workers.dev',
+      ].join('\n'),
+      accountSubdomain: 'hj-jingjing2222',
+      workerName: 'test',
+      workerNames: ['test'],
+    }),
+    true,
+  )
+})
+
+test('canRecoverCloudflareDeployFailure returns false when worker or subdomain cannot be confirmed', () => {
+  const message = [
+    'Cloudflare Worker deploy 단계가 실패했습니다. (pnpm dlx wrangler deploy --name test)',
+    '▲ [WARNING] You need to register a workers.dev subdomain before publishing to workers.dev',
+  ].join('\n')
+
+  assert.equal(
+    canRecoverCloudflareDeployFailure({
+      message,
+      accountSubdomain: null,
+      workerName: 'test',
+      workerNames: ['test'],
+    }),
+    false,
+  )
+  assert.equal(
+    canRecoverCloudflareDeployFailure({
+      message,
+      accountSubdomain: 'hj-jingjing2222',
+      workerName: 'test',
+      workerNames: ['other-worker'],
+    }),
+    false,
+  )
 })
 
 test('formatCloudflareManualSetupNote includes frontend and backoffice env guidance', () => {

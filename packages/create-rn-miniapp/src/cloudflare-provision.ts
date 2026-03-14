@@ -381,6 +381,14 @@ async function deployCloudflareWorker(
   }
 }
 
+function isCloudflareWorkersDevOnboardingError(message: string) {
+  return (
+    message.includes('register a workers.dev subdomain') ||
+    message.includes('/workers/onboarding') ||
+    message.includes('workers.dev 서브도메인 등록이 필요')
+  )
+}
+
 export function formatCloudflareDeployFailureMessage(message: string) {
   if (message.includes('[code: 10034]') || message.includes('verify your email address')) {
     return [
@@ -391,10 +399,7 @@ export function formatCloudflareDeployFailureMessage(message: string) {
     ].join('\n')
   }
 
-  if (
-    message.includes('register a workers.dev subdomain') ||
-    message.includes('/workers/onboarding')
-  ) {
+  if (isCloudflareWorkersDevOnboardingError(message)) {
     const onboardingUrlMatch = message.match(
       /https:\/\/dash\.cloudflare\.com\/\S*\/workers\/onboarding/,
     )
@@ -420,6 +425,19 @@ export function buildCloudflareProvisionExecutionOrder(projectMode: ServerProjec
   return projectMode === 'create'
     ? (['ensure-account-subdomain', 'deploy-worker', 'enable-worker-subdomain'] as const)
     : (['ensure-account-subdomain', 'enable-worker-subdomain'] as const)
+}
+
+export function canRecoverCloudflareDeployFailure(options: {
+  message: string
+  accountSubdomain: string | null
+  workerName: string
+  workerNames: string[]
+}) {
+  return (
+    isCloudflareWorkersDevOnboardingError(options.message) &&
+    Boolean(options.accountSubdomain) &&
+    options.workerNames.includes(options.workerName)
+  )
 }
 
 export function formatCloudflareManualSetupNote(options: {
@@ -623,7 +641,33 @@ export async function provisionCloudflareWorker(
     }
 
     if (step === 'deploy-worker') {
-      await deployCloudflareWorker(options.packageManager, serverRoot, workerName)
+      try {
+        await deployCloudflareWorker(options.packageManager, serverRoot, workerName)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+
+        try {
+          const currentWorkerNames = await listCloudflareWorkers(auth.oauthToken, accountId)
+
+          if (
+            canRecoverCloudflareDeployFailure({
+              message,
+              accountSubdomain,
+              workerName,
+              workerNames: currentWorkerNames,
+            })
+          ) {
+            log.message(
+              'Cloudflare deploy가 workers.dev onboarding을 잘못 감지했지만 account subdomain과 업로드된 Worker를 확인해서 계속 진행합니다.',
+            )
+            continue
+          }
+        } catch {
+          // Fall through to the original deploy error when post-checks cannot be completed.
+        }
+
+        throw error
+      }
       continue
     }
 

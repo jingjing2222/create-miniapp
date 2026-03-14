@@ -548,3 +548,12 @@ docs/
    - create 흐름이 deploy 전에 account subdomain을 확보하도록 순서를 고정하는지 검증
 4. 완료 기준
    - `pnpm verify` 통과
+
+## 현재 Cloudflare workers.dev false negative 복구
+1. `wrangler deploy`가 workers.dev onboarding 에러를 반환하더라도, Cloudflare API에서 account subdomain과 Worker 존재가 확인되면 false negative로 간주하고 계속 진행한다.
+2. 실제로 account subdomain이 없을 때만 onboarding 안내를 유지한다.
+3. 테스트 범위
+   - onboarding 에러 + subdomain 존재 + worker 존재면 복구되는지 검증
+   - onboarding 에러라도 subdomain 또는 worker가 없으면 복구하지 않는지 검증
+4. 완료 기준
+   - `pnpm verify` 통과
