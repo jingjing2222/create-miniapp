@@ -14,6 +14,7 @@ import {
   type TemplateTokens,
   applyServerPackageTemplate,
   applyWorkspaceProjectTemplate,
+  getFirebaseWebSdkVersion,
   pathExists,
   removePathIfExists,
 } from './templates.js'
@@ -56,12 +57,21 @@ const TOOLING_DEPENDENCIES = [
 ] as const
 
 const SUPABASE_JS_VERSION = '^2.57.4'
+const FIREBASE_JS_VERSION = getFirebaseWebSdkVersion()
 const DOTENV_VERSION = '^16.4.7'
 const NODE_TYPES_VERSION = '^24.10.1'
 const FALLBACK_GRANITE_PLUGIN_VERSION = '1.0.7'
 const WRANGLER_PACKAGE_NAME = 'wrangler'
 const CLOUDFLARE_ROOT_GITIGNORE_ENTRY = 'server/worker-configuration.d.ts'
 const CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY = '**/server/worker-configuration.d.ts'
+const FIREBASE_ROOT_GITIGNORE_ENTRY = 'server/functions/lib/'
+const FIREBASE_ROOT_BIOME_IGNORE_ENTRY = '**/server/functions/lib/**'
+const FIREBASE_YARN_PACKAGE_EXTENSION_KEY = '"@apphosting/build@*"'
+const FIREBASE_YARN_PACKAGE_EXTENSION_BLOCK = [
+  '  "@apphosting/build@*":',
+  '    dependencies:',
+  '      yaml: "^2.4.1"',
+].join('\n')
 
 const FRONTEND_ENV_TYPES = [
   'interface ImportMetaEnv {',
@@ -78,6 +88,23 @@ const FRONTEND_ENV_TYPES = [
 const FRONTEND_CLOUDFLARE_ENV_TYPES = [
   'interface ImportMetaEnv {',
   '  readonly MINIAPP_API_BASE_URL: string',
+  '}',
+  '',
+  'interface ImportMeta {',
+  '  readonly env: ImportMetaEnv',
+  '}',
+  '',
+].join('\n')
+
+const FRONTEND_FIREBASE_ENV_TYPES = [
+  'interface ImportMetaEnv {',
+  '  readonly MINIAPP_FIREBASE_API_KEY: string',
+  '  readonly MINIAPP_FIREBASE_AUTH_DOMAIN: string',
+  '  readonly MINIAPP_FIREBASE_PROJECT_ID: string',
+  '  readonly MINIAPP_FIREBASE_STORAGE_BUCKET: string',
+  '  readonly MINIAPP_FIREBASE_MESSAGING_SENDER_ID: string',
+  '  readonly MINIAPP_FIREBASE_APP_ID: string',
+  '  readonly MINIAPP_FIREBASE_MEASUREMENT_ID: string',
   '}',
   '',
   'interface ImportMeta {',
@@ -105,6 +132,25 @@ const BACKOFFICE_CLOUDFLARE_ENV_TYPES = [
   '',
   'interface ImportMetaEnv {',
   '  readonly VITE_API_BASE_URL: string',
+  '}',
+  '',
+  'interface ImportMeta {',
+  '  readonly env: ImportMetaEnv',
+  '}',
+  '',
+].join('\n')
+
+const BACKOFFICE_FIREBASE_ENV_TYPES = [
+  '/// <reference types="vite/client" />',
+  '',
+  'interface ImportMetaEnv {',
+  '  readonly VITE_FIREBASE_API_KEY: string',
+  '  readonly VITE_FIREBASE_AUTH_DOMAIN: string',
+  '  readonly VITE_FIREBASE_PROJECT_ID: string',
+  '  readonly VITE_FIREBASE_STORAGE_BUCKET: string',
+  '  readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string',
+  '  readonly VITE_FIREBASE_APP_ID: string',
+  '  readonly VITE_FIREBASE_MEASUREMENT_ID: string',
   '}',
   '',
   'interface ImportMeta {',
@@ -195,6 +241,41 @@ const FRONTEND_CLOUDFLARE_API_CLIENT = [
   '',
 ].join('\n')
 
+const FRONTEND_FIREBASE_APP = [
+  "import { getApp, getApps, initializeApp } from 'firebase/app'",
+  '',
+  'const measurementId = import.meta.env.MINIAPP_FIREBASE_MEASUREMENT_ID?.trim()',
+  '',
+  'const firebaseConfig = {',
+  '  apiKey: import.meta.env.MINIAPP_FIREBASE_API_KEY,',
+  '  authDomain: import.meta.env.MINIAPP_FIREBASE_AUTH_DOMAIN,',
+  '  projectId: import.meta.env.MINIAPP_FIREBASE_PROJECT_ID,',
+  '  storageBucket: import.meta.env.MINIAPP_FIREBASE_STORAGE_BUCKET,',
+  '  messagingSenderId: import.meta.env.MINIAPP_FIREBASE_MESSAGING_SENDER_ID,',
+  '  appId: import.meta.env.MINIAPP_FIREBASE_APP_ID,',
+  '  ...(measurementId ? { measurementId } : {}),',
+  '}',
+  '',
+  'export const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)',
+  '',
+].join('\n')
+
+const FRONTEND_FIREBASE_FIRESTORE = [
+  "import { getFirestore } from 'firebase/firestore'",
+  "import { firebaseApp } from './firebase'",
+  '',
+  'export const firestore = getFirestore(firebaseApp)',
+  '',
+].join('\n')
+
+const FRONTEND_FIREBASE_STORAGE = [
+  "import { getStorage } from 'firebase/storage'",
+  "import { firebaseApp } from './firebase'",
+  '',
+  'export const storage = getStorage(firebaseApp)',
+  '',
+].join('\n')
+
 const BACKOFFICE_SUPABASE_CLIENT = [
   "import { createClient, type SupabaseClient } from '@supabase/supabase-js'",
   '',
@@ -280,6 +361,41 @@ const BACKOFFICE_CLOUDFLARE_API_CLIENT = [
   'export async function apiFetch(pathname: string, init?: RequestInit) {',
   '  return fetch(resolveApiUrl(pathname), init)',
   '}',
+  '',
+].join('\n')
+
+const BACKOFFICE_FIREBASE_APP = [
+  "import { getApp, getApps, initializeApp } from 'firebase/app'",
+  '',
+  'const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID?.trim()',
+  '',
+  'const firebaseConfig = {',
+  '  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,',
+  '  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,',
+  '  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,',
+  '  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,',
+  '  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,',
+  '  appId: import.meta.env.VITE_FIREBASE_APP_ID,',
+  '  ...(measurementId ? { measurementId } : {}),',
+  '}',
+  '',
+  'export const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)',
+  '',
+].join('\n')
+
+const BACKOFFICE_FIREBASE_FIRESTORE = [
+  "import { getFirestore } from 'firebase/firestore'",
+  "import { firebaseApp } from './firebase'",
+  '',
+  'export const firestore = getFirestore(firebaseApp)',
+  '',
+].join('\n')
+
+const BACKOFFICE_FIREBASE_STORAGE = [
+  "import { getStorage } from 'firebase/storage'",
+  "import { firebaseApp } from './firebase'",
+  '',
+  'export const storage = getStorage(firebaseApp)',
   '',
 ].join('\n')
 
@@ -384,6 +500,50 @@ function renderCloudflareServerReadme(tokens: TemplateTokens) {
     '- `worker-configuration.d.ts`는 `wrangler types`가 생성하는 파일입니다.',
     '- `server/.env.local`은 Cloudflare account/worker 메타데이터를 기록합니다.',
     '- 후속 자동화가 필요하면 `server/.env.local`의 `CLOUDFLARE_API_TOKEN`을 직접 채우세요.',
+    '',
+  ].join('\n')
+}
+
+function renderFirebaseServerReadme(tokens: TemplateTokens) {
+  return [
+    '# server',
+    '',
+    '이 워크스페이스는 Firebase Functions 배포와 Firebase 프로젝트 연결을 관리하는 server 워크스페이스입니다.',
+    '',
+    '## 디렉토리 구조',
+    '',
+    '```text',
+    'server/',
+    '  firebase.json',
+    '  .firebaserc',
+    '  .env.local',
+    '  functions/',
+    '    src/index.ts',
+    '    package.json',
+    '    tsconfig.json',
+    '  package.json',
+    '```',
+    '',
+    '## 주요 스크립트',
+    '',
+    `- \`${tokens.packageManagerCommand} run build\`: \`server/functions\` 의 TypeScript를 빌드합니다.`,
+    `- \`${tokens.packageManagerCommand} run typecheck\`: \`server/functions\` 타입 검사를 실행합니다.`,
+    `- \`${tokens.packageManagerCommand} run deploy\`: Firebase Functions를 현재 project로 배포합니다.`,
+    `- \`${tokens.packageManagerCommand} run logs\`: Firebase Functions 로그를 확인합니다.`,
+    '',
+    '## Miniapp / Backoffice 연결',
+    '',
+    '- miniapp frontend는 `frontend/src/lib/firebase.ts`, `frontend/src/lib/firestore.ts`, `frontend/src/lib/storage.ts`에서 Firebase Web SDK를 초기화합니다.',
+    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_FIREBASE_API_KEY`, `MINIAPP_FIREBASE_AUTH_DOMAIN`, `MINIAPP_FIREBASE_PROJECT_ID`, `MINIAPP_FIREBASE_STORAGE_BUCKET`, `MINIAPP_FIREBASE_MESSAGING_SENDER_ID`, `MINIAPP_FIREBASE_APP_ID`, `MINIAPP_FIREBASE_MEASUREMENT_ID`를 사용합니다.',
+    '- frontend `granite.config.ts`는 `.env.local` 값을 읽어 같은 `MINIAPP_FIREBASE_*` 값을 주입합니다.',
+    '- backoffice가 있으면 `backoffice/src/lib/firebase.ts`, `backoffice/src/lib/firestore.ts`, `backoffice/src/lib/storage.ts`가 같은 Firebase project를 사용합니다.',
+    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`를 사용합니다.',
+    '',
+    '## 운영 메모',
+    '',
+    '- `server/.env.local`의 `FIREBASE_PROJECT_ID`, `FIREBASE_FUNCTION_REGION`은 배포 기준 메타데이터입니다.',
+    '- `server/.env.local`의 `GOOGLE_APPLICATION_CREDENTIALS`는 CI나 비대화형 배포가 필요할 때만 채우면 됩니다.',
+    '- `server/functions/src/index.ts`의 기본 HTTP 함수 이름은 `api`입니다.',
     '',
   ].join('\n')
 }
@@ -496,6 +656,27 @@ async function ensureRootBiomeIgnoreEntry(targetRoot: string, entry: string) {
   await writeFile(biomePath, `${JSON.stringify(biomeJson, null, 2)}\n`, 'utf8')
 }
 
+async function ensureRootYarnPackageExtension(targetRoot: string) {
+  const yarnrcPath = path.join(targetRoot, '.yarnrc.yml')
+
+  if (!(await pathExists(yarnrcPath))) {
+    return
+  }
+
+  const source = await readFile(yarnrcPath, 'utf8')
+
+  if (source.includes(FIREBASE_YARN_PACKAGE_EXTENSION_KEY)) {
+    return
+  }
+
+  const normalizedSource = source.endsWith('\n') ? source : `${source}\n`
+  const nextSource = normalizedSource.includes('packageExtensions:')
+    ? `${normalizedSource}${FIREBASE_YARN_PACKAGE_EXTENSION_BLOCK}\n`
+    : `${normalizedSource}\npackageExtensions:\n${FIREBASE_YARN_PACKAGE_EXTENSION_BLOCK}\n`
+
+  await writeFile(yarnrcPath, nextSource, 'utf8')
+}
+
 async function removeToolingFiles(workspaceRoot: string, packageManager: PackageManager) {
   const adapter = getPackageManagerAdapter(packageManager)
   await Promise.all(
@@ -561,6 +742,19 @@ async function writeFrontendCloudflareBootstrap(frontendRoot: string) {
   )
 }
 
+async function writeFrontendFirebaseBootstrap(frontendRoot: string) {
+  await writeTextFile(path.join(frontendRoot, 'src', 'env.d.ts'), FRONTEND_FIREBASE_ENV_TYPES)
+  await writeTextFile(path.join(frontendRoot, 'src', 'lib', 'firebase.ts'), FRONTEND_FIREBASE_APP)
+  await writeTextFile(
+    path.join(frontendRoot, 'src', 'lib', 'firestore.ts'),
+    FRONTEND_FIREBASE_FIRESTORE,
+  )
+  await writeTextFile(
+    path.join(frontendRoot, 'src', 'lib', 'storage.ts'),
+    FRONTEND_FIREBASE_STORAGE,
+  )
+}
+
 async function writeBackofficeSupabaseBootstrap(backofficeRoot: string) {
   await writeTextFile(path.join(backofficeRoot, 'src', 'vite-env.d.ts'), BACKOFFICE_ENV_TYPES)
   await writeTextFile(
@@ -577,6 +771,25 @@ async function writeBackofficeCloudflareBootstrap(backofficeRoot: string) {
   await writeTextFile(
     path.join(backofficeRoot, 'src', 'lib', 'api.ts'),
     BACKOFFICE_CLOUDFLARE_API_CLIENT,
+  )
+}
+
+async function writeBackofficeFirebaseBootstrap(backofficeRoot: string) {
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'vite-env.d.ts'),
+    BACKOFFICE_FIREBASE_ENV_TYPES,
+  )
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'lib', 'firebase.ts'),
+    BACKOFFICE_FIREBASE_APP,
+  )
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'lib', 'firestore.ts'),
+    BACKOFFICE_FIREBASE_FIRESTORE,
+  )
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'lib', 'storage.ts'),
+    BACKOFFICE_FIREBASE_STORAGE,
   )
 }
 
@@ -640,14 +853,24 @@ async function ensureFrontendPackageJsonForWorkspace(
     }
   }
 
-  if (serverProvider === 'supabase' || serverProvider === 'cloudflare') {
+  if (serverProvider === 'firebase' && !packageJson.dependencies?.firebase) {
+    dependencies.firebase = FIREBASE_JS_VERSION
+  }
+
+  if (
+    serverProvider === 'supabase' ||
+    serverProvider === 'cloudflare' ||
+    serverProvider === 'firebase'
+  ) {
     if (!packageJson.devDependencies?.['@granite-js/plugin-env']) {
       devDependencies['@granite-js/plugin-env'] = resolveGranitePluginVersion(packageJson)
     }
   }
 
   if (
-    (serverProvider === 'supabase' || serverProvider === 'cloudflare') &&
+    (serverProvider === 'supabase' ||
+      serverProvider === 'cloudflare' ||
+      serverProvider === 'firebase') &&
     !packageJson.devDependencies?.dotenv
   ) {
     devDependencies.dotenv = DOTENV_VERSION
@@ -686,6 +909,10 @@ async function ensureBackofficePackageJsonForWorkspace(
     if (!packageJson.dependencies?.['@supabase/supabase-js']) {
       dependencies['@supabase/supabase-js'] = SUPABASE_JS_VERSION
     }
+  }
+
+  if (serverProvider === 'firebase' && !packageJson.dependencies?.firebase) {
+    dependencies.firebase = FIREBASE_JS_VERSION
   }
 
   await patchPackageJsonFile(path.join(backofficeRoot, 'package.json'), {
@@ -758,6 +985,23 @@ export async function ensureFrontendCloudflareBootstrap(
   await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
 }
 
+export async function ensureFrontendFirebaseBootstrap(targetRoot: string, tokens: TemplateTokens) {
+  const frontendRoot = path.join(targetRoot, 'frontend')
+  const packageJsonPath = path.join(frontendRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'firebase')
+  await patchGraniteConfig(frontendRoot, tokens, 'firebase')
+  await patchWorkspaceTsconfigModules(frontendRoot, [
+    {
+      fileName: 'tsconfig.json',
+      includeNodeTypes: true,
+    },
+  ])
+  await writeFrontendFirebaseBootstrap(frontendRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
+}
+
 export async function ensureBackofficeCloudflareBootstrap(
   targetRoot: string,
   tokens: TemplateTokens,
@@ -774,6 +1018,25 @@ export async function ensureBackofficeCloudflareBootstrap(
   ])
   await patchBackofficeEntryFiles(backofficeRoot)
   await writeBackofficeCloudflareBootstrap(backofficeRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
+}
+
+export async function ensureBackofficeFirebaseBootstrap(
+  targetRoot: string,
+  tokens: TemplateTokens,
+) {
+  const backofficeRoot = path.join(targetRoot, 'backoffice')
+  const packageJsonPath = path.join(backofficeRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'firebase')
+  await patchWorkspaceTsconfigModules(backofficeRoot, [
+    { fileName: 'tsconfig.json' },
+    { fileName: 'tsconfig.app.json' },
+    { fileName: 'tsconfig.node.json' },
+  ])
+  await patchBackofficeEntryFiles(backofficeRoot)
+  await writeBackofficeFirebaseBootstrap(backofficeRoot)
   await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
 }
 
@@ -819,6 +1082,10 @@ export async function patchFrontendWorkspace(
     await writeFrontendCloudflareBootstrap(frontendRoot)
   }
 
+  if (options.serverProvider === 'firebase') {
+    await writeFrontendFirebaseBootstrap(frontendRoot)
+  }
+
   await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
 }
 
@@ -861,6 +1128,10 @@ export async function patchBackofficeWorkspace(
 
   if (options.serverProvider === 'cloudflare') {
     await writeBackofficeCloudflareBootstrap(backofficeRoot)
+  }
+
+  if (options.serverProvider === 'firebase') {
+    await writeBackofficeFirebaseBootstrap(backofficeRoot)
   }
 
   await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
@@ -919,6 +1190,25 @@ export async function patchCloudflareServerWorkspace(
   )
   await removeToolingFiles(serverRoot, options.packageManager)
   await removeWorkspaceArtifacts(serverRoot, options.packageManager)
+  await applyWorkspaceProjectTemplate(targetRoot, 'server', tokens)
+}
+
+export async function patchFirebaseServerWorkspace(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  options: Pick<WorkspacePatchOptions, 'packageManager'>,
+) {
+  const serverRoot = path.join(targetRoot, 'server')
+
+  await writeTextFile(path.join(serverRoot, 'README.md'), renderFirebaseServerReadme(tokens))
+  await ensureRootGitignoreEntry(targetRoot, FIREBASE_ROOT_GITIGNORE_ENTRY)
+  await ensureRootBiomeIgnoreEntry(targetRoot, FIREBASE_ROOT_BIOME_IGNORE_ENTRY)
+  if (options.packageManager === 'yarn') {
+    await ensureRootYarnPackageExtension(targetRoot)
+  }
+  await removeToolingFiles(serverRoot, options.packageManager)
+  await removeWorkspaceArtifacts(serverRoot, options.packageManager)
+  await removePathIfExists(path.join(serverRoot, '.eslintrc.js'))
   await applyWorkspaceProjectTemplate(targetRoot, 'server', tokens)
 }
 

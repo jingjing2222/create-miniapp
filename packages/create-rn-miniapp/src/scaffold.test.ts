@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import test from 'node:test'
-import { buildCreateExecutionOrder, buildRootFinalizePlan } from './scaffold.js'
+import {
+  buildCreateExecutionOrder,
+  buildCreateLifecycleOrder,
+  buildRootFinalizePlan,
+} from './scaffold.js'
 
 test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
   const targetRoot = path.join('/tmp', 'ebook')
@@ -58,5 +62,29 @@ test('buildCreateExecutionOrder runs server scaffold before backoffice scaffold'
     'frontend TDS 설치',
     'server Supabase 초기화',
     'backoffice Vite 생성',
+  ])
+})
+
+test('buildCreateLifecycleOrder applies root templates and server patch before firebase provisioning', () => {
+  const labels = buildCreateLifecycleOrder({
+    appName: 'ebook',
+    targetRoot: path.join('/tmp', 'ebook'),
+    packageManager: 'yarn',
+    serverProvider: 'firebase',
+    withBackoffice: true,
+  })
+
+  assert.deepEqual(labels, [
+    'frontend Granite 생성',
+    'frontend 의존성 설치',
+    'frontend AppInToss Framework 설치',
+    'frontend ait 초기화',
+    'frontend TDS 설치',
+    'server 워크스페이스 준비',
+    '루트 템플릿 적용',
+    'server 워크스페이스 patch',
+    'server provisioning',
+    'backoffice Vite 생성',
+    '루트 workspace manifest 동기화',
   ])
 })

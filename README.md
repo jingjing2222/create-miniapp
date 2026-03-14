@@ -4,10 +4,10 @@
 
 `create-rn-miniapp`은 AppInToss MiniApp용 모노레포를 생성한 뒤, Granite, `@apps-in-toss/framework` API, TDS를 바로 활용할 수 있도록 실행 컨텍스트를 patch하는 스캐폴딩 CLI입니다.
 
-이 도구는 앱 소스 전체를 자체 템플릿으로 복제하지 않습니다. Granite, AppInToss, Supabase, Cloudflare, Vite의 공식 scaffold를 먼저 실행하고, 그 결과물 위에 MiniApp 운영에 필요한 컨텍스트만 덧입힙니다.
+이 도구는 앱 소스 전체를 자체 템플릿으로 복제하지 않습니다. Granite, AppInToss, Supabase, Cloudflare, Firebase, Vite의 공식 scaffold를 먼저 실행하고, 그 결과물 위에 MiniApp 운영에 필요한 컨텍스트만 덧입힙니다.
 
 - `frontend`: Granite + `@apps-in-toss/framework` 기반 MiniApp scaffold와 MiniApp 실행 컨텍스트 patch
-- `server`: optional Supabase 또는 Cloudflare server 워크스페이스와 provider별 운영 스크립트/문서
+- `server`: optional Supabase, Cloudflare, Firebase server 워크스페이스와 provider별 운영 스크립트/문서
 - `backoffice`: optional Vite + React + TypeScript workspace
 - 루트: 선택한 package manager + `nx` + `biome` 기준 monorepo 설정
 - 문서: `AGENTS.md`, `docs/ai`, `docs/engineering`, `docs/product`를 함께 넣어 AI와 개발자가 바로 작업할 수 있는 컨텍스트 제공
@@ -96,7 +96,7 @@ pnpm verify
 - `--name`: Granite `appName`이자 생성 디렉터리 이름
 - `--display-name`: 사용자에게 보이는 앱 이름
 - `--with-server`: `server` 워크스페이스 포함. 호환성 기본값은 `supabase`입니다.
-- `--server-provider <supabase|cloudflare>`: `server` 제공자 명시
+- `--server-provider <supabase|cloudflare|firebase>`: `server` 제공자 명시
 - `--server-project-mode <create|existing>`: `server` 원격 리소스를 새로 만들지, 기존 것을 쓸지 지정
 - `--with-backoffice`: `backoffice` 워크스페이스 포함
 - `--root-dir <dir>`: `--add`에서 수정할 기존 모노레포 루트. 기본값은 현재 디렉터리
@@ -114,6 +114,7 @@ pnpm verify
 
 - `supabase`: 프로젝트 목록 조회, 신규 프로젝트 생성, `supabase link`, `db push`, key 조회, `.env.local` 작성
 - `cloudflare`: account/Worker 목록 조회, 신규 Worker 생성, deploy, URL 계산, `.env.local` 작성
+- `firebase`: 프로젝트 목록 조회, 신규 프로젝트 생성, Web App 목록 조회, Functions deploy, Web SDK config 조회, `.env.local` 작성
 
 즉 `server` provider는 단순 scaffold가 아니라 provider 연결과 초기 운영 설정까지 포함한 IaC 흐름입니다.
 
@@ -173,6 +174,39 @@ Cloudflare를 선택하면 account를 고른 뒤 기존 Worker 목록을 먼저 
 - `server/.env.local`에는 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_WORKER_NAME`, `CLOUDFLARE_API_BASE_URL` 자리를 함께 만들어 두고, `server/package.json`의 `deploy`는 `wrangler.jsonc` 기준으로 원격 Worker를 다시 배포합니다.
 - `server/README.md`에는 `wrangler.jsonc`, generated Worker 타입 파일, 주요 스크립트, `frontend`/`backoffice` API base URL 연결 방식을 정리해 둡니다.
 
+## Firebase를 같이 만들면
+
+`--server-provider firebase`를 쓰면 Firebase Functions 기반 `server/` 워크스페이스를 만들고, `frontend`와 optional `backoffice`에는 Firebase Web SDK 기본 연결 파일을 생성합니다.
+
+`frontend`:
+- `src/env.d.ts`
+- `src/lib/firebase.ts`
+- `src/lib/firestore.ts`
+- `src/lib/storage.ts`
+- `granite.config.ts` env plugin 및 monorepo `watchFolders` patch
+
+`backoffice`:
+- `src/vite-env.d.ts`
+- `src/lib/firebase.ts`
+- `src/lib/firestore.ts`
+- `src/lib/storage.ts`
+
+`server`:
+- `.firebaserc`
+- `firebase.json`
+- `functions/`
+- `.env.local`
+- `README.md`
+- `package.json`의 `deploy`, `build`, `typecheck`, `logs`
+
+Firebase를 선택하면 프로젝트 목록을 먼저 보여주고, 마지막 항목에서 새 프로젝트 생성도 바로 선택할 수 있습니다. 이후 해당 프로젝트의 Web App 목록도 보여주고, 기존 App을 고르거나 새 Web App을 생성할 수 있습니다.
+
+- Web SDK config를 조회할 수 있으면 `frontend/.env.local`과 optional `backoffice/.env.local`에 `FIREBASE_*` 값을 자동으로 씁니다.
+- `server/.env.local`에는 `FIREBASE_PROJECT_ID`, `FIREBASE_FUNCTION_REGION`, `GOOGLE_APPLICATION_CREDENTIALS` 자리를 만들어 둡니다.
+- `server/functions/src/index.ts`에는 기본 HTTP 함수 `api`를 생성하고, 선택한 region으로 맞춥니다.
+- `server/package.json`의 `deploy`는 `server/functions` 의존성을 설치한 뒤 `firebase-tools deploy --only functions`를 실행합니다.
+- `server/README.md`에는 Functions 구조, 주요 스크립트, `frontend`/`backoffice` Firebase 연결 방식을 정리해 둡니다.
+
 ## 기존 워크스페이스에 추가하기
 
 이미 생성된 루트에서 `server`나 `backoffice`만 나중에 붙이고 싶으면 `--add`를 사용합니다.
@@ -195,7 +229,7 @@ create-miniapp --add --root-dir /path/to/existing-miniapp --with-server --with-b
 ## 생성 기준
 
 - `frontend`: [AppInToss React Native tutorial](https://developers-apps-in-toss.toss.im/tutorials/react-native.html)
-- `server`: [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), [Cloudflare C3](https://developers.cloudflare.com/workers/get-started/guide/)
+- `server`: [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), [Cloudflare C3](https://developers.cloudflare.com/workers/get-started/guide/), [Firebase CLI](https://firebase.google.com/docs/cli)
 - `backoffice`: [Vite](https://vite.dev/guide/)
 
 이 저장소는 앱 소스 전체를 템플릿으로 들고 있지 않습니다. 공식 scaffold 결과에 루트 설정, docs 컨텍스트, provider IaC, 필요한 patch만 적용합니다.

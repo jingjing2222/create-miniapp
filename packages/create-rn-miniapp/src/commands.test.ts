@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import test from 'node:test'
-import { buildAddCommandPlan, buildCommandPlan } from './commands.js'
+import { buildAddCommandPlan, buildCommandPlan, runCommandWithOutput } from './commands.js'
 
 test('buildCommandPlan keeps AppInToss frontend steps first', () => {
   const targetRoot = path.join('/tmp', 'ebook')
@@ -142,6 +142,28 @@ test('buildCommandPlan emits Cloudflare C3 commands when cloudflare is selected'
   ])
 })
 
+test('buildCommandPlan keeps firebase server preparation out of external command phases', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const plan = buildCommandPlan({
+    appName: 'ebook',
+    targetRoot,
+    packageManager: 'pnpm',
+    serverProvider: 'firebase',
+    withBackoffice: false,
+  })
+
+  assert.deepEqual(
+    plan.map((step) => step.label),
+    [
+      'frontend Granite 생성',
+      'frontend 의존성 설치',
+      'frontend AppInToss Framework 설치',
+      'frontend ait 초기화',
+      'frontend TDS 설치',
+    ],
+  )
+})
+
 test('buildAddCommandPlan only includes requested missing workspaces', () => {
   const targetRoot = path.join('/tmp', 'ebook')
   const plan = buildAddCommandPlan({
@@ -191,4 +213,21 @@ test('buildAddCommandPlan emits cloudflare add step when requested', () => {
     '--no-git',
     '--accept-defaults',
   ])
+})
+
+test('runCommandWithOutput includes stdout and stderr in failure messages', async () => {
+  await assert.rejects(
+    runCommandWithOutput({
+      cwd: '/tmp',
+      command: 'node',
+      args: ['-e', "console.log('stdout marker'); console.error('stderr marker'); process.exit(1)"],
+      label: '실패 테스트',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error)
+      assert.match(error.message, /stdout marker/)
+      assert.match(error.message, /stderr marker/)
+      return true
+    },
+  )
 })

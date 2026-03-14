@@ -7,6 +7,11 @@ import {
   type ProvisionedCloudflareWorker,
 } from './cloudflare-provision.js'
 import {
+  finalizeFirebaseProvisioning,
+  provisionFirebaseProject,
+  type ProvisionedFirebaseProject,
+} from './firebase-provision.js'
+import {
   buildAddCommandPhases,
   buildCreateCommandPhases,
   runCommand,
@@ -107,6 +112,38 @@ export function buildCreateExecutionOrder(options: {
   ]
 }
 
+export function buildCreateLifecycleOrder(options: {
+  appName: string
+  targetRoot: string
+  packageManager: PackageManager
+  serverProvider: ServerProvider | null
+  withBackoffice: boolean
+}) {
+  const phases = buildCreateCommandPhases(options)
+  const labels = [
+    ...phases.frontend.map((command) => command.label),
+    ...phases.server.map((command) => command.label),
+  ]
+
+  if (options.serverProvider) {
+    labels.push('server 워크스페이스 준비')
+  }
+
+  labels.push('루트 템플릿 적용')
+
+  if (options.serverProvider) {
+    labels.push('server 워크스페이스 patch', 'server provisioning')
+  }
+
+  labels.push(...phases.backoffice.map((command) => command.label))
+
+  if (options.withBackoffice) {
+    labels.push('루트 workspace manifest 동기화')
+  }
+
+  return labels
+}
+
 async function resolveRootWorkspaces(targetRoot: string) {
   const workspaces: WorkspaceName[] = []
 
@@ -199,6 +236,92 @@ async function maybeFinalizeCloudflareProvisioning(options: {
   })
 }
 
+async function maybeProvisionFirebaseProject(options: {
+  targetRoot: string
+  packageManager: PackageManager
+  prompt: CliPrompter
+  serverProvider: ServerProvider | null
+  serverProjectMode: ServerProjectMode | null
+  appName: string
+  displayName: string
+  skipServerProvisioning: boolean
+}) {
+  if (
+    options.skipServerProvisioning ||
+    options.serverProvider !== 'firebase' ||
+    !(await pathExists(path.join(options.targetRoot, 'server')))
+  ) {
+    return null
+  }
+
+  return await provisionFirebaseProject({
+    targetRoot: options.targetRoot,
+    packageManager: options.packageManager,
+    prompt: options.prompt,
+    projectMode: options.serverProjectMode,
+    appName: options.appName,
+    displayName: options.displayName,
+  })
+}
+
+async function maybeFinalizeFirebaseProvisioning(options: {
+  targetRoot: string
+  provisionedProject: ProvisionedFirebaseProject | null
+  serverProvider: ServerProvider | null
+}) {
+  if (options.serverProvider !== 'firebase') {
+    return [] satisfies ProvisioningNote[]
+  }
+
+  return await finalizeFirebaseProvisioning({
+    targetRoot: options.targetRoot,
+    provisionedProject: options.provisionedProject,
+  })
+}
+
+async function maybePrepareServerWorkspace(options: {
+  targetRoot: string
+  tokens: TemplateTokens
+  packageManager: PackageManager
+  serverProvider: ServerProvider | null
+}) {
+  if (!options.serverProvider || !(await pathExists(path.join(options.targetRoot, 'server')))) {
+    return
+  }
+
+  const adapter = getServerProviderAdapter(options.serverProvider)
+
+  if (!adapter.prepareServerWorkspace) {
+    return
+  }
+
+  log.step(`server ${adapter.label} 워크스페이스 준비`)
+  await adapter.prepareServerWorkspace({
+    targetRoot: options.targetRoot,
+    tokens: options.tokens,
+    packageManager: options.packageManager,
+  })
+}
+
+async function maybePatchServerWorkspace(options: {
+  targetRoot: string
+  tokens: TemplateTokens
+  packageManager: PackageManager
+  serverProvider: ServerProvider | null
+}) {
+  if (!options.serverProvider || !(await pathExists(path.join(options.targetRoot, 'server')))) {
+    return
+  }
+
+  const adapter = getServerProviderAdapter(options.serverProvider)
+
+  await adapter.patchServerWorkspace({
+    targetRoot: options.targetRoot,
+    tokens: options.tokens,
+    packageManager: options.packageManager,
+  })
+}
+
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
   const targetRoot = path.resolve(options.outputDir, options.appName)
   const packageManager = getPackageManagerAdapter(options.packageManager)
@@ -236,6 +359,21 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await runCommand(command)
   }
 
+  await maybePrepareServerWorkspace({
+    targetRoot,
+    tokens,
+    packageManager: options.packageManager,
+    serverProvider: options.serverProvider,
+  })
+
+  await applyRootTemplates(targetRoot, tokens, await resolveRootWorkspaces(targetRoot))
+  await maybePatchServerWorkspace({
+    targetRoot,
+    tokens,
+    packageManager: options.packageManager,
+    serverProvider: options.serverProvider,
+  })
+
   const provisionedSupabaseProject = await maybeProvisionSupabaseProject({
     targetRoot,
     packageManager: options.packageManager,
@@ -253,13 +391,29 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     appName: options.appName,
     skipServerProvisioning: options.skipServerProvisioning,
   })
+  const provisionedFirebaseProject = await maybeProvisionFirebaseProject({
+    targetRoot,
+    packageManager: options.packageManager,
+    prompt: options.prompt,
+    serverProvider: options.serverProvider,
+    serverProjectMode: options.serverProjectMode,
+    appName: options.appName,
+    displayName: options.displayName,
+    skipServerProvisioning: options.skipServerProvisioning,
+  })
 
   for (const command of phases.backoffice) {
     log.step(command.label)
     await runCommand(command)
   }
 
-  await applyRootTemplates(targetRoot, tokens, await resolveRootWorkspaces(targetRoot))
+  if (options.withBackoffice) {
+    await syncRootWorkspaceManifest(
+      targetRoot,
+      options.packageManager,
+      await resolveRootWorkspaces(targetRoot),
+    )
+  }
   await applyDocsTemplates(targetRoot, tokens)
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
@@ -270,16 +424,6 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await patchBackofficeWorkspace(targetRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: options.serverProvider,
-    })
-  }
-
-  if (options.serverProvider && (await pathExists(path.join(targetRoot, 'server')))) {
-    const serverProvider = getServerProviderAdapter(options.serverProvider)
-
-    await serverProvider.patchServerWorkspace({
-      targetRoot,
-      tokens,
-      packageManager: options.packageManager,
     })
   }
 
@@ -294,6 +438,13 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     ...(await maybeFinalizeCloudflareProvisioning({
       targetRoot,
       provisionedWorker: provisionedCloudflareWorker,
+      serverProvider: options.serverProvider,
+    })),
+  )
+  notes.push(
+    ...(await maybeFinalizeFirebaseProvisioning({
+      targetRoot,
+      provisionedProject: provisionedFirebaseProject,
       serverProvider: options.serverProvider,
     })),
   )
@@ -340,6 +491,20 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     await runCommand(command)
   }
 
+  await maybePrepareServerWorkspace({
+    targetRoot,
+    tokens,
+    packageManager: options.packageManager,
+    serverProvider: options.serverProvider,
+  })
+
+  await maybePatchServerWorkspace({
+    targetRoot,
+    tokens,
+    packageManager: options.packageManager,
+    serverProvider: options.withServer ? options.serverProvider : null,
+  })
+
   const provisionedSupabaseProject = options.withServer
     ? await maybeProvisionSupabaseProject({
         targetRoot,
@@ -358,6 +523,18 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
         serverProvider: options.serverProvider,
         serverProjectMode: options.serverProjectMode,
         appName: options.appName,
+        skipServerProvisioning: options.skipServerProvisioning,
+      })
+    : null
+  const provisionedFirebaseProject = options.withServer
+    ? await maybeProvisionFirebaseProject({
+        targetRoot,
+        packageManager: options.packageManager,
+        prompt: options.prompt,
+        serverProvider: options.serverProvider,
+        serverProjectMode: options.serverProjectMode,
+        appName: options.appName,
+        displayName: options.displayName,
         skipServerProvisioning: options.skipServerProvisioning,
       })
     : null
@@ -382,11 +559,6 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
 
     const serverProvider = getServerProviderAdapter(options.serverProvider)
 
-    await serverProvider.patchServerWorkspace({
-      targetRoot,
-      tokens,
-      packageManager: options.packageManager,
-    })
     await serverProvider.bootstrapFrontend?.({
       targetRoot,
       tokens,
@@ -427,6 +599,13 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
       ...(await maybeFinalizeCloudflareProvisioning({
         targetRoot,
         provisionedWorker: provisionedCloudflareWorker,
+        serverProvider: options.serverProvider,
+      })),
+    )
+    notes.push(
+      ...(await maybeFinalizeFirebaseProvisioning({
+        targetRoot,
+        provisionedProject: provisionedFirebaseProject,
         serverProvider: options.serverProvider,
       })),
     )

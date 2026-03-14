@@ -4,7 +4,9 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
+  FIREBASE_DEFAULT_FUNCTION_REGION,
   applyRootTemplates,
+  applyFirebaseServerWorkspaceTemplate,
   applyServerPackageTemplate,
   applyWorkspaceProjectTemplate,
   pathExists,
@@ -127,10 +129,14 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(yarnrc, /packageExtensions:/)
   assert.match(yarnrc, /"@react-native-community\/cli-debugger-ui@\*":/)
   assert.match(yarnrc, /"@babel\/runtime": "\^7\.0\.0"/)
+  assert.doesNotMatch(yarnrc, /"@apphosting\/build@\*":/)
+  assert.doesNotMatch(yarnrc, /yaml: "\^2\.4\.1"/)
   assert.match(biomeJson, /\*\*\/\.yarn\/\*\*/)
   assert.match(biomeJson, /\*\*\/\.pnp\.\*/)
   assert.doesNotMatch(gitignore, /^server\/worker-configuration\.d\.ts$/m)
   assert.doesNotMatch(biomeJson, /\*\*\/server\/worker-configuration\.d\.ts/)
+  assert.doesNotMatch(gitignore, /^server\/functions\/lib\/$/m)
+  assert.doesNotMatch(biomeJson, /\*\*\/server\/functions\/lib\/\*\*/)
   assert.equal(frontendProject.targets?.build.command, 'yarn workspace frontend build')
   assert.equal(frontendProject.targets?.typecheck.command, 'yarn workspace frontend typecheck')
   assert.equal(serverPackageJson.scripts?.dev, 'yarn dlx supabase start --workdir .')
@@ -147,6 +153,125 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(serverDbApplyScript, /SUPABASE_DB_PASSWORD/)
   assert.match(serverDbApplyScript, /supabase', 'db', 'push'/)
   assert.match(serverDbApplyScript, /yarn/)
+})
+
+test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with package-manager aware scripts', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyFirebaseServerWorkspaceTemplate(targetRoot, tokens, {
+    projectId: 'ebook-firebase',
+    functionRegion: 'us-central1',
+  })
+
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const firebaserc = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', '.firebaserc'), 'utf8'),
+  ) as {
+    projects?: {
+      default?: string
+    }
+  }
+  const firebaseJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'firebase.json'), 'utf8'),
+  ) as {
+    functions?: Array<{
+      predeploy?: string[]
+    }>
+  }
+  const functionsTsconfig = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'functions', 'tsconfig.json'), 'utf8'),
+  ) as {
+    compilerOptions?: {
+      skipLibCheck?: boolean
+    }
+  }
+  const functionsPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'functions', 'package.json'), 'utf8'),
+  ) as {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+  }
+  const functionEntry = await readFile(
+    path.join(targetRoot, 'server', 'functions', 'src', 'index.ts'),
+    'utf8',
+  )
+
+  assert.equal(firebaserc.projects?.default, 'ebook-firebase')
+  assert.equal(
+    serverPackageJson.scripts?.build,
+    'pnpm --dir ./functions install --ignore-workspace && pnpm --dir ./functions build',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.typecheck,
+    'pnpm --dir ./functions install --ignore-workspace && pnpm --dir ./functions typecheck',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.deploy,
+    'pnpm --dir ./functions install --ignore-workspace && pnpm dlx firebase-tools deploy --only functions --config firebase.json',
+  )
+  assert.equal(
+    firebaseJson.functions?.[0]?.predeploy?.[0],
+    'pnpm --dir "$RESOURCE_DIR" install --ignore-workspace && pnpm --dir "$RESOURCE_DIR" build',
+  )
+  assert.equal(functionsTsconfig.compilerOptions?.skipLibCheck, true)
+  assert.equal(functionsPackageJson.dependencies?.['firebase-admin'], '^13.6.0')
+  assert.equal(functionsPackageJson.dependencies?.['firebase-functions'], '^7.0.0')
+  assert.equal(functionsPackageJson.dependencies?.['@google-cloud/functions-framework'], '^3.4.5')
+  assert.equal(functionsPackageJson.devDependencies?.typescript, '^5.7.3')
+  assert.match(functionEntry, /region: 'us-central1'/)
+  assert.doesNotMatch(functionEntry, new RegExp(FIREBASE_DEFAULT_FUNCTION_REGION))
+})
+
+test('applyFirebaseServerWorkspaceTemplate creates yarn-isolated functions project assets for yarn', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('yarn')
+
+  await applyFirebaseServerWorkspaceTemplate(targetRoot, tokens, {
+    projectId: 'ebook-firebase',
+  })
+
+  const functionsGitignore = await readFile(
+    path.join(targetRoot, 'server', 'functions', '.gitignore'),
+    'utf8',
+  )
+  const functionsYarnrc = await readFile(
+    path.join(targetRoot, 'server', 'functions', '.yarnrc.yml'),
+    'utf8',
+  )
+  const functionsYarnLock = await readFile(
+    path.join(targetRoot, 'server', 'functions', 'yarn.lock'),
+    'utf8',
+  )
+  const firebaseJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'firebase.json'), 'utf8'),
+  ) as {
+    functions?: Array<{
+      predeploy?: string[]
+    }>
+  }
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+
+  assert.equal(functionsYarnLock, '')
+  assert.match(functionsYarnrc, /nodeLinker: node-modules/)
+  assert.match(functionsGitignore, /^\.yarn\/?$/m)
+  assert.match(functionsGitignore, /^\.pnp\.\*$/m)
+  assert.equal(
+    serverPackageJson.scripts?.build,
+    'yarn --cwd ./functions install && yarn --cwd ./functions build',
+  )
+  assert.equal(
+    firebaseJson.functions?.[0]?.predeploy?.[0],
+    'yarn --cwd "$RESOURCE_DIR" install && yarn --cwd "$RESOURCE_DIR" build',
+  )
 })
 
 test('syncRootWorkspaceManifest adds newly added workspaces to existing root manifests', async (t) => {

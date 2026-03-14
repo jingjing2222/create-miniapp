@@ -214,6 +214,7 @@ export function formatCliHelp() {
     '  create-miniapp --name my-miniapp --display-name "내 미니앱"',
     '  create-miniapp --name my-miniapp --server-provider supabase --with-backoffice',
     '  create-miniapp --name my-miniapp --server-provider cloudflare',
+    '  create-miniapp --name my-miniapp --server-provider firebase',
     '  create-miniapp --name my-miniapp --with-server --server-project-mode existing',
     '  create-miniapp --name my-miniapp --server-provider cloudflare --server-project-mode existing',
     '  create-miniapp --add --with-server',
