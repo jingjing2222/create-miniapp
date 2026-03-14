@@ -1,5 +1,16 @@
 # create-rn-miniapp
 
+## 0.0.4
+
+### Patch Changes
+
+- b7cbe67: Add Supabase-aware frontend and backoffice bootstrap files during scaffold, migrate source patching to SWC AST transforms, and ensure Granite watches the monorepo root via `metro.watchFolders`.
+- 0d72f3d: Improve interactive CLI prompting so missing options can be filled in Korean with arrow-key navigation, space-to-select, and enter-to-confirm behavior.
+- b7cbe67: Normalize generated frontend and backoffice tsconfig files to plain JSON, set their `compilerOptions.module` to `esnext`, and keep the published template package version aligned with the CLI release.
+- Updated dependencies [0d72f3d]
+- Updated dependencies [b7cbe67]
+  - @create-rn-miniapp/scaffold-templates@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
