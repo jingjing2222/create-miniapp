@@ -1,21 +1,22 @@
-import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
+import path from 'node:path'
 import { log } from '@clack/prompts'
 import { buildCommandPlan, runCommand } from './commands.js'
 import { patchBackofficeWorkspace, patchFrontendWorkspace, patchServerWorkspace } from './patch.js'
+import type { ServerProvider } from './server-provider.js'
 import {
+  type TemplateTokens,
   applyDocsTemplates,
   applyRootTemplates,
   ensureEmptyDirectory,
   pathExists,
-  type TemplateTokens,
 } from './templates.js'
 
 export type ScaffoldOptions = {
   appName: string
   displayName: string
   outputDir: string
-  withServer: boolean
+  serverProvider: ServerProvider | null
   withBackoffice: boolean
   skipInstall: boolean
 }
@@ -29,14 +30,14 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
 
   await ensureEmptyDirectory(targetRoot)
 
-  if (options.withServer) {
+  if (options.serverProvider) {
     await mkdir(path.join(targetRoot, 'server'), { recursive: true })
   }
 
   const plan = buildCommandPlan({
     appName: options.appName,
     targetRoot,
-    withServer: options.withServer,
+    serverProvider: options.serverProvider,
     withBackoffice: options.withBackoffice,
   })
 
@@ -47,13 +48,17 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
 
   await applyRootTemplates(targetRoot, tokens)
   await applyDocsTemplates(targetRoot, tokens)
-  await patchFrontendWorkspace(targetRoot, tokens)
+  await patchFrontendWorkspace(targetRoot, tokens, {
+    serverProvider: options.serverProvider,
+  })
 
   if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
-    await patchBackofficeWorkspace(targetRoot, tokens)
+    await patchBackofficeWorkspace(targetRoot, tokens, {
+      serverProvider: options.serverProvider,
+    })
   }
 
-  if (options.withServer && (await pathExists(path.join(targetRoot, 'server')))) {
+  if (options.serverProvider && (await pathExists(path.join(targetRoot, 'server')))) {
     await patchServerWorkspace(targetRoot, tokens)
   }
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { createRequire } from 'node:module'
-import { hideBin } from 'yargs/helpers'
 import { cancel, intro, note, outro } from '@clack/prompts'
-import { createExecaPrompter, formatCliHelp, parseCliArgs, resolveCliOptions } from './cli.js'
+import { hideBin } from 'yargs/helpers'
+import { createClackPrompter, formatCliHelp, parseCliArgs, resolveCliOptions } from './cli.js'
 import { generatedWorkspaceLayout } from './layout.js'
 import { scaffoldWorkspace } from './scaffold.js'
 
@@ -26,7 +26,7 @@ export async function main() {
 
     intro('create-miniapp 시작')
 
-    const resolved = await resolveCliOptions(argv, createExecaPrompter())
+    const resolved = await resolveCliOptions(argv, createClackPrompter())
 
     note(
       [
@@ -35,6 +35,7 @@ export async function main() {
         `생성 위치: ${resolved.outputDir}/${resolved.appName}`,
         `생성 구조: ${generatedWorkspaceLayout.join(', ')}`,
         `server 포함: ${String(resolved.withServer)}`,
+        `server 제공자: ${resolved.serverProvider ?? '없음'}`,
         `backoffice 포함: ${String(resolved.withBackoffice)}`,
       ].join('\n'),
       '생성 설정',

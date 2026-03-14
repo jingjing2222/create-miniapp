@@ -122,9 +122,9 @@ docs/
    - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 patch changeset을 추가한다.
 
 ## 현재 CLI UX 개선 작업
-1. `yargs` 기반 CLI 옵션 파싱은 유지하고, 옵션으로 주어지지 않은 값만 `execa` 기반 인터랙티브 입력으로 보완한다.
-2. 누락된 값은 쉘 인터랙션으로 텍스트 입력 또는 선택 입력을 받는다.
-   - 선택 입력은 숫자 입력 대신 방향키로 이동하고, 스페이스바로 선택한 뒤 엔터로 진행한다.
+1. `yargs` 기반 CLI 옵션 파싱은 유지하고, 옵션으로 주어지지 않은 값만 `@clack/prompts` 기반 인터랙티브 입력으로 보완한다.
+2. 누락된 값은 clack 프롬프트로 텍스트 입력 또는 선택 입력을 받는다.
+   - 선택 입력은 Granite와 같은 clack 계열 UI로 렌더링한다.
 3. CLI가 직접 출력하는 도움말, 오류, 진행 메시지는 한국어로 통일한다.
 4. 테스트 범위
    - 옵션 파싱 단위 테스트
@@ -132,6 +132,61 @@ docs/
    - 기존 명령 계획/릴리스 테스트와 함께 `pnpm verify` 통과
 5. 릴리스 후속 작업
    - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 patch changeset을 추가해 CLI UX 변경을 함께 배포한다.
+
+## 현재 프롬프트 렌더러 정리 작업
+1. 누락 옵션 입력에 쓰던 커스텀 `execa` 프롬프트 렌더러를 제거하고 `@clack/prompts` 기반으로 통일했다.
+2. 텍스트 입력은 `@clack/prompts`의 `text`를 사용하고, 선택 입력은 Granite와 같은 clack 계열 UI로 맞춘다.
+3. 기존 `yargs` 우선, 누락 값만 인터랙티브 fallback이라는 흐름은 유지한다.
+4. 테스트 범위
+   - 누락된 값이 clack 프롬프트에 위임되는지 검증
+   - 도움말/옵션 해석 회귀가 없는지 검증
+   - 커스텀 ANSI 프로그램 생성 함수 제거에 맞춰 단위 테스트를 정리
+5. 완료 기준
+   - 프롬프트 UI가 Granite 계열과 같은 clack 렌더링으로 동작한다.
+   - 더 이상 `execa`에 의존한 프롬프트 렌더링 코드가 남아 있지 않다.
+6. 추가 UX 보정
+   - `displayName` 입력에는 기본 예시를 넣지 않고, 프롬프트 위에 `보여지는 이름이니 한글로 해주세요.` 안내를 노출한다.
+   - `server` 제공자와 `backoffice` 포함 여부는 멀티 선택이 아니라 단일 선택 프롬프트를 사용한다.
+
+## 현재 Supabase provider bootstrap 작업
+1. `server` 생성 여부를 단순 boolean이 아니라 provider 개념으로 확장한다.
+   - 현재 provider는 `supabase` 하나만 지원한다.
+   - 기존 `--with-server` 옵션은 유지하고, provider가 명시되지 않으면 `supabase`로 연결한다.
+2. 인터랙티브 입력에서는 향후 provider 확장을 염두에 두고 `server` 미생성 또는 `supabase` 선택으로 해석 가능한 구조를 만든다.
+3. `supabase` provider가 선택되면 `frontend`와 optional `backoffice`에 Supabase bootstrap을 같이 생성한다.
+   - `.env.local.example` 파일 생성
+   - Supabase client 파일 생성
+   - env 타입 선언 파일 생성
+4. `frontend`는 `dotenv`, `@granite-js/plugin-env`, `@supabase/supabase-js`를 설치하고 Granite dev/build/runtime에서 env가 주입되도록 patch한다.
+   - 기준 구현은 `bookMiniApp`의 `apps/miniapp/granite.config.ts` 흐름을 따른다.
+5. `backoffice`는 Vite env 규칙에 맞춰 `@supabase/supabase-js`, env 타입 선언, client bootstrap만 추가한다.
+6. 테스트 범위
+   - CLI가 provider를 해석하고 기존 `--with-server` 호환을 유지하는지 검증
+   - command plan이 `supabase init`를 provider 선택 시에만 넣는지 검증
+   - patch가 frontend/backoffice에 Supabase env/client bootstrap 파일과 의존성을 넣는지 검증
+7. 완료 기준
+   - `pnpm verify` 통과
+   - 실제 scaffold 결과물에서 `frontend`와 `backoffice`가 Supabase env/client bootstrap을 바로 사용할 수 있는 상태
+8. 후속 안정화
+   - `granite.config.ts`, `backoffice/src/main.tsx`, `backoffice/src/App.tsx`의 문자열 `replace` patch를 SWC AST 기반 수정으로 교체한다.
+   - 포맷과 quote style이 달라도 patch가 유지되도록 테스트를 보강한다.
+9. granite runtime 보강
+   - `frontend/granite.config.ts`의 `defineConfig`에 `metro.watchFolders = [repoRoot]`를 SWC AST로 추가한다.
+   - `const repoRoot = path.resolve(__dirname, '../..')`도 함께 주입해 monorepo 루트 watch가 유지되게 한다.
+
+## 현재 tsconfig module 안정화 작업
+1. Supabase bootstrap 여부와 관계없이 `frontend`와 `backoffice` 워크스페이스의 tsconfig에서 `compilerOptions.module`을 `esnext`로 맞춘다.
+2. `import.meta`를 사용하는 생성 파일이 TypeScript `TS1343` 오류 없이 타입체크되도록 만든다.
+3. 문자열 치환이 아니라 JSON AST 기반 patch로 적용한다.
+4. 입력은 JSONC로 읽되, 출력은 Biome이 읽을 수 있는 순수 JSON으로 정규화한다.
+5. 테스트 범위
+   - `frontend/tsconfig.json`의 `module`이 `esnext`로 바뀌는지 검증
+   - `backoffice/tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`의 `module`이 `esnext`로 바뀌는지 검증
+6. 완료 기준
+   - `pnpm verify` 통과
+   - scaffold 결과물의 frontend/backoffice tsconfig가 `module: "esnext"`를 갖는다.
+7. 릴리스 후속 작업
+   - `create-rn-miniapp`와 `@create-rn-miniapp/scaffold-templates`를 같은 patch changeset에 넣어 함께 버전 업한다.
 
 ## 남은 작업
 1. npm publish 준비
