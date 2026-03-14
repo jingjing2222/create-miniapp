@@ -18,6 +18,29 @@
    - `pnpm verify` 통과
    - 변경사항을 PR `#22`에 올릴 수 있는 상태
 
+## 현재 Cloudflare URL bootstrap 작업
+1. Cloudflare provider도 원격 Worker 연결 흐름을 가진다.
+   - `create`: 새 Worker를 배포하고 URL을 얻는다.
+   - `existing`: 기존 Worker를 선택하고 URL을 얻는다.
+2. Cloudflare는 `public key` 대신 배포된 `workers.dev` 기반 API URL을 `frontend/.env.local`과 optional `backoffice/.env.local`에 자동 작성한다.
+3. 원격 URL 자동 작성이 의미 있으려면 local bootstrap도 같이 들어가야 한다.
+   - `frontend`: `MINIAPP_API_BASE_URL` 타입 선언, Granite env plugin 주입, `src/lib/api.ts` 생성
+   - `backoffice`: `VITE_API_BASE_URL` 타입 선언, `src/lib/api.ts` 생성
+4. Cloudflare 원격 흐름은 `desktop/code/hot-updater/plugins/cloudflare/iac`의 Wrangler auth/account/subdomain 흐름을 참고한다.
+   - Wrangler 로그인 상태 확인 및 필요 시 `wrangler login`
+   - account 목록 조회 및 선택
+   - existing일 때 Worker 목록 조회 및 선택
+   - create일 때 Worker 이름 입력 후 deploy
+   - account subdomain 조회 또는 필요 시 생성
+   - script workers.dev subdomain 활성화
+5. 테스트 범위
+   - Cloudflare 선택 시 create/existing 연결 모드를 해석하는지 검증
+   - Cloudflare bootstrap이 frontend/backoffice에 API env/client 파일을 생성하는지 검증
+   - Cloudflare provisioning finalizer가 URL이 있을 때 `.env.local`을 쓰는지 검증
+6. 완료 기준
+   - `pnpm verify` 통과
+   - Cloudflare provider도 생성 직후 frontend/backoffice에서 API base URL을 바로 쓸 수 있는 상태
+
 ## 현재 provider 인증 기반 스캐폴드 연동 작업
 1. `--provision` 같은 별도 단계는 두지 않고, `server` provider를 생성/추가하는 `create`와 `--add` 흐름 안에서 인증과 원격 프로젝트 선택/생성을 함께 처리한다.
 2. provider UX는 공통으로 맞춘다.

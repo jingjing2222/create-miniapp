@@ -128,7 +128,7 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     })
     .option('server-project-mode', {
       choices: SERVER_PROJECT_MODES,
-      describe: '`server` 제공자의 원격 프로젝트 연결 방식 지정',
+      describe: '`server` 제공자의 원격 리소스 연결 방식 지정',
     })
     .option('with-backoffice', {
       type: 'boolean',
@@ -198,7 +198,7 @@ export function formatCliHelp() {
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
     '  --with-server                  `server` 워크스페이스 포함 (`--server-provider supabase`의 축약형)',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
-    '  --server-project-mode <create|existing> Supabase 원격 프로젝트 연결 방식 지정',
+    '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
     '  --with-backoffice              `backoffice` 워크스페이스 포함',
     '  --root-dir <디렉터리>          `--add`에서 수정할 기존 모노레포 루트 디렉터리',
     '  --output-dir <디렉터리>        생성할 모노레포의 상위 디렉터리',
@@ -213,6 +213,7 @@ export function formatCliHelp() {
     '  create-miniapp --name my-miniapp --server-provider supabase --with-backoffice',
     '  create-miniapp --name my-miniapp --server-provider cloudflare',
     '  create-miniapp --name my-miniapp --with-server --server-project-mode existing',
+    '  create-miniapp --name my-miniapp --server-provider cloudflare --server-project-mode existing',
     '  create-miniapp --add --with-server',
     '  create-miniapp --add --root-dir /path/to/existing-miniapp --with-backoffice',
     '',
@@ -224,8 +225,10 @@ function validateServerProjectMode(
   serverProvider: ServerProvider | null,
   serverProjectMode: ServerProjectMode | undefined,
 ) {
-  if (serverProvider !== 'supabase' && serverProjectMode) {
-    throw new Error('`--server-project-mode`는 `supabase` provider에서만 사용할 수 있습니다.')
+  if (!serverProvider && serverProjectMode) {
+    throw new Error(
+      '`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다.',
+    )
   }
 }
 
@@ -237,7 +240,9 @@ function resolveServerProjectModeInput(
   validateServerProjectMode(serverProvider, argv.serverProjectMode)
 
   if (serverProvider !== 'supabase') {
-    return Promise.resolve<ServerProjectMode | null>(null)
+    if (serverProvider !== 'cloudflare') {
+      return Promise.resolve<ServerProjectMode | null>(null)
+    }
   }
 
   if (argv.serverProjectMode) {
@@ -248,11 +253,16 @@ function resolveServerProjectModeInput(
     return Promise.resolve<ServerProjectMode | null>(null)
   }
 
+  const message =
+    serverProvider === 'cloudflare'
+      ? 'Cloudflare Worker를 새로 만들까요, 기존 Worker를 사용할까요?'
+      : 'Supabase 프로젝트를 새로 만들까요, 기존 프로젝트를 사용할까요?'
+
   return prompt.select<ServerProjectMode>({
-    message: 'Supabase 프로젝트를 새로 만들까요, 기존 프로젝트를 사용할까요?',
+    message,
     options: [
-      { label: '새 프로젝트 생성', value: 'create' },
-      { label: '기존 프로젝트 사용', value: 'existing' },
+      { label: '새로 만들기', value: 'create' },
+      { label: '기존 것 사용', value: 'existing' },
     ],
     initialValue: 'create',
   })

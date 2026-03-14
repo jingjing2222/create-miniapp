@@ -139,14 +139,12 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   ])
 })
 
-test('resolveCliOptions does not ask for a supabase project mode when cloudflare is selected', async () => {
+test('resolveCliOptions asks for a cloudflare worker mode when cloudflare is selected', async () => {
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'yes' | 'no'> = [
-    'pnpm',
-    'cloudflare',
-    'yes',
-  ]
+  const promptSelections: Array<
+    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | ServerProjectMode | 'yes' | 'no'
+  > = ['pnpm', 'cloudflare', 'existing', 'yes']
 
   const resolved = await resolveCliOptions(
     {
@@ -182,10 +180,11 @@ test('resolveCliOptions does not ask for a supabase project mode when cloudflare
   )
 
   assert.equal(resolved.serverProvider, 'cloudflare')
-  assert.equal(resolved.serverProjectMode, null)
+  assert.equal(resolved.serverProjectMode, 'existing')
   assert.deepEqual(selectMessages, [
     '패키지 매니저를 선택하세요.',
     '`server` 제공자를 선택하세요.',
+    'Cloudflare Worker를 새로 만들까요, 기존 Worker를 사용할까요?',
     '`backoffice` 워크스페이스를 같이 만들까요?',
   ])
 })

@@ -1,7 +1,9 @@
 import path from 'node:path'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import {
+  ensureBackofficeCloudflareBootstrap,
   ensureBackofficeSupabaseBootstrap,
+  ensureFrontendCloudflareBootstrap,
   ensureFrontendSupabaseBootstrap,
   patchCloudflareServerWorkspace,
   patchSupabaseServerWorkspace,
@@ -106,6 +108,12 @@ const cloudflareAdapter: ServerProviderAdapter = {
     await patchCloudflareServerWorkspace(options.targetRoot, options.tokens, {
       packageManager: options.packageManager,
     })
+  },
+  async bootstrapFrontend(options) {
+    await ensureFrontendCloudflareBootstrap(options.targetRoot, options.tokens)
+  },
+  async bootstrapBackoffice(options) {
+    await ensureBackofficeCloudflareBootstrap(options.targetRoot, options.tokens)
   },
 }
 

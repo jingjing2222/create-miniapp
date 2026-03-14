@@ -2,6 +2,11 @@ import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
 import {
+  finalizeCloudflareProvisioning,
+  provisionCloudflareWorker,
+  type ProvisionedCloudflareWorker,
+} from './cloudflare-provision.js'
+import {
   buildAddCommandPhases,
   buildCreateCommandPhases,
   runCommand,
@@ -149,6 +154,45 @@ async function maybeFinalizeSupabaseProvisioning(options: {
   })
 }
 
+async function maybeProvisionCloudflareWorker(options: {
+  targetRoot: string
+  packageManager: PackageManager
+  prompt: CliPrompter
+  serverProvider: ServerProvider | null
+  serverProjectMode: ServerProjectMode | null
+  appName: string
+}) {
+  if (
+    options.serverProvider !== 'cloudflare' ||
+    !(await pathExists(path.join(options.targetRoot, 'server')))
+  ) {
+    return null
+  }
+
+  return await provisionCloudflareWorker({
+    targetRoot: options.targetRoot,
+    packageManager: options.packageManager,
+    prompt: options.prompt,
+    projectMode: options.serverProjectMode,
+    appName: options.appName,
+  })
+}
+
+async function maybeFinalizeCloudflareProvisioning(options: {
+  targetRoot: string
+  provisionedWorker: ProvisionedCloudflareWorker | null
+  serverProvider: ServerProvider | null
+}) {
+  if (options.serverProvider !== 'cloudflare') {
+    return [] satisfies ProvisioningNote[]
+  }
+
+  return await finalizeCloudflareProvisioning({
+    targetRoot: options.targetRoot,
+    provisionedWorker: options.provisionedWorker,
+  })
+}
+
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
   const targetRoot = path.resolve(options.outputDir, options.appName)
   const packageManager = getPackageManagerAdapter(options.packageManager)
@@ -193,6 +237,14 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     serverProvider: options.serverProvider,
     serverProjectMode: options.serverProjectMode,
   })
+  const provisionedCloudflareWorker = await maybeProvisionCloudflareWorker({
+    targetRoot,
+    packageManager: options.packageManager,
+    prompt: options.prompt,
+    serverProvider: options.serverProvider,
+    serverProjectMode: options.serverProjectMode,
+    appName: options.appName,
+  })
 
   for (const command of phases.backoffice) {
     log.step(command.label)
@@ -227,6 +279,13 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     ...(await maybeFinalizeSupabaseProvisioning({
       targetRoot,
       provisionedProject: provisionedSupabaseProject,
+      serverProvider: options.serverProvider,
+    })),
+  )
+  notes.push(
+    ...(await maybeFinalizeCloudflareProvisioning({
+      targetRoot,
+      provisionedWorker: provisionedCloudflareWorker,
       serverProvider: options.serverProvider,
     })),
   )
@@ -280,6 +339,16 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
         prompt: options.prompt,
         serverProvider: options.serverProvider,
         serverProjectMode: options.serverProjectMode,
+      })
+    : null
+  const provisionedCloudflareWorker = options.withServer
+    ? await maybeProvisionCloudflareWorker({
+        targetRoot,
+        packageManager: options.packageManager,
+        prompt: options.prompt,
+        serverProvider: options.serverProvider,
+        serverProjectMode: options.serverProjectMode,
+        appName: options.appName,
       })
     : null
 
@@ -341,6 +410,13 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
       ...(await maybeFinalizeSupabaseProvisioning({
         targetRoot,
         provisionedProject: provisionedSupabaseProject,
+        serverProvider: options.serverProvider,
+      })),
+    )
+    notes.push(
+      ...(await maybeFinalizeCloudflareProvisioning({
+        targetRoot,
+        provisionedWorker: provisionedCloudflareWorker,
         serverProvider: options.serverProvider,
       })),
     )

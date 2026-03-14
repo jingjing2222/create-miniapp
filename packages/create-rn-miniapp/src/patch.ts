@@ -73,12 +73,36 @@ const FRONTEND_ENV_TYPES = [
   '',
 ].join('\n')
 
+const FRONTEND_CLOUDFLARE_ENV_TYPES = [
+  'interface ImportMetaEnv {',
+  '  readonly MINIAPP_API_BASE_URL: string',
+  '}',
+  '',
+  'interface ImportMeta {',
+  '  readonly env: ImportMetaEnv',
+  '}',
+  '',
+].join('\n')
+
 const BACKOFFICE_ENV_TYPES = [
   '/// <reference types="vite/client" />',
   '',
   'interface ImportMetaEnv {',
   '  readonly VITE_SUPABASE_URL: string',
   '  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string',
+  '}',
+  '',
+  'interface ImportMeta {',
+  '  readonly env: ImportMetaEnv',
+  '}',
+  '',
+].join('\n')
+
+const BACKOFFICE_CLOUDFLARE_ENV_TYPES = [
+  '/// <reference types="vite/client" />',
+  '',
+  'interface ImportMetaEnv {',
+  '  readonly VITE_API_BASE_URL: string',
   '}',
   '',
   'interface ImportMeta {',
@@ -134,6 +158,41 @@ const FRONTEND_SUPABASE_CLIENT = [
   '',
 ].join('\n')
 
+const FRONTEND_CLOUDFLARE_API_CLIENT = [
+  'function isSafeHttpUrl(value: string) {',
+  '  try {',
+  '    const parsed = new URL(value)',
+  "    return parsed.protocol === 'http:' || parsed.protocol === 'https:'",
+  '  } catch {',
+  '    return false',
+  '  }',
+  '}',
+  '',
+  'function resolveApiBaseUrl() {',
+  "  const configured = import.meta.env.MINIAPP_API_BASE_URL?.trim() ?? ''",
+  '',
+  '  if (!isSafeHttpUrl(configured)) {',
+  '    throw new Error(',
+  "      `[frontend] MINIAPP_API_BASE_URL must be a valid http(s) URL. Received: ${configured || '<empty>'}`",
+  '    )',
+  '  }',
+  '',
+  "  return configured.replace(/\\/$/, '')",
+  '}',
+  '',
+  'export const apiBaseUrl = resolveApiBaseUrl()',
+  '',
+  'export function resolveApiUrl(pathname: string) {',
+  "  const normalizedPath = pathname.replace(/^\\//, '')",
+  '  return new URL(normalizedPath, `${apiBaseUrl}/`).toString()',
+  '}',
+  '',
+  'export async function apiFetch(pathname: string, init?: RequestInit) {',
+  '  return fetch(resolveApiUrl(pathname), init)',
+  '}',
+  '',
+].join('\n')
+
 const BACKOFFICE_SUPABASE_CLIENT = [
   "import { createClient, type SupabaseClient } from '@supabase/supabase-js'",
   '',
@@ -184,6 +243,41 @@ const BACKOFFICE_SUPABASE_CLIENT = [
   '    },',
   '  },',
   ')',
+  '',
+].join('\n')
+
+const BACKOFFICE_CLOUDFLARE_API_CLIENT = [
+  'function isSafeHttpUrl(value: string) {',
+  '  try {',
+  '    const parsed = new URL(value)',
+  "    return parsed.protocol === 'http:' || parsed.protocol === 'https:'",
+  '  } catch {',
+  '    return false',
+  '  }',
+  '}',
+  '',
+  'function resolveApiBaseUrl() {',
+  "  const configured = import.meta.env.VITE_API_BASE_URL?.trim() ?? ''",
+  '',
+  '  if (!isSafeHttpUrl(configured)) {',
+  '    throw new Error(',
+  "      `[backoffice] VITE_API_BASE_URL must be a valid http(s) URL. Received: ${configured || '<empty>'}`",
+  '    )',
+  '  }',
+  '',
+  "  return configured.replace(/\\/$/, '')",
+  '}',
+  '',
+  'export const apiBaseUrl = resolveApiBaseUrl()',
+  '',
+  'export function resolveApiUrl(pathname: string) {',
+  "  const normalizedPath = pathname.replace(/^\\//, '')",
+  '  return new URL(normalizedPath, `${apiBaseUrl}/`).toString()',
+  '}',
+  '',
+  'export async function apiFetch(pathname: string, init?: RequestInit) {',
+  '  return fetch(resolveApiUrl(pathname), init)',
+  '}',
   '',
 ].join('\n')
 
@@ -322,11 +416,30 @@ async function writeFrontendSupabaseBootstrap(frontendRoot: string) {
   )
 }
 
+async function writeFrontendCloudflareBootstrap(frontendRoot: string) {
+  await writeTextFile(path.join(frontendRoot, 'src', 'env.d.ts'), FRONTEND_CLOUDFLARE_ENV_TYPES)
+  await writeTextFile(
+    path.join(frontendRoot, 'src', 'lib', 'api.ts'),
+    FRONTEND_CLOUDFLARE_API_CLIENT,
+  )
+}
+
 async function writeBackofficeSupabaseBootstrap(backofficeRoot: string) {
   await writeTextFile(path.join(backofficeRoot, 'src', 'vite-env.d.ts'), BACKOFFICE_ENV_TYPES)
   await writeTextFile(
     path.join(backofficeRoot, 'src', 'lib', 'supabase.ts'),
     BACKOFFICE_SUPABASE_CLIENT,
+  )
+}
+
+async function writeBackofficeCloudflareBootstrap(backofficeRoot: string) {
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'vite-env.d.ts'),
+    BACKOFFICE_CLOUDFLARE_ENV_TYPES,
+  )
+  await writeTextFile(
+    path.join(backofficeRoot, 'src', 'lib', 'api.ts'),
+    BACKOFFICE_CLOUDFLARE_API_CLIENT,
   )
 }
 
@@ -356,7 +469,9 @@ async function patchWranglerConfigSchema(serverRoot: string, packageJson: Packag
   }
 
   const source = await readFile(wranglerConfigPath, 'utf8')
-  const next = patchWranglerConfigSource(source, resolveWranglerSchemaUrl(packageJson))
+  const next = patchWranglerConfigSource(source, {
+    schemaUrl: resolveWranglerSchemaUrl(packageJson),
+  })
 
   await writeFile(wranglerConfigPath, next, 'utf8')
 }
@@ -386,14 +501,19 @@ async function ensureFrontendPackageJsonForWorkspace(
     if (!packageJson.dependencies?.['@supabase/supabase-js']) {
       dependencies['@supabase/supabase-js'] = SUPABASE_JS_VERSION
     }
+  }
 
+  if (serverProvider === 'supabase' || serverProvider === 'cloudflare') {
     if (!packageJson.devDependencies?.['@granite-js/plugin-env']) {
       devDependencies['@granite-js/plugin-env'] = resolveGranitePluginVersion(packageJson)
     }
+  }
 
-    if (!packageJson.devDependencies?.dotenv) {
-      devDependencies.dotenv = DOTENV_VERSION
-    }
+  if (
+    (serverProvider === 'supabase' || serverProvider === 'cloudflare') &&
+    !packageJson.devDependencies?.dotenv
+  ) {
+    devDependencies.dotenv = DOTENV_VERSION
   }
 
   await patchPackageJsonFile(path.join(frontendRoot, 'package.json'), {
@@ -481,6 +601,45 @@ export async function ensureBackofficeSupabaseBootstrap(
   await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
 }
 
+export async function ensureFrontendCloudflareBootstrap(
+  targetRoot: string,
+  tokens: TemplateTokens,
+) {
+  const frontendRoot = path.join(targetRoot, 'frontend')
+  const packageJsonPath = path.join(frontendRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'cloudflare')
+  await patchGraniteConfig(frontendRoot, tokens, 'cloudflare')
+  await patchWorkspaceTsconfigModules(frontendRoot, [
+    {
+      fileName: 'tsconfig.json',
+      includeNodeTypes: true,
+    },
+  ])
+  await writeFrontendCloudflareBootstrap(frontendRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
+}
+
+export async function ensureBackofficeCloudflareBootstrap(
+  targetRoot: string,
+  tokens: TemplateTokens,
+) {
+  const backofficeRoot = path.join(targetRoot, 'backoffice')
+  const packageJsonPath = path.join(backofficeRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'cloudflare')
+  await patchWorkspaceTsconfigModules(backofficeRoot, [
+    { fileName: 'tsconfig.json' },
+    { fileName: 'tsconfig.app.json' },
+    { fileName: 'tsconfig.node.json' },
+  ])
+  await patchBackofficeEntryFiles(backofficeRoot)
+  await writeBackofficeCloudflareBootstrap(backofficeRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
+}
+
 export async function patchFrontendWorkspace(
   targetRoot: string,
   tokens: TemplateTokens,
@@ -517,6 +676,10 @@ export async function patchFrontendWorkspace(
 
   if (options.serverProvider === 'supabase') {
     await writeFrontendSupabaseBootstrap(frontendRoot)
+  }
+
+  if (options.serverProvider === 'cloudflare') {
+    await writeFrontendCloudflareBootstrap(frontendRoot)
   }
 
   await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
@@ -557,6 +720,10 @@ export async function patchBackofficeWorkspace(
 
   if (options.serverProvider === 'supabase') {
     await writeBackofficeSupabaseBootstrap(backofficeRoot)
+  }
+
+  if (options.serverProvider === 'cloudflare') {
+    await writeBackofficeCloudflareBootstrap(backofficeRoot)
   }
 
   await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
