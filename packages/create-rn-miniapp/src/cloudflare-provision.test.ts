@@ -5,6 +5,7 @@ import path from 'node:path'
 import test from 'node:test'
 import {
   buildCloudflareWorkersDevUrl,
+  buildCloudflareProvisionExecutionOrder,
   finalizeCloudflareProvisioning,
   formatCloudflareDeployFailureMessage,
   formatCloudflareManualSetupNote,
@@ -34,6 +35,18 @@ test('getWranglerConfigCandidates includes the macOS preferences path', () => {
   ])
 })
 
+test('buildCloudflareProvisionExecutionOrder ensures workers.dev onboarding before deploy', () => {
+  assert.deepEqual(buildCloudflareProvisionExecutionOrder('create'), [
+    'ensure-account-subdomain',
+    'deploy-worker',
+    'enable-worker-subdomain',
+  ])
+  assert.deepEqual(buildCloudflareProvisionExecutionOrder('existing'), [
+    'ensure-account-subdomain',
+    'enable-worker-subdomain',
+  ])
+})
+
 test('formatCloudflareDeployFailureMessage rewrites email verification failures', () => {
   const message = formatCloudflareDeployFailureMessage(
     [
@@ -44,6 +57,21 @@ test('formatCloudflareDeployFailureMessage rewrites email verification failures'
 
   assert.match(message, /Cloudflare 계정 이메일 인증이 필요/)
   assert.match(message, /verify-email-address/)
+  assert.doesNotMatch(message, /^Cloudflare Worker deploy 단계가 실패했습니다/m)
+})
+
+test('formatCloudflareDeployFailureMessage rewrites workers.dev onboarding failures', () => {
+  const message = formatCloudflareDeployFailureMessage(
+    [
+      'Cloudflare Worker deploy 단계가 실패했습니다. (pnpm dlx wrangler deploy --name test)',
+      '▲ [WARNING] You need to register a workers.dev subdomain before publishing to workers.dev',
+      '✘ [ERROR] You can either deploy your worker to one or more routes by specifying them in your wrangler.jsonc file, or register a workers.dev subdomain here:',
+      'https://dash.cloudflare.com/8a7d055ca2315a89a707e037910a4428/workers/onboarding',
+    ].join('\n'),
+  )
+
+  assert.match(message, /workers\.dev 서브도메인 등록이 필요/)
+  assert.match(message, /workers\/onboarding/)
   assert.doesNotMatch(message, /^Cloudflare Worker deploy 단계가 실패했습니다/m)
 })
 

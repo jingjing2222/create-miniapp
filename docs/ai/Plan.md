@@ -539,3 +539,12 @@ docs/
    - code 10034 또는 verify-email-address 문구가 있으면 사용자 친화 메시지로 바뀌는지 검증
 4. 완료 기준
    - `pnpm verify` 통과
+
+## 현재 Cloudflare workers.dev onboarding 순서 수정
+1. Cloudflare Worker create 흐름에서 workers.dev subdomain 확보를 deploy 이전으로 옮긴다.
+2. onboarding 미완료 에러는 별도 사용자 안내로 바꾼다.
+3. 테스트 범위
+   - workers.dev onboarding 경고 문구가 사용자 친화 메시지로 바뀌는지 검증
+   - create 흐름이 deploy 전에 account subdomain을 확보하도록 순서를 고정하는지 검증
+4. 완료 기준
+   - `pnpm verify` 통과

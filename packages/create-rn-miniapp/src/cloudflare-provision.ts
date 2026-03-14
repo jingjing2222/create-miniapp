@@ -391,11 +391,35 @@ export function formatCloudflareDeployFailureMessage(message: string) {
     ].join('\n')
   }
 
+  if (
+    message.includes('register a workers.dev subdomain') ||
+    message.includes('/workers/onboarding')
+  ) {
+    const onboardingUrlMatch = message.match(
+      /https:\/\/dash\.cloudflare\.com\/\S*\/workers\/onboarding/,
+    )
+    const onboardingUrl =
+      onboardingUrlMatch?.[0] ?? 'https://dash.cloudflare.com/?to=/:account/workers/onboarding'
+
+    return [
+      'Cloudflare account의 workers.dev 서브도메인 등록이 필요해서 Worker 배포를 계속할 수 없습니다.',
+      '',
+      '아래 URL에서 workers.dev onboarding을 마친 뒤 다시 실행하세요.',
+      onboardingUrl,
+    ].join('\n')
+  }
+
   return message
 }
 
 export function buildCloudflareWorkersDevUrl(workerName: string, accountSubdomain: string) {
   return `https://${workerName}.${accountSubdomain}.workers.dev`
+}
+
+export function buildCloudflareProvisionExecutionOrder(projectMode: ServerProjectMode) {
+  return projectMode === 'create'
+    ? (['ensure-account-subdomain', 'deploy-worker', 'enable-worker-subdomain'] as const)
+    : (['ensure-account-subdomain', 'enable-worker-subdomain'] as const)
 }
 
 export function formatCloudflareManualSetupNote(options: {
@@ -584,32 +608,43 @@ export async function provisionCloudflareWorker(
 
   await patchWranglerWorkerName(serverRoot, workerName)
 
-  if (resolvedProjectMode === 'create') {
-    await deployCloudflareWorker(options.packageManager, serverRoot, workerName)
-  }
+  const executionOrder = buildCloudflareProvisionExecutionOrder(resolvedProjectMode)
+  let accountSubdomain: string | null = null
 
-  const accountSubdomain = await ensureAccountSubdomain({
-    authToken: auth.oauthToken,
-    accountId,
-    prompt: options.prompt,
-    appName: options.appName,
-  })
+  for (const step of executionOrder) {
+    if (step === 'ensure-account-subdomain') {
+      accountSubdomain = await ensureAccountSubdomain({
+        authToken: auth.oauthToken,
+        accountId,
+        prompt: options.prompt,
+        appName: options.appName,
+      })
+      continue
+    }
 
-  try {
-    await ensureWorkerSubdomainEnabled(auth.oauthToken, accountId, workerName)
-  } catch {
-    return {
-      accountId,
-      workerName,
-      apiBaseUrl: null,
-      mode: resolvedProjectMode,
+    if (step === 'deploy-worker') {
+      await deployCloudflareWorker(options.packageManager, serverRoot, workerName)
+      continue
+    }
+
+    try {
+      await ensureWorkerSubdomainEnabled(auth.oauthToken, accountId, workerName)
+    } catch {
+      return {
+        accountId,
+        workerName,
+        apiBaseUrl: null,
+        mode: resolvedProjectMode,
+      }
     }
   }
 
   return {
     accountId,
     workerName,
-    apiBaseUrl: buildCloudflareWorkersDevUrl(workerName, accountSubdomain),
+    apiBaseUrl: accountSubdomain
+      ? buildCloudflareWorkersDevUrl(workerName, accountSubdomain)
+      : null,
     mode: resolvedProjectMode,
   }
 }
