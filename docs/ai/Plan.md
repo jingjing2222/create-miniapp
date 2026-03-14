@@ -1,6 +1,22 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: granite.config.ts unused optional env helper 제거
+1. 문제
+   - 현재 frontend `granite.config.ts` 코드젠은 optional env binding이 없는 provider(`supabase`, `cloudflare`)에서도 `resolveOptionalMiniappEnv()` helper를 항상 생성한다.
+   - 결과적으로 실제로 쓰이지 않는 helper가 생성물에 남고, provider별 preamble이 필요 이상으로 비대해진다.
+2. 방향
+   - Granite frontend env preamble 생성 로직을 다시 보고, optional binding이 있는 provider에서만 optional helper를 만들게 조정한다.
+   - `resolveMiniappEnv`, `resolveOptionalMiniappEnv`, env binding 선언 중 provider별로 실제 쓰는 항목만 남기도록 정리한다.
+3. 테스트
+   - `supabase` frontend patch 결과에 `resolveOptionalMiniappEnv`가 없어야 한다.
+   - `cloudflare` frontend patch 결과에 `resolveOptionalMiniappEnv`가 없어야 한다.
+   - `firebase` frontend patch 결과에는 optional measurement id 때문에 helper가 유지되어야 한다.
+4. 완료 기준
+   - `supabase`/`cloudflare` 생성물의 `granite.config.ts`에는 unused optional helper가 없다.
+   - `firebase` 생성물은 기존 optional measurement id 지원을 유지한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: npm peer dependency install 완화
 1. 문제
    - `npm`으로 MiniApp frontend를 설치하면 Granite/React Native 쪽 peer dependency 충돌 때문에 `ERESOLVE unable to resolve dependency tree`가 발생한다.

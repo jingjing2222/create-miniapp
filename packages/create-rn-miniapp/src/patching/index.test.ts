@@ -252,6 +252,7 @@ test('patchFrontendWorkspace adds supabase bootstrap when supabase server provid
   assert.match(graniteConfig, /const appRoot = __dirname;\n\ndotenv\.config/)
   assert.match(graniteConfig, /path\.join\(appRoot, '\.env'\)/)
   assert.match(graniteConfig, /\}\n\nconst miniappSupabaseUrl = resolveMiniappEnv/)
+  assert.doesNotMatch(graniteConfig, /function resolveOptionalMiniappEnv\(/)
   assert.match(
     graniteConfig,
     /const miniappSupabasePublishableKey = resolveMiniappEnv\('MINIAPP_SUPABASE_PUBLISHABLE_KEY'\);\n\nexport default defineConfig/,
@@ -355,6 +356,7 @@ test('patchFrontendWorkspace adds cloudflare API bootstrap when cloudflare serve
   assert.equal(packageJson.devDependencies?.['@granite-js/plugin-env'], '1.0.7')
   assert.equal(packageJson.devDependencies?.dotenv, '^16.4.7')
   assert.match(graniteConfig, /MINIAPP_API_BASE_URL: miniappApiBaseUrl/)
+  assert.doesNotMatch(graniteConfig, /function resolveOptionalMiniappEnv\(/)
   assert.match(
     graniteConfig,
     /const miniappApiBaseUrl = resolveMiniappEnv\('MINIAPP_API_BASE_URL'\)/,
@@ -441,6 +443,7 @@ test('patchFrontendWorkspace adds firebase bootstrap when firebase server provid
   assert.equal(packageJson.devDependencies?.['@granite-js/plugin-env'], '1.0.7')
   assert.equal(packageJson.devDependencies?.dotenv, '^16.4.7')
   assert.match(graniteConfig, /MINIAPP_FIREBASE_API_KEY: miniappFirebaseApiKey/)
+  assert.match(graniteConfig, /function resolveOptionalMiniappEnv\(/)
   assert.match(
     graniteConfig,
     /const miniappFirebaseMeasurementId = resolveOptionalMiniappEnv\('MINIAPP_FIREBASE_MEASUREMENT_ID'\)/,
