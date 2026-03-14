@@ -1,3 +1,17 @@
+## 2026-03-14 — Changesets 포맷 재발 방지
+- 상태
+  - release PR이 package manifest 버전만 올리면서 Biome 포맷과 어긋날 수 있는 재발 포인트를 제거했다.
+  - `changeset version` 뒤에 루트 `pnpm format`을 강제해 release PR 생성 시점에 포맷이 같이 정리되도록 바꿨다.
+- 반영한 변경
+  - `package.json`
+    - `version-packages`를 `changeset version && pnpm format`으로 변경
+  - `packages/create-miniapp/src/release.test.ts`
+    - release version script가 포맷까지 포함하는지 검증 추가
+  - `README.md`
+    - release flow에 format 동작 설명 추가
+- 검증
+  - 대기 중
+
 ## 2026-03-14 — GitHub Actions 릴리스 파이프라인 추가
 - 상태
   - PR과 `main` 검증용 `Verify` 워크플로를 추가했다.
