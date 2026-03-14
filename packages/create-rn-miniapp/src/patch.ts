@@ -47,6 +47,7 @@ const TOOLING_DEPENDENCIES = [
 
 const SUPABASE_JS_VERSION = '^2.57.4'
 const DOTENV_VERSION = '^16.4.7'
+const NODE_TYPES_VERSION = '^24.10.1'
 const FALLBACK_GRANITE_PLUGIN_VERSION = '1.0.7'
 
 const FRONTEND_SUPABASE_ENV_EXAMPLE = [
@@ -100,8 +101,7 @@ const FRONTEND_SUPABASE_CLIENT = [
   '}',
   '',
   'function resolveSupabaseUrl() {',
-  '  const configured =',
-  "    import.meta.env.MINIAPP_SUPABASE_URL?.trim() ?? process.env.MINIAPP_SUPABASE_URL?.trim() ?? ''",
+  "  const configured = import.meta.env.MINIAPP_SUPABASE_URL?.trim() ?? ''",
   '',
   '  if (!isSafeHttpUrl(configured)) {',
   '    throw new Error(',
@@ -113,10 +113,7 @@ const FRONTEND_SUPABASE_CLIENT = [
   '}',
   '',
   'function resolveSupabasePublishableKey() {',
-  '  const configured =',
-  '    import.meta.env.MINIAPP_SUPABASE_PUBLISHABLE_KEY?.trim() ??',
-  '    process.env.MINIAPP_SUPABASE_PUBLISHABLE_KEY?.trim() ??',
-  "    ''",
+  "  const configured = import.meta.env.MINIAPP_SUPABASE_PUBLISHABLE_KEY?.trim() ?? ''",
   '',
   '  if (!configured) {',
   "    throw new Error('[frontend] MINIAPP_SUPABASE_PUBLISHABLE_KEY is required.')",
@@ -216,13 +213,18 @@ async function writeTextFile(filePath: string, contents: string) {
   await writeFile(filePath, contents, 'utf8')
 }
 
-async function patchTsconfigModuleFile(filePath: string) {
+async function patchTsconfigModuleFile(
+  filePath: string,
+  options?: {
+    includeNodeTypes?: boolean
+  },
+) {
   if (!(await pathExists(filePath))) {
     return
   }
 
   const source = await readFile(filePath, 'utf8')
-  const next = patchTsconfigModuleSource(source)
+  const next = patchTsconfigModuleSource(source, options)
   await writeFile(filePath, next, 'utf8')
 }
 
@@ -294,9 +296,17 @@ async function patchGraniteConfig(
   await writeFile(graniteConfigPath, next, 'utf8')
 }
 
-async function patchWorkspaceTsconfigModules(workspaceRoot: string, fileNames: string[]) {
+async function patchWorkspaceTsconfigModules(
+  workspaceRoot: string,
+  filePatches: Array<{
+    fileName: string
+    includeNodeTypes?: boolean
+  }>,
+) {
   await Promise.all(
-    fileNames.map((fileName) => patchTsconfigModuleFile(path.join(workspaceRoot, fileName))),
+    filePatches.map(({ fileName, includeNodeTypes }) =>
+      patchTsconfigModuleFile(path.join(workspaceRoot, fileName), { includeNodeTypes }),
+    ),
   )
 }
 
@@ -352,6 +362,7 @@ export async function patchFrontendWorkspace(
   packageJson.scripts ??= {}
   packageJson.scripts.typecheck ??= 'tsc --noEmit'
   packageJson.scripts.test ??= `node -e "console.log('frontend test placeholder')"`
+  ensureDependency(packageJson, '@types/node', NODE_TYPES_VERSION, 'devDependencies')
 
   if (options.serverProvider === 'supabase') {
     ensureDependency(packageJson, '@supabase/supabase-js', SUPABASE_JS_VERSION, 'dependencies')
@@ -368,7 +379,12 @@ export async function patchFrontendWorkspace(
   await removeToolingFiles(frontendRoot, options.packageManager)
   await removeWorkspaceArtifacts(frontendRoot, options.packageManager)
   await patchGraniteConfig(frontendRoot, tokens, options.serverProvider)
-  await patchWorkspaceTsconfigModules(frontendRoot, ['tsconfig.json'])
+  await patchWorkspaceTsconfigModules(frontendRoot, [
+    {
+      fileName: 'tsconfig.json',
+      includeNodeTypes: true,
+    },
+  ])
 
   if (options.serverProvider === 'supabase') {
     await writeFrontendSupabaseBootstrap(frontendRoot)
@@ -397,9 +413,9 @@ export async function patchBackofficeWorkspace(
 
   await writePackageJson(packageJsonPath, packageJson)
   await patchWorkspaceTsconfigModules(backofficeRoot, [
-    'tsconfig.json',
-    'tsconfig.app.json',
-    'tsconfig.node.json',
+    { fileName: 'tsconfig.json' },
+    { fileName: 'tsconfig.app.json' },
+    { fileName: 'tsconfig.node.json' },
   ])
   await patchBackofficeEntryFiles(backofficeRoot)
   await removeToolingFiles(backofficeRoot, options.packageManager)
