@@ -349,22 +349,17 @@ async function patchBackofficeEntryFiles(backofficeRoot: string) {
   }
 }
 
-export async function patchFrontendWorkspace(
-  targetRoot: string,
-  tokens: TemplateTokens,
-  options: WorkspacePatchOptions,
+async function ensureFrontendPackageJsonForWorkspace(
+  frontendRoot: string,
+  packageJson: PackageJson,
+  serverProvider: ServerProvider | null,
 ) {
-  const frontendRoot = path.join(targetRoot, 'frontend')
-  const packageJsonPath = path.join(frontendRoot, 'package.json')
-  const packageJson = stripToolingFromPackageJson(await readPackageJson(packageJsonPath))
-
-  packageJson.name = 'frontend'
   packageJson.scripts ??= {}
   packageJson.scripts.typecheck ??= 'tsc --noEmit'
   packageJson.scripts.test ??= `node -e "console.log('frontend test placeholder')"`
   ensureDependency(packageJson, '@types/node', NODE_TYPES_VERSION, 'devDependencies')
 
-  if (options.serverProvider === 'supabase') {
+  if (serverProvider === 'supabase') {
     ensureDependency(packageJson, '@supabase/supabase-js', SUPABASE_JS_VERSION, 'dependencies')
     ensureDependency(
       packageJson,
@@ -375,7 +370,72 @@ export async function patchFrontendWorkspace(
     ensureDependency(packageJson, 'dotenv', DOTENV_VERSION, 'devDependencies')
   }
 
-  await writePackageJson(packageJsonPath, packageJson)
+  await writePackageJson(path.join(frontendRoot, 'package.json'), packageJson)
+}
+
+async function ensureBackofficePackageJsonForWorkspace(
+  backofficeRoot: string,
+  packageJson: PackageJson,
+  serverProvider: ServerProvider | null,
+) {
+  packageJson.scripts ??= {}
+  packageJson.scripts.typecheck = 'tsc -b --pretty false'
+  packageJson.scripts.test ??= `node -e "console.log('backoffice test placeholder')"`
+
+  if (serverProvider === 'supabase') {
+    ensureDependency(packageJson, '@supabase/supabase-js', SUPABASE_JS_VERSION, 'dependencies')
+  }
+
+  await writePackageJson(path.join(backofficeRoot, 'package.json'), packageJson)
+}
+
+export async function ensureFrontendSupabaseBootstrap(targetRoot: string, tokens: TemplateTokens) {
+  const frontendRoot = path.join(targetRoot, 'frontend')
+  const packageJsonPath = path.join(frontendRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'supabase')
+  await patchGraniteConfig(frontendRoot, tokens, 'supabase')
+  await patchWorkspaceTsconfigModules(frontendRoot, [
+    {
+      fileName: 'tsconfig.json',
+      includeNodeTypes: true,
+    },
+  ])
+  await writeFrontendSupabaseBootstrap(frontendRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
+}
+
+export async function ensureBackofficeSupabaseBootstrap(
+  targetRoot: string,
+  tokens: TemplateTokens,
+) {
+  const backofficeRoot = path.join(targetRoot, 'backoffice')
+  const packageJsonPath = path.join(backofficeRoot, 'package.json')
+  const packageJson = await readPackageJson(packageJsonPath)
+
+  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'supabase')
+  await patchWorkspaceTsconfigModules(backofficeRoot, [
+    { fileName: 'tsconfig.json' },
+    { fileName: 'tsconfig.app.json' },
+    { fileName: 'tsconfig.node.json' },
+  ])
+  await patchBackofficeEntryFiles(backofficeRoot)
+  await writeBackofficeSupabaseBootstrap(backofficeRoot)
+  await applyWorkspaceProjectTemplate(targetRoot, 'backoffice', tokens)
+}
+
+export async function patchFrontendWorkspace(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  options: WorkspacePatchOptions,
+) {
+  const frontendRoot = path.join(targetRoot, 'frontend')
+  const packageJsonPath = path.join(frontendRoot, 'package.json')
+  const packageJson = stripToolingFromPackageJson(await readPackageJson(packageJsonPath))
+
+  packageJson.name = 'frontend'
+  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, options.serverProvider)
   await removeToolingFiles(frontendRoot, options.packageManager)
   await removeWorkspaceArtifacts(frontendRoot, options.packageManager)
   await patchGraniteConfig(frontendRoot, tokens, options.serverProvider)
@@ -403,15 +463,7 @@ export async function patchBackofficeWorkspace(
   const packageJson = stripToolingFromPackageJson(await readPackageJson(packageJsonPath))
 
   packageJson.name = 'backoffice'
-  packageJson.scripts ??= {}
-  packageJson.scripts.typecheck = 'tsc -b --pretty false'
-  packageJson.scripts.test ??= `node -e "console.log('backoffice test placeholder')"`
-
-  if (options.serverProvider === 'supabase') {
-    ensureDependency(packageJson, '@supabase/supabase-js', SUPABASE_JS_VERSION, 'dependencies')
-  }
-
-  await writePackageJson(packageJsonPath, packageJson)
+  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, options.serverProvider)
   await patchWorkspaceTsconfigModules(backofficeRoot, [
     { fileName: 'tsconfig.json' },
     { fileName: 'tsconfig.app.json' },

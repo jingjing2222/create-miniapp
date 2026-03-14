@@ -506,6 +506,39 @@ export function patchGraniteConfigSource(
   return formatGraniteConfigSource(printTypeScriptModule(module))
 }
 
+export function readGraniteConfigMetadata(source: string) {
+  const module = parseTypeScriptModule(source)
+  const configObject = getDefineConfigObject(module)
+
+  if (!configObject) {
+    return {
+      appName: null,
+      displayName: null,
+    }
+  }
+
+  const appNameExpression = getObjectPropertyValue(configObject, 'appName')
+  const appName = isStringLiteral(appNameExpression) ? appNameExpression.value : null
+
+  const pluginsArray = ensurePluginsArrayExpression(configObject)
+  const appsInTossCall = findPluginCall(pluginsArray, 'appsInToss')
+  const appsInTossConfig = appsInTossCall?.arguments[0]?.expression
+  const brandExpression =
+    appsInTossConfig?.type === 'ObjectExpression'
+      ? getObjectPropertyValue(appsInTossConfig as SwcObjectExpression, 'brand')
+      : null
+  const displayNameExpression =
+    brandExpression?.type === 'ObjectExpression'
+      ? getObjectPropertyValue(brandExpression as SwcObjectExpression, 'displayName')
+      : null
+  const displayName = isStringLiteral(displayNameExpression) ? displayNameExpression.value : null
+
+  return {
+    appName,
+    displayName,
+  }
+}
+
 function isDocumentGetElementByIdRoot(expression: SwcExpression | undefined) {
   const candidate =
     expression?.type === 'TsNonNullExpression'
