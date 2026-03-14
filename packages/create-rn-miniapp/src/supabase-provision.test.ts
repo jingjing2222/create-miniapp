@@ -49,6 +49,7 @@ test('formatSupabaseManualSetupNote includes frontend and backoffice env guidanc
     /VITE_SUPABASE_PUBLISHABLE_KEY=<Supabase Settings > API에서 복사한 Publishable key>/,
   )
   assert.match(note.body, /SUPABASE_DB_PASSWORD 는 비어 있으니/)
+  assert.match(note.body, /functions:deploy/)
 })
 
 test('extractJsonPayload strips package-manager log lines around JSON output', () => {
@@ -115,7 +116,7 @@ test('writeSupabaseServerLocalEnvFile creates server env file and preserves an e
     assert.equal(
       initialServerEnv,
       [
-        '# Used by server/package.json db:apply for remote Supabase pushes.',
+        '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
         'SUPABASE_PROJECT_REF=abc123',
         'SUPABASE_DB_PASSWORD=',
         '',
@@ -125,7 +126,7 @@ test('writeSupabaseServerLocalEnvFile creates server env file and preserves an e
     await writeFile(
       path.join(targetRoot, 'server', '.env.local'),
       [
-        '# Used by server/package.json db:apply for remote Supabase pushes.',
+        '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
         'SUPABASE_PROJECT_REF=old-project',
         'SUPABASE_DB_PASSWORD=secret-password',
         'EXTRA=value',
@@ -183,6 +184,7 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있으니/)
     assert.match(notes[0]?.body ?? '', /db:apply/)
+    assert.match(notes[0]?.body ?? '', /functions:deploy/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -199,7 +201,7 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
     await writeFile(
       path.join(targetRoot, 'server', '.env.local'),
       [
-        '# Used by server/package.json db:apply for remote Supabase pushes.',
+        '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
         'SUPABASE_PROJECT_REF=old-project',
         'SUPABASE_DB_PASSWORD=secret-password',
         '',
@@ -246,6 +248,7 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     assert.match(notes[0]?.body ?? '', /frontend\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있으니/)
+    assert.match(notes[0]?.body ?? '', /functions:deploy/)
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })

@@ -1,6 +1,29 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 현재 README 톤 정리
+1. 루트 `README.md`, `packages/scaffold-templates/README.md`, provider별 `server/README.md` 문구를 Toss식 `~요` 체로 정리한다.
+2. 사용자에게 직접 보이는 설명은 명령형보다 “이렇게 동작해요 / 이렇게 쓸 수 있어요 / 필요하면 이렇게 하면 돼요” 톤을 우선한다.
+3. 완료 기준
+   - 사용자-facing README 문장이 전반적으로 `~요` 체로 통일된다.
+   - `pnpm verify` 통과
+
+## 현재 Supabase Edge Functions 확장
+1. `supabase` provider도 이제 `db + edge functions`를 함께 갖는 실제 `server` 워크스페이스로 동작한다.
+2. 반영 내용
+   - `server Supabase 초기화` 뒤에 기본 `api` Edge Function을 `supabase functions new api --workdir . --yes`로 scaffold 한다.
+   - `server/package.json`에 `functions:serve`, `functions:deploy`를 추가한다.
+   - `server/scripts/supabase-functions-deploy.mjs`가 `server/.env.local`의 `SUPABASE_PROJECT_REF`를 읽어 모든 로컬 Edge Function을 원격에 배포한다.
+   - provisioning은 `link -> db push -> functions deploy` 순서로 이어진다.
+   - `server/README.md`와 root `README.md`에 Edge Functions 구조와 `supabase.functions.invoke('api')` 사용 동선을 반영한다.
+3. 유지한 원칙
+   - Edge Functions scaffold는 공식 Supabase CLI(`supabase functions new`)를 그대로 사용한다.
+   - frontend/backoffice의 기존 `@supabase/supabase-js` bootstrap은 유지하고, 1차에서는 별도 helper를 추가하지 않는다.
+4. 완료 기준
+   - `supabase` provider 생성 직후 `supabase/functions/api/index.ts`가 존재한다.
+   - `server/package.json`만으로 로컬 serve와 원격 deploy를 다시 수행할 수 있다.
+   - `pnpm verify` 통과
+
 ## 현재 Firebase 프로젝트 생성 복구 작업
 1. `firebase projects:create <projectId>`는 Google Cloud project 생성까지 성공한 뒤, Firebase 리소스 연결 단계에서 비영(非0) 종료할 수 있다.
 2. 이 경우 현재 CLI는 전체 생성 실패로 취급하고 중단하지만, 실제로는 `projects:addfirebase <projectId>`로 이어서 복구 가능한 케이스가 있다.

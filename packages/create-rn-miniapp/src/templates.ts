@@ -38,6 +38,7 @@ type FirebaseFunctionsPackageJson = {
   devDependencies: Record<string, string>
 }
 
+export const SUPABASE_DEFAULT_FUNCTION_NAME = 'api'
 export const FIREBASE_DEFAULT_FUNCTION_NAME = 'api'
 export const FIREBASE_DEFAULT_FUNCTION_REGION = 'asia-northeast3'
 const FIREBASE_NODE_ENGINE = '24'
@@ -169,6 +170,97 @@ function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
     'const result = spawnSync(',
     '  packageManagerCommand,',
     "  ['dlx', 'supabase', 'db', 'push', '--workdir', '.', '--linked', '--password', password, '--yes'],",
+    '  {',
+    '    cwd: serverRoot,',
+    "    stdio: 'inherit',",
+    '    env: process.env,',
+    '  },',
+    ')',
+    '',
+    "if (typeof result.status === 'number') {",
+    '  process.exit(result.status)',
+    '}',
+    '',
+    'if (result.error) {',
+    '  throw result.error',
+    '}',
+    '',
+    'process.exit(1)',
+    '',
+  ].join('\n')
+}
+
+function renderSupabaseFunctionsDeployScript(tokens: TemplateTokens) {
+  return [
+    "import { spawnSync } from 'node:child_process'",
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    "const envPath = path.join(serverRoot, '.env.local')",
+    '',
+    'function stripWrappingQuotes(value) {',
+    `  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {`,
+    '    return value.slice(1, -1)',
+    '  }',
+    '',
+    '  return value',
+    '}',
+    '',
+    'function loadLocalEnv(filePath) {',
+    '  if (!existsSync(filePath)) {',
+    '    return',
+    '  }',
+    '',
+    "  const source = readFileSync(filePath, 'utf8')",
+    '',
+    '  for (const line of source.split(/\\r?\\n/)) {',
+    '    const trimmed = line.trim()',
+    '',
+    "    if (!trimmed || trimmed.startsWith('#')) {",
+    '      continue',
+    '    }',
+    '',
+    "    const separatorIndex = trimmed.indexOf('=')",
+    '    if (separatorIndex <= 0) {',
+    '      continue',
+    '    }',
+    '',
+    '    const key = trimmed.slice(0, separatorIndex).trim()',
+    '    const value = stripWrappingQuotes(trimmed.slice(separatorIndex + 1).trim())',
+    '',
+    '    if (process.env[key] === undefined) {',
+    '      process.env[key] = value',
+    '    }',
+    '  }',
+    '}',
+    '',
+    'loadLocalEnv(envPath)',
+    '',
+    "const projectRef = process.env.SUPABASE_PROJECT_REF?.trim() ?? ''",
+    'if (!projectRef) {',
+    "  console.error('[server] SUPABASE_PROJECT_REF is required. Set server/.env.local before running functions:deploy.')",
+    '  process.exit(1)',
+    '}',
+    '',
+    `const packageManagerCommand = process.platform === 'win32' ? '${tokens.packageManagerCommand}.cmd' : '${tokens.packageManagerCommand}'`,
+    'const requestedFunctions = process.argv.slice(2).map((value) => value.trim()).filter(Boolean)',
+    'const result = spawnSync(',
+    '  packageManagerCommand,',
+    '  [',
+    "    'dlx',",
+    "    'supabase',",
+    "    'functions',",
+    "    'deploy',",
+    '    ...requestedFunctions,',
+    "    '--project-ref',",
+    '    projectRef,',
+    "    '--workdir',",
+    "    '.',",
+    "    '--yes',",
+    '  ],',
     '  {',
     '    cwd: serverRoot,',
     "    stdio: 'inherit',",
@@ -526,6 +618,9 @@ export async function applyServerPackageTemplate(targetRoot: string, tokens: Tem
   packageJson.scripts.build = packageManager.runScript('typecheck')
   packageJson.scripts['db:apply'] = 'node ./scripts/supabase-db-apply.mjs'
   packageJson.scripts['db:apply:remote'] = 'node ./scripts/supabase-db-apply.mjs'
+  packageJson.scripts['functions:serve'] =
+    `${packageManager.runScript('dlx')} supabase functions serve --env-file ./.env.local --workdir .`
+  packageJson.scripts['functions:deploy'] = 'node ./scripts/supabase-functions-deploy.mjs'
   packageJson.scripts['db:apply:local'] =
     `${packageManager.runScript('dlx')} supabase db push --local --workdir .`
   packageJson.scripts['db:reset'] =
@@ -536,6 +631,11 @@ export async function applyServerPackageTemplate(targetRoot: string, tokens: Tem
   await writeFile(
     path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
     renderSupabaseDbApplyScript(tokens),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-deploy.mjs'),
+    renderSupabaseFunctionsDeployScript(tokens),
     'utf8',
   )
 }
