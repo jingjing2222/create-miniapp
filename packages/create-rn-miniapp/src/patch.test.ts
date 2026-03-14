@@ -627,6 +627,25 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   await writeFile(path.join(serverRoot, 'AGENTS.md'), '# local agent\n', 'utf8')
   await writeFile(path.join(serverRoot, '.vscode', 'settings.json'), '{}\n', 'utf8')
   await writeFile(
+    path.join(targetRoot, '.gitignore'),
+    ['node_modules', 'dist', 'coverage', '.nx', '.DS_Store', '.env', '.env.local', ''].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'biome.json'),
+    `${JSON.stringify(
+      {
+        $schema: 'https://biomejs.dev/schemas/1.9.4/schema.json',
+        files: {
+          ignore: ['**/.nx/**', '**/node_modules/**', '**/dist/**'],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+  await writeFile(
     path.join(serverRoot, 'wrangler.jsonc'),
     '{\n  "$schema": "node_modules/wrangler/config-schema.json",\n  "name": "server"\n}\n',
     'utf8',
@@ -661,6 +680,12 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
     path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
     'utf8',
   )
+  const rootGitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
+  const rootBiome = JSON.parse(await readFile(path.join(targetRoot, 'biome.json'), 'utf8')) as {
+    files?: {
+      ignore?: string[]
+    }
+  }
 
   assert.equal(packageJson.name, 'server')
   assert.equal(packageJson.scripts?.dev, 'wrangler dev')
@@ -675,6 +700,13 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.match(deployScript, /--env-file/)
   assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
   assert.equal(projectJson.targets?.typecheck?.command, 'pnpm --dir server typecheck')
+  assert.match(rootGitignore, /^server\/worker-configuration\.d\.ts$/m)
+  assert.deepEqual(rootBiome.files?.ignore, [
+    '**/.nx/**',
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/server/worker-configuration.d.ts',
+  ])
   assert.equal(await pathExists(path.join(serverRoot, '.gitignore')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.prettierrc')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.editorconfig')), false)

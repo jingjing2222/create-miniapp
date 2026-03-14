@@ -60,6 +60,8 @@ const DOTENV_VERSION = '^16.4.7'
 const NODE_TYPES_VERSION = '^24.10.1'
 const FALLBACK_GRANITE_PLUGIN_VERSION = '1.0.7'
 const WRANGLER_PACKAGE_NAME = 'wrangler'
+const CLOUDFLARE_ROOT_GITIGNORE_ENTRY = 'server/worker-configuration.d.ts'
+const CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY = '**/server/worker-configuration.d.ts'
 
 const FRONTEND_ENV_TYPES = [
   'interface ImportMetaEnv {',
@@ -437,6 +439,57 @@ function resolveWranglerSchemaUrl(packageJson: PackageJson) {
   const version =
     normalizePackageVersionSpec(packageJson.devDependencies?.[WRANGLER_PACKAGE_NAME]) ?? 'latest'
   return `https://unpkg.com/${WRANGLER_PACKAGE_NAME}@${version}/config-schema.json`
+}
+
+async function ensureRootGitignoreEntry(targetRoot: string, entry: string) {
+  const gitignorePath = path.join(targetRoot, '.gitignore')
+
+  if (!(await pathExists(gitignorePath))) {
+    return
+  }
+
+  const source = await readFile(gitignorePath, 'utf8')
+  const lines = source.split(/\r?\n/)
+
+  if (lines.includes(entry)) {
+    return
+  }
+
+  const nextLines = [...lines]
+
+  while (nextLines.length > 0 && nextLines.at(-1) === '') {
+    nextLines.pop()
+  }
+
+  nextLines.push(entry, '')
+  await writeFile(gitignorePath, nextLines.join('\n'), 'utf8')
+}
+
+async function ensureRootBiomeIgnoreEntry(targetRoot: string, entry: string) {
+  const biomePath = path.join(targetRoot, 'biome.json')
+
+  if (!(await pathExists(biomePath))) {
+    return
+  }
+
+  const biomeJson = JSON.parse(await readFile(biomePath, 'utf8')) as {
+    files?: {
+      ignore?: string[]
+    }
+  }
+
+  const ignore = biomeJson.files?.ignore ?? []
+
+  if (ignore.includes(entry)) {
+    return
+  }
+
+  biomeJson.files = {
+    ...(biomeJson.files ?? {}),
+    ignore: [...ignore, entry],
+  }
+
+  await writeFile(biomePath, `${JSON.stringify(biomeJson, null, 2)}\n`, 'utf8')
 }
 
 async function removeToolingFiles(workspaceRoot: string, packageManager: PackageManager) {
@@ -850,6 +903,8 @@ export async function patchCloudflareServerWorkspace(
     path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
     renderCloudflareDeployScript(options.packageManager),
   )
+  await ensureRootGitignoreEntry(targetRoot, CLOUDFLARE_ROOT_GITIGNORE_ENTRY)
+  await ensureRootBiomeIgnoreEntry(targetRoot, CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY)
 
   await Promise.all(
     CLOUDFLARE_SERVER_LOCAL_FILES.map((fileName) =>

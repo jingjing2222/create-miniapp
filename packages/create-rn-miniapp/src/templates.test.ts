@@ -67,8 +67,10 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.equal(nxJson.$schema, NX_ROOT_SCHEMA_URL)
   assert.doesNotMatch(gitignore, /^\.yarn\/?$/m)
   assert.doesNotMatch(gitignore, /^\.pnp\.\*$/m)
+  assert.doesNotMatch(gitignore, /^server\/worker-configuration\.d\.ts$/m)
   assert.doesNotMatch(biomeJson, /\*\*\/\.yarn\/\*\*/)
   assert.doesNotMatch(biomeJson, /\*\*\/\.pnp\.\*/)
+  assert.doesNotMatch(biomeJson, /\*\*\/server\/worker-configuration\.d\.ts/)
   assert.equal(
     await readFile(path.join(targetRoot, 'pnpm-workspace.yaml'), 'utf8'),
     'packages:\n  - frontend\n',
@@ -127,6 +129,8 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(yarnrc, /"@babel\/runtime": "\^7\.0\.0"/)
   assert.match(biomeJson, /\*\*\/\.yarn\/\*\*/)
   assert.match(biomeJson, /\*\*\/\.pnp\.\*/)
+  assert.doesNotMatch(gitignore, /^server\/worker-configuration\.d\.ts$/m)
+  assert.doesNotMatch(biomeJson, /\*\*\/server\/worker-configuration\.d\.ts/)
   assert.equal(frontendProject.targets?.build.command, 'yarn workspace frontend build')
   assert.equal(frontendProject.targets?.typecheck.command, 'yarn workspace frontend typecheck')
   assert.equal(serverPackageJson.scripts?.dev, 'yarn dlx supabase start --workdir .')
