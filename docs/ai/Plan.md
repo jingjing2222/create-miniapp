@@ -1,6 +1,20 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: 호출 package manager 기반 기본 선택
+1. 문제
+   - 현재는 `create-miniapp` 실행 시 package manager를 명시하지 않으면 항상 prompt로 고르거나 `--yes`일 때 `pnpm`으로 고정된다.
+   - 하지만 `pnpm create rn-miniapp`로 들어왔으면 `pnpm`, `yarn create rn-miniapp`로 들어왔으면 `yarn`을 바로 쓰는 게 자연스럽다.
+   - 반대로 `npm create rn-miniapp`에서는 `pnpm`/`yarn` 선택 프롬프트를 유지하는 편이 맞다.
+2. 방향
+   - `npm_config_user_agent`와 관련 env를 기준으로 호출한 package manager를 추론한다.
+   - `pnpm`/`yarn`으로 추론되면 package manager prompt를 생략하고 그대로 사용한다.
+   - `npm` 또는 미확인인 경우에만 기존 prompt를 유지한다.
+3. 완료 기준
+   - `pnpm create`면 `pnpm`, `yarn create`면 `yarn`이 자동 선택된다.
+   - `npm create`면 package manager 선택 prompt가 유지된다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: README에 기능명세서 우선 흐름 추가
 1. 문제
    - 현재 README는 생성 결과물과 provider 흐름은 설명하지만, 생성 직후 사용자가 어떤 순서로 작업을 시작하면 좋은지는 약하다.

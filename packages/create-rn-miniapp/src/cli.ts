@@ -93,6 +93,8 @@ export type ResolvedAddCliOptions = {
   skipInstall: boolean
 }
 
+type CliEnvironment = Partial<Pick<NodeJS.ProcessEnv, 'npm_config_user_agent' | 'npm_execpath'>>
+
 export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
   const argv = await yargs(rawArgs)
     .scriptName('create-miniapp')
@@ -240,7 +242,41 @@ function resolveServerProjectModeInput(serverProvider: ServerProvider | null, ar
   return Promise.resolve(argv.serverProjectMode ?? null)
 }
 
-export async function resolveCliOptions(argv: ParsedCliArgs, prompt: CliPrompter) {
+export function detectInvocationPackageManager(
+  env: CliEnvironment = process.env,
+): PackageManager | null {
+  const userAgent = env.npm_config_user_agent?.toLowerCase()
+
+  if (userAgent?.startsWith('pnpm/')) {
+    return 'pnpm'
+  }
+
+  if (userAgent?.startsWith('yarn/')) {
+    return 'yarn'
+  }
+
+  if (userAgent?.startsWith('npm/')) {
+    return null
+  }
+
+  const execPath = env.npm_execpath?.toLowerCase() ?? ''
+
+  if (execPath.includes('pnpm')) {
+    return 'pnpm'
+  }
+
+  if (execPath.includes('yarn')) {
+    return 'yarn'
+  }
+
+  return null
+}
+
+export async function resolveCliOptions(
+  argv: ParsedCliArgs,
+  prompt: CliPrompter,
+  env: CliEnvironment = process.env,
+) {
   if (argv.withServer === false && argv.serverProvider) {
     throw new Error('`--with-server` 없이 `--server-provider`를 사용할 수 없습니다.')
   }
@@ -249,8 +285,10 @@ export async function resolveCliOptions(argv: ParsedCliArgs, prompt: CliPrompter
     throw new Error('`--with-server` 없이 `--server-project-mode`를 사용할 수 없습니다.')
   }
 
+  const invocationPackageManager = detectInvocationPackageManager(env)
   const packageManager =
     argv.packageManager ??
+    invocationPackageManager ??
     (argv.yes
       ? 'pnpm'
       : await prompt.select<PackageManager>({
