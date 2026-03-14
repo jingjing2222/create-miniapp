@@ -31,6 +31,7 @@ type CloudflareSubdomainResult = {
 }
 
 export type ProvisionedCloudflareWorker = {
+  accountId: string
   workerName: string
   apiBaseUrl: string | null
   mode: ServerProjectMode
@@ -76,6 +77,22 @@ function createCloudflareEnvValues(apiBaseUrl: string) {
     frontend: [`MINIAPP_API_BASE_URL=${apiBaseUrl}`, ''].join('\n'),
     backoffice: [`VITE_API_BASE_URL=${apiBaseUrl}`, ''].join('\n'),
   }
+}
+
+function createCloudflareServerEnvValues(options: {
+  accountId: string
+  workerName: string
+  apiBaseUrl: string | null
+  apiToken?: string
+}) {
+  return [
+    '# Used by server/package.json deploy for remote Cloudflare Worker deploys.',
+    `CLOUDFLARE_ACCOUNT_ID=${options.accountId}`,
+    `CLOUDFLARE_WORKER_NAME=${options.workerName}`,
+    `CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`,
+    `CLOUDFLARE_API_TOKEN=${options.apiToken ?? ''}`,
+    '',
+  ].join('\n')
 }
 
 function parseWranglerAuthValue(source: string, key: string) {
@@ -349,6 +366,7 @@ export function buildCloudflareWorkersDevUrl(workerName: string, accountSubdomai
 export function formatCloudflareManualSetupNote(options: {
   targetRoot: string
   hasBackoffice: boolean
+  accountId: string
   workerName: string
 }): ProvisioningNote {
   const lines = [
@@ -365,6 +383,19 @@ export function formatCloudflareManualSetupNote(options: {
       'VITE_API_BASE_URL=<배포된 Worker URL>',
     )
   }
+
+  lines.push(
+    '',
+    path.join(options.targetRoot, 'server', '.env.local'),
+    createCloudflareServerEnvValues({
+      accountId: options.accountId,
+      workerName: options.workerName,
+      apiBaseUrl: null,
+      apiToken: '<optional api token>',
+    }).trimEnd(),
+    '',
+    'server/package.json 의 deploy 는 server/.env.local 을 읽어 원격 Worker를 다시 배포합니다.',
+  )
 
   return {
     title: 'Cloudflare API URL 안내',
@@ -388,6 +419,86 @@ export async function writeCloudflareLocalEnvFiles(options: {
     await mkdir(path.dirname(backofficeEnvPath), { recursive: true })
     await writeFile(backofficeEnvPath, env.backoffice, 'utf8')
   }
+}
+
+export async function writeCloudflareServerLocalEnvFile(options: {
+  targetRoot: string
+  accountId: string
+  workerName: string
+  apiBaseUrl: string | null
+}) {
+  const serverEnvPath = path.join(options.targetRoot, 'server', '.env.local')
+  let existingSource = ''
+
+  if (await pathExists(serverEnvPath)) {
+    existingSource = await readFile(serverEnvPath, 'utf8')
+  }
+
+  const lines = existingSource.length > 0 ? existingSource.split(/\r?\n/) : []
+  const nextLines =
+    lines.length > 0
+      ? [...lines]
+      : ['# Used by server/package.json deploy for remote Cloudflare Worker deploys.']
+
+  let hasAccountId = false
+  let hasWorkerName = false
+  let hasApiBaseUrl = false
+  let hasApiToken = false
+
+  for (let index = 0; index < nextLines.length; index += 1) {
+    const trimmed = nextLines[index]?.trim() ?? ''
+
+    if (trimmed.startsWith('CLOUDFLARE_ACCOUNT_ID=')) {
+      nextLines[index] = `CLOUDFLARE_ACCOUNT_ID=${options.accountId}`
+      hasAccountId = true
+      continue
+    }
+
+    if (trimmed.startsWith('CLOUDFLARE_WORKER_NAME=')) {
+      nextLines[index] = `CLOUDFLARE_WORKER_NAME=${options.workerName}`
+      hasWorkerName = true
+      continue
+    }
+
+    if (trimmed.startsWith('CLOUDFLARE_API_BASE_URL=')) {
+      nextLines[index] = `CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`
+      hasApiBaseUrl = true
+      continue
+    }
+
+    if (trimmed.startsWith('CLOUDFLARE_API_TOKEN=')) {
+      hasApiToken = true
+    }
+  }
+
+  if (!hasAccountId) {
+    nextLines.push(`CLOUDFLARE_ACCOUNT_ID=${options.accountId}`)
+  }
+
+  if (!hasWorkerName) {
+    nextLines.push(`CLOUDFLARE_WORKER_NAME=${options.workerName}`)
+  }
+
+  if (!hasApiBaseUrl) {
+    nextLines.push(`CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`)
+  }
+
+  if (!hasApiToken) {
+    nextLines.push('CLOUDFLARE_API_TOKEN=')
+  }
+
+  const normalizedSource = `${nextLines
+    .filter((line, index, array) => {
+      if (index === array.length - 1) {
+        return line.length > 0
+      }
+
+      return true
+    })
+    .join('\n')}\n`
+
+  await mkdir(path.dirname(serverEnvPath), { recursive: true })
+  await writeFile(serverEnvPath, normalizedSource, 'utf8')
 }
 
 export async function provisionCloudflareWorker(
@@ -453,6 +564,7 @@ export async function provisionCloudflareWorker(
     await ensureWorkerSubdomainEnabled(auth.oauthToken, accountId, workerName)
   } catch {
     return {
+      accountId,
       workerName,
       apiBaseUrl: null,
       mode: resolvedProjectMode,
@@ -460,6 +572,7 @@ export async function provisionCloudflareWorker(
   }
 
   return {
+    accountId,
     workerName,
     apiBaseUrl: buildCloudflareWorkersDevUrl(workerName, accountSubdomain),
     mode: resolvedProjectMode,
@@ -480,6 +593,12 @@ export async function finalizeCloudflareProvisioning(options: {
   }
 
   const hasBackoffice = await pathExists(path.join(options.targetRoot, 'backoffice'))
+  await writeCloudflareServerLocalEnvFile({
+    targetRoot: options.targetRoot,
+    accountId: options.provisionedWorker.accountId,
+    workerName: options.provisionedWorker.workerName,
+    apiBaseUrl: options.provisionedWorker.apiBaseUrl,
+  })
 
   if (options.provisionedWorker.apiBaseUrl) {
     await writeCloudflareLocalEnvFiles({
@@ -491,9 +610,13 @@ export async function finalizeCloudflareProvisioning(options: {
     return [
       {
         title: 'Cloudflare API URL 작성 완료',
-        body: hasBackoffice
-          ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 작성했습니다.'
-          : 'frontend/.env.local 에 Cloudflare API URL을 작성했습니다.',
+        body: [
+          hasBackoffice
+            ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 작성했습니다.'
+            : 'frontend/.env.local 에 Cloudflare API URL을 작성했습니다.',
+          'server/.env.local 에 Cloudflare Worker 배포 정보를 작성했습니다.',
+          'server/package.json 의 deploy 로 원격 Worker를 다시 배포할 수 있습니다.',
+        ].join('\n'),
       },
     ] satisfies ProvisioningNote[]
   }
@@ -502,6 +625,7 @@ export async function finalizeCloudflareProvisioning(options: {
     formatCloudflareManualSetupNote({
       targetRoot: options.targetRoot,
       hasBackoffice,
+      accountId: options.provisionedWorker.accountId,
       workerName: options.provisionedWorker.workerName,
     }),
   ]

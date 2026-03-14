@@ -657,13 +657,22 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   ) as {
     $schema?: string
   }
+  const deployScript = await readFile(
+    path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
+    'utf8',
+  )
 
   assert.equal(packageJson.name, 'server')
   assert.equal(packageJson.scripts?.dev, 'wrangler dev')
   assert.equal(packageJson.scripts?.build, 'wrangler deploy --dry-run')
   assert.equal(packageJson.scripts?.typecheck, 'wrangler types && tsc --noEmit')
+  assert.equal(packageJson.scripts?.deploy, 'node ./scripts/cloudflare-deploy.mjs')
+  assert.equal(packageJson.scripts?.['deploy:remote'], 'node ./scripts/cloudflare-deploy.mjs')
   assert.equal(packageJson.scripts?.test, 'vitest')
   assert.equal(wranglerConfig.$schema, 'https://unpkg.com/wrangler@4.73.0/config-schema.json')
+  assert.match(deployScript, /CLOUDFLARE_WORKER_NAME/)
+  assert.match(deployScript, /wrangler', 'deploy'/)
+  assert.match(deployScript, /--env-file/)
   assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
   assert.equal(projectJson.targets?.typecheck?.command, 'pnpm --dir server typecheck')
   assert.equal(await pathExists(path.join(serverRoot, '.gitignore')), false)

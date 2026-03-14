@@ -302,6 +302,86 @@ async function writeTextFile(filePath: string, contents: string) {
   await writeFile(filePath, contents, 'utf8')
 }
 
+function renderCloudflareDeployScript(packageManager: PackageManager) {
+  return [
+    "import { spawnSync } from 'node:child_process'",
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import process from 'node:process'",
+    "import path from 'node:path'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    "const envPath = path.join(serverRoot, '.env.local')",
+    '',
+    'function stripWrappingQuotes(value) {',
+    `  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {`,
+    '    return value.slice(1, -1)',
+    '  }',
+    '',
+    '  return value',
+    '}',
+    '',
+    'function loadLocalEnv(filePath) {',
+    '  if (!existsSync(filePath)) {',
+    '    return',
+    '  }',
+    '',
+    "  const source = readFileSync(filePath, 'utf8')",
+    '',
+    '  for (const line of source.split(/\\r?\\n/)) {',
+    '    const trimmed = line.trim()',
+    '',
+    "    if (!trimmed || trimmed.startsWith('#')) {",
+    '      continue',
+    '    }',
+    '',
+    "    const separatorIndex = trimmed.indexOf('=')",
+    '    if (separatorIndex <= 0) {',
+    '      continue',
+    '    }',
+    '',
+    '    const key = trimmed.slice(0, separatorIndex).trim()',
+    '    const value = stripWrappingQuotes(trimmed.slice(separatorIndex + 1).trim())',
+    '',
+    '    if (process.env[key] === undefined) {',
+    '      process.env[key] = value',
+    '    }',
+    '  }',
+    '}',
+    '',
+    'loadLocalEnv(envPath)',
+    '',
+    "const workerName = process.env.CLOUDFLARE_WORKER_NAME?.trim() ?? ''",
+    '',
+    'if (!workerName) {',
+    "  console.error('[server] CLOUDFLARE_WORKER_NAME is required. Set server/.env.local before running deploy.')",
+    '  process.exit(1)',
+    '}',
+    '',
+    `const packageManagerCommand = process.platform === 'win32' ? '${packageManager}.cmd' : '${packageManager}'`,
+    'const result = spawnSync(',
+    '  packageManagerCommand,',
+    "  ['dlx', 'wrangler', 'deploy', '--env-file', './.env.local', '--name', workerName],",
+    '  {',
+    '    cwd: serverRoot,',
+    "    stdio: 'inherit',",
+    '    env: process.env,',
+    '  },',
+    ')',
+    '',
+    "if (typeof result.status === 'number') {",
+    '  process.exit(result.status)',
+    '}',
+    '',
+    'if (result.error) {',
+    '  throw result.error',
+    '}',
+    '',
+    'process.exit(1)',
+    '',
+  ].join('\n')
+}
+
 async function patchTsconfigModuleFile(
   filePath: string,
   options?: {
@@ -758,12 +838,18 @@ export async function patchCloudflareServerWorkspace(
     ],
     upsertSections: {
       scripts: {
+        deploy: 'node ./scripts/cloudflare-deploy.mjs',
+        'deploy:remote': 'node ./scripts/cloudflare-deploy.mjs',
         build: 'wrangler deploy --dry-run',
         typecheck: 'wrangler types && tsc --noEmit',
       },
     },
   })
   await patchWranglerConfigSchema(serverRoot, packageJson)
+  await writeTextFile(
+    path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
+    renderCloudflareDeployScript(options.packageManager),
+  )
 
   await Promise.all(
     CLOUDFLARE_SERVER_LOCAL_FILES.map((fileName) =>

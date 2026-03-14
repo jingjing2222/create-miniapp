@@ -56,6 +56,18 @@
    - `pnpm verify` 통과
    - Cloudflare provider도 생성 직후 frontend/backoffice에서 API base URL을 바로 쓸 수 있는 상태
 
+## 현재 Cloudflare server 원격 운영 스크립트 작업
+1. Cloudflare provider를 선택해 Worker를 연결한 경우 `server/.env.local`도 함께 세팅한다.
+2. `server/.env.local`에는 적어도 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_WORKER_NAME`, `CLOUDFLARE_API_BASE_URL` 자리를 유지한다.
+3. 이미 `server/.env.local`이 있으면 사용자가 넣어둔 `CLOUDFLARE_API_TOKEN` 같은 비밀값은 지우지 않고 보존한다.
+4. `server/package.json`에는 원격 Worker 재배포용 기본 `deploy` 스크립트를 제공한다.
+5. 원격 `deploy`는 `server/.env.local`을 읽고 `wrangler deploy --env-file ./.env.local --name ...`를 실행해야 한다.
+6. 테스트 범위
+   - `patchCloudflareServerWorkspace`가 원격 `deploy` 스크립트와 helper 파일을 생성하는지 검증
+   - `finalizeCloudflareProvisioning`가 `server/.env.local`을 만들고 기존 API token을 보존하는지 검증
+7. 완료 기준
+   - `pnpm verify` 통과
+
 ## 현재 provider 인증 기반 스캐폴드 연동 작업
 1. `--provision` 같은 별도 단계는 두지 않고, `server` provider를 생성/추가하는 `create`와 `--add` 흐름 안에서 인증과 원격 프로젝트 선택/생성을 함께 처리한다.
 2. provider UX는 공통으로 맞춘다.
