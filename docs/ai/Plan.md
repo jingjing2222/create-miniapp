@@ -118,6 +118,8 @@ docs/
 3. 수정 방향
    - npm pack 결과에서도 유지되는 템플릿 파일명으로 변경한다.
    - root template copy 로직과 테스트를 함께 보강한다.
+4. 릴리스 후속 작업
+   - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 patch changeset을 추가한다.
 
 ## 남은 작업
 1. npm publish 준비
