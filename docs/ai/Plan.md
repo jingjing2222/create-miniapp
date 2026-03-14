@@ -1,21 +1,157 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
-## 다음 작업: 사용하지 않는 Granite optional env helper 제거
+## 다음 작업: `--with-server` 제거하고 `--server-provider`로 단일화
 1. 문제
-   - 현재 `granite.config.ts` patch는 provider와 무관하게 `resolveOptionalMiniappEnv()` helper를 함께 만들고 있다.
-   - 하지만 Supabase나 Cloudflare처럼 optional env가 없는 경우에는 helper가 실제로 쓰이지 않아 생성 결과가 지저분해진다.
+   - 현재 CLI에는 `--with-server`와 `--server-provider`가 같이 있어서 `server` 생성 책임이 중복된다.
+   - 이 중복 때문에 `--with-server` 기본값, `--yes` 조합, provider 선택 예외 처리가 계속 생긴다.
 2. 방향
-   - frontend Granite env preamble 생성 시 optional binding이 있을 때만 `resolveOptionalMiniappEnv()`를 넣는다.
-   - Firebase처럼 optional measurement ID가 있는 경우에만 helper를 유지한다.
+   - `--with-server`는 CLI에서 완전히 제거한다.
+   - `server` 생성은 `--server-provider <supabase|cloudflare|firebase>` 하나로만 표현한다.
+   - 인터랙티브에서는 `server-provider`가 없을 때만 `none + providers` 선택을 보여준다.
+   - `--yes`에서는 `--server-provider`가 없으면 `server`를 만들지 않는다.
+   - `--server-project-mode`는 `--server-provider`가 있을 때만 허용한다.
+   - `--add`도 같은 규칙으로 맞춘다.
+3. 테스트
+   - `--server-provider`만으로 `server`가 포함되는지 검증
+   - `--yes` + no `--server-provider`면 `server` 없이 진행하는지 검증
+   - `--server-project-mode` without `--server-provider`면 에러를 내는지 검증
+   - `--add`에서도 같은 규칙을 검증
+4. 완료 기준
+   - `--with-server` 관련 파싱/문구/테스트가 사라진다.
+   - `server` 생성 여부는 `--server-provider` 유무와 인터랙티브 선택으로만 결정된다.
+   - `pnpm verify` 통과
+
+## 다음 작업: granite.config.ts unused optional env helper 제거
+1. 문제
+   - 현재 frontend `granite.config.ts` 코드젠은 optional env binding이 없는 provider(`supabase`, `cloudflare`)에서도 `resolveOptionalMiniappEnv()` helper를 항상 생성한다.
+   - 결과적으로 실제로 쓰이지 않는 helper가 생성물에 남고, provider별 preamble이 필요 이상으로 비대해진다.
+2. 방향
+   - Granite frontend env preamble 생성 로직을 다시 보고, optional binding이 있는 provider에서만 optional helper를 만들게 조정한다.
+   - `resolveMiniappEnv`, `resolveOptionalMiniappEnv`, env binding 선언 중 provider별로 실제 쓰는 항목만 남기도록 정리한다.
+3. 테스트
+   - `supabase` frontend patch 결과에 `resolveOptionalMiniappEnv`가 없어야 한다.
+   - `cloudflare` frontend patch 결과에 `resolveOptionalMiniappEnv`가 없어야 한다.
+   - `firebase` frontend patch 결과에는 optional measurement id 때문에 helper가 유지되어야 한다.
+4. 완료 기준
+   - `supabase`/`cloudflare` 생성물의 `granite.config.ts`에는 unused optional helper가 없다.
+   - `firebase` 생성물은 기존 optional measurement id 지원을 유지한다.
+   - `pnpm verify` 통과
+
+## 다음 작업: npm peer dependency install 완화
+1. 문제
+   - `npm`으로 MiniApp frontend를 설치하면 Granite/React Native 쪽 peer dependency 충돌 때문에 `ERESOLVE unable to resolve dependency tree`가 발생한다.
+   - 루트 `.npmrc`를 먼저 만들어도 `frontend`처럼 별도 `package.json`이 있는 하위 workspace install에는 설정이 전파되지 않는다.
+   - 이 충돌은 생성 직후 frontend install뿐 아니라, 최종 루트 workspace install, Firebase functions nested install, 이후 사용자의 수동 `npm install`에도 영향을 줄 수 있다.
+2. 방향
+   - npm 전용 완화 전략은 CLI flag가 아니라 workspace별 `.npmrc`로 옮긴다.
+   - 루트에는 기존대로 `.npmrc`를 만들고, `frontend`, `backoffice`, `server`, `server/functions`에도 필요할 때 같은 `.npmrc`를 만든다.
+   - create 시에는 `frontend` 생성 직후 `.npmrc`를 먼저 써서 첫 `npm install`부터 설정이 적용되게 한다.
+   - 이 구성이 되면 npm adapter의 `--legacy-peer-deps` 플래그는 제거한다.
+3. 테스트
+   - npm create command plan이 더 이상 `--legacy-peer-deps`를 붙이지 않는지 검증
+   - npm root finalize install args 검증
+   - npm root/server/firebase functions `.npmrc` 생성 검증
+   - npm Firebase functions predeploy/build script가 플래그 없이 동작하는지 검증
+4. 완료 기준
+   - `frontend` 첫 install 전 `.npmrc`가 생성된다.
+   - 생성물의 npm workspace들에 `legacy-peer-deps=true`가 남는다.
+   - npm adapter 명령에는 더 이상 `--legacy-peer-deps`가 없다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Bun directory command 순서 보정
+1. 문제
+   - 현재 Bun adapter가 `bun --cwd <dir> install`, `bun --cwd <dir> run <script>` 형태를 만든다.
+   - 실제 Bun CLI는 `bun install --cwd <dir>`, `bun run --cwd <dir> <script>` 순서를 기대해서, Firebase predeploy 같은 generated command가 실패한다.
+2. 방향
+   - Bun adapter의 directory/script command 순서를 Bun CLI 실제 문법에 맞게 수정한다.
+   - Bun 기반 root/workspace 템플릿 테스트 기대값도 같이 갱신한다.
 3. 완료 기준
-   - Supabase/Cloudflare `granite.config.ts`에는 unused optional helper가 생성되지 않는다.
-   - Firebase `granite.config.ts`에는 기존 optional helper가 유지된다.
+   - Firebase predeploy의 Bun 경로가 `bun install --cwd "$RESOURCE_DIR" && bun run --cwd "$RESOURCE_DIR" build` 형태로 나온다.
+   - Bun workspace build command도 올바른 순서를 쓴다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Firebase build service account 추론 보정
+1. 문제
+   - 현재 Firebase Functions IAM 보정은 `PROJECT_NUMBER-compute@developer.gserviceaccount.com`를 기본 build service account로 고정 가정한다.
+   - 실제 Cloud Build 기본 service account는 프로젝트 설정에 따라 Compute Engine default account일 수도 있고, legacy Cloud Build account나 다른 기본 account일 수도 있다.
+   - 그래서 존재하지 않는 compute service account에 role을 추가하려다 `Service account ... does not exist`로 실패할 수 있다.
+2. 방향
+   - Firebase IAM 보정 시 `gcloud builds get-default-service-account --project <id>`를 먼저 호출해서 실제 기본 build service account를 조회한다.
+   - 조회된 service account 기준으로 project IAM role 보정을 수행한다.
+   - 조회된 기본 account가 존재하지 않으면, 잘못된 role add 시도 대신 복구 안내를 내보낸다.
+3. 테스트
+   - default build service account 조회값을 기준으로 role 보정하는 테스트
+   - 조회된 default account가 존재하지 않을 때 명확한 에러를 내는 테스트
+4. 완료 기준
+   - 더 이상 compute default service account를 하드코딩하지 않는다.
+   - Firebase IAM 보정이 실제 Cloud Build 기본 service account 기준으로 동작한다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Cloud Build API 자동 활성화 후 IAM 보정 재시도
+1. 문제
+   - 새 Firebase 프로젝트에서는 `gcloud builds get-default-service-account` 호출 시 `cloudbuild.googleapis.com`이 아직 비활성화된 경우가 있다.
+   - 지금은 이 상태를 에러로 끝내서, 실제로는 자동 복구 가능한 초기 프로젝트에서도 스캐폴딩이 중단된다.
+2. 방향
+   - Firebase IAM 보정 중 `SERVICE_DISABLED`로 `cloudbuild.googleapis.com`이 감지되면 `gcloud services enable cloudbuild.googleapis.com --project <id>`를 먼저 실행한다.
+   - enable 후 같은 루프에서 default build service account 조회를 다시 시도한다.
+3. 완료 기준
+   - Cloud Build API가 꺼진 새 Firebase 프로젝트에서도 IAM 보정이 자동으로 복구된다.
+   - `pnpm verify` 통과
+
+## 다음 작업: dev prerelease publish 스크립트 추가
+1. 문제
+   - 현재 루트에는 changeset 기반 정식 릴리스만 있고, 두 패키지를 같은 dev 버전으로 바로 npm에 올리는 스크립트가 없다.
+   - `create-rn-miniapp`는 `@create-rn-miniapp/scaffold-templates`를 `workspace:*`로 참조하므로, dev publish 시에는 staging된 manifest에서 실제 prerelease 버전으로 치환해야 한다.
+2. 방향
+   - 루트에 `publish:dev` 스크립트를 추가한다.
+   - 버전은 `0.0.0-dev.<timestamp>` 형식으로 계산한다.
+   - 작업 트리를 수정하지 않고, 두 패키지를 임시 디렉터리에 stage해서 publish한다.
+   - publish 순서는 `@create-rn-miniapp/scaffold-templates` 먼저, `create-rn-miniapp` 나중으로 고정한다.
+   - `NPM_TOKEN`은 사용자가 export 해둔 값을 그대로 사용하고, 없으면 즉시 에러를 낸다.
+3. 구현 메모
+   - 루트 `pnpm build` 후 publish한다.
+   - staging된 CLI `package.json`에서는 templates dependency를 같은 dev 버전으로 바꾼다.
+   - publish는 `npm publish --tag dev --access public` 기준으로 실행한다.
+4. 테스트
+   - `publish:dev` 루트 script 존재 확인
+   - dev 버전 문자열 포맷 테스트
+   - staged manifest에서 두 패키지 버전과 CLI dependency 치환 확인
+5. 완료 기준
+   - `pnpm publish:dev`로 두 패키지를 같은 dev version으로 publish할 수 있다.
+   - 작업 트리의 실제 `package.json` 버전은 바뀌지 않는다.
+   - `pnpm verify` 통과
+
+## 다음 작업: npm / bun package manager 지원
+1. 문제
+   - 현재 생성기는 `pnpm`과 `yarn`만 지원한다.
+   - `npm create rn-miniapp`로 들어왔을 때는 선택 프롬프트가 뜨지만, 실제 생성 결과를 `npm`으로 유지하는 경로는 없다.
+   - `bun create rn-miniapp`처럼 Bun 기반 scaffold 흐름도 현재는 사용할 수 없다.
+2. 방향
+   - `package-manager` adapter에 `npm`, `bun`을 추가한다.
+   - 호출 package manager 추론도 `npm`, `bun`까지 확장한다.
+   - package manager 선택 prompt는 제거하고, 호출한 command를 그대로 따른다.
+     - 감지 실패 시 기본값으로 숨기지 않고 에러를 낸다.
+   - root template와 workspace manifest는 manager별로 분기한다.
+     - `pnpm`: `pnpm-workspace.yaml`
+     - `yarn`/`npm`/`bun`: `package.json.workspaces`
+   - root `package.json` scripts, lockfile/ignore 처리, finalize 단계도 manager-aware로 확장한다.
+   - README와 CLI help, 테스트를 모두 새 선택지 기준으로 갱신한다.
+3. 구현 메모
+   - `npm`은 `npm create`, `npm exec`, `npx`, `npm --prefix` 계열 명령으로 맞춘다.
+   - `bun`은 `bun create`, `bunx`, `bun add`, `bun --cwd` 계열 명령으로 맞춘다.
+   - provider별 local script와 Firebase nested functions install 경로도 manager별 차이를 반영해야 한다.
+4. 완료 기준
+   - `--package-manager <pnpm|yarn|npm|bun>`이 동작한다.
+   - `npm create rn-miniapp`는 `npm`, `bun create rn-miniapp`는 `bun`으로 자동 선택된다.
+   - package manager 선택 prompt가 더 이상 뜨지 않는다.
+   - 감지 실패 시 `--package-manager`를 명시하라는 에러가 난다.
+   - 생성 결과 root manifest와 verify/build script가 manager별로 맞게 나온다.
    - `pnpm verify` 통과
 
 ## 다음 작업: CLI `--no-git` 옵션 추가
 1. 문제
-   - 현재는 새 스캐폴드가 항상 루트 `git init`까지 진행한다.
+  - 현재는 새 스캐폴드가 항상 루트 `git init`까지 진행한다.
    - 외부 템플릿 소비나 임시 출력처럼 루트 저장소 초기화를 원하지 않는 경우에는 끌 수 있는 CLI 옵션이 필요하다.
 2. 방향
    - create 흐름에 `--no-git` 옵션을 추가한다.

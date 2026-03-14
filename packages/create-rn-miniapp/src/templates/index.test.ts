@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
   FIREBASE_DEFAULT_FUNCTION_REGION,
   applyDocsTemplates,
@@ -16,14 +17,17 @@ import {
   type TemplateTokens,
 } from './index.js'
 
-function createTokens(packageManager: 'pnpm' | 'yarn'): TemplateTokens {
+function createTokens(packageManager: PackageManager): TemplateTokens {
+  const adapter = getPackageManagerAdapter(packageManager)
+
   return {
     appName: 'ebook-miniapp',
     displayName: '전자책 미니앱',
     packageManager,
     packageManagerCommand: packageManager,
-    packageManagerExecCommand: `${packageManager} exec`,
-    verifyCommand: `${packageManager} verify`,
+    packageManagerRunCommand: adapter.runCommandPrefix,
+    packageManagerExecCommand: adapter.execCommandPrefix,
+    verifyCommand: adapter.verifyCommand(),
   }
 }
 
@@ -271,12 +275,115 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     'yarn dlx supabase db reset --local --workdir .',
   )
   assert.match(serverDbApplyScript, /SUPABASE_DB_PASSWORD/)
-  assert.match(serverDbApplyScript, /supabase', 'db', 'push'/)
+  assert.match(serverDbApplyScript, /baseArgs = \["dlx","supabase","db","push"/)
   assert.match(serverDbApplyScript, /yarn/)
   assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
-  assert.match(serverFunctionsDeployScript, /'supabase',\n\s+'functions',\n\s+'deploy'/)
+  assert.match(serverFunctionsDeployScript, /baseArgs = \["dlx","supabase","functions","deploy"/)
   assert.match(serverFunctionsDeployScript, /--project-ref/)
   assert.match(serverFunctionsDeployScript, /yarn/)
+})
+
+test('applyRootTemplates emits npm-specific workspace manifest and scripts', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('npm')
+
+  await applyRootTemplates(targetRoot, tokens, ['frontend', 'server'])
+  await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
+  await applyServerPackageTemplate(targetRoot, tokens)
+
+  const packageJson = JSON.parse(await readFile(path.join(targetRoot, 'package.json'), 'utf8')) as {
+    packageManager?: string
+    workspaces?: string[]
+    scripts?: Record<string, string>
+  }
+  const npmrc = await readFile(path.join(targetRoot, '.npmrc'), 'utf8')
+  const frontendProject = JSON.parse(
+    await readFile(path.join(targetRoot, 'frontend', 'project.json'), 'utf8'),
+  ) as {
+    targets?: Record<string, { command?: string }>
+  }
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const serverDbApplyScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
+    'utf8',
+  )
+
+  assert.equal(packageJson.packageManager, 'npm@11.11.1')
+  assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
+  assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
+  assert.equal(npmrc, 'legacy-peer-deps=true\n')
+  assert.equal(frontendProject.targets?.build.command, 'npm --workspace frontend run build')
+  assert.equal(serverPackageJson.scripts?.dev, 'npx supabase start --workdir .')
+  assert.equal(
+    serverPackageJson.scripts?.['functions:serve'],
+    'npx supabase functions serve --env-file ./.env.local --workdir .',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.['db:apply:local'],
+    'npx supabase db push --local --workdir .',
+  )
+  assert.equal(serverPackageJson.scripts?.build, 'npm run typecheck')
+  assert.equal(
+    packageJson.scripts?.verify,
+    'npm run format:check && npm run lint && npm run typecheck && npm run test',
+  )
+  assert.equal(
+    await readFile(path.join(targetRoot, 'server', '.npmrc'), 'utf8'),
+    'legacy-peer-deps=true\n',
+  )
+  assert.match(serverDbApplyScript, /npx/)
+})
+
+test('applyRootTemplates emits bun-specific workspace manifest and scripts', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('bun')
+
+  await applyRootTemplates(targetRoot, tokens, ['frontend', 'server'])
+  await applyWorkspaceProjectTemplate(targetRoot, 'frontend', tokens)
+  await applyServerPackageTemplate(targetRoot, tokens)
+
+  const packageJson = JSON.parse(await readFile(path.join(targetRoot, 'package.json'), 'utf8')) as {
+    packageManager?: string
+    workspaces?: string[]
+    scripts?: Record<string, string>
+  }
+  const frontendProject = JSON.parse(
+    await readFile(path.join(targetRoot, 'frontend', 'project.json'), 'utf8'),
+  ) as {
+    targets?: Record<string, { command?: string }>
+  }
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const serverDbApplyScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
+    'utf8',
+  )
+
+  assert.equal(packageJson.packageManager, 'bun@1.3.4')
+  assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
+  assert.equal(frontendProject.targets?.build.command, 'bun run --cwd frontend build')
+  assert.equal(serverPackageJson.scripts?.dev, 'bunx supabase start --workdir .')
+  assert.equal(
+    serverPackageJson.scripts?.['functions:serve'],
+    'bunx supabase functions serve --env-file ./.env.local --workdir .',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.['db:apply:local'],
+    'bunx supabase db push --local --workdir .',
+  )
+  assert.equal(serverPackageJson.scripts?.build, 'bun run typecheck')
+  assert.equal(
+    packageJson.scripts?.verify,
+    'bun run format:check && bun run lint && bun run typecheck && bun run test',
+  )
+  assert.match(serverDbApplyScript, /bunx/)
 })
 
 test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with package-manager aware scripts', async (t) => {
@@ -351,6 +458,77 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
   assert.doesNotMatch(functionEntry, new RegExp(FIREBASE_DEFAULT_FUNCTION_REGION))
 })
 
+test('applyFirebaseServerWorkspaceTemplate emits bun-compatible predeploy commands', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('bun')
+
+  await applyFirebaseServerWorkspaceTemplate(targetRoot, tokens, {
+    projectId: 'ebook-firebase',
+    functionRegion: 'us-central1',
+  })
+
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const firebaseJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'firebase.json'), 'utf8'),
+  ) as {
+    functions?: Array<{
+      predeploy?: string[]
+    }>
+  }
+
+  assert.equal(
+    serverPackageJson.scripts?.build,
+    'bun install --cwd ./functions && bun run --cwd ./functions build',
+  )
+  assert.equal(
+    firebaseJson.functions?.[0]?.predeploy?.[0],
+    'bun install --cwd "$RESOURCE_DIR" && bun run --cwd "$RESOURCE_DIR" build',
+  )
+})
+
+test('applyFirebaseServerWorkspaceTemplate emits plain npm predeploy commands and writes npmrc files', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('npm')
+
+  await applyFirebaseServerWorkspaceTemplate(targetRoot, tokens, {
+    projectId: 'ebook-firebase',
+    functionRegion: 'us-central1',
+  })
+
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const firebaseJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'firebase.json'), 'utf8'),
+  ) as {
+    functions?: Array<{
+      predeploy?: string[]
+    }>
+  }
+  const serverNpmrc = await readFile(path.join(targetRoot, 'server', '.npmrc'), 'utf8')
+  const functionsNpmrc = await readFile(
+    path.join(targetRoot, 'server', 'functions', '.npmrc'),
+    'utf8',
+  )
+
+  assert.equal(
+    serverPackageJson.scripts?.build,
+    'npm --prefix ./functions install && npm --prefix ./functions run build',
+  )
+  assert.equal(
+    firebaseJson.functions?.[0]?.predeploy?.[0],
+    'npm --prefix "$RESOURCE_DIR" install && npm --prefix "$RESOURCE_DIR" run build',
+  )
+  assert.equal(serverNpmrc, 'legacy-peer-deps=true\n')
+  assert.equal(functionsNpmrc, 'legacy-peer-deps=true\n')
+})
+
 test('applyFirebaseServerWorkspaceTemplate creates yarn-isolated functions project assets for yarn', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('yarn')
@@ -401,12 +579,18 @@ test('applyFirebaseServerWorkspaceTemplate creates yarn-isolated functions proje
 test('syncRootWorkspaceManifest adds newly added workspaces to existing root manifests', async (t) => {
   const pnpmRoot = await createTempTargetRoot(t)
   const yarnRoot = await createTempTargetRoot(t)
+  const npmRoot = await createTempTargetRoot(t)
+  const bunRoot = await createTempTargetRoot(t)
 
   await applyRootTemplates(pnpmRoot, createTokens('pnpm'), ['frontend'])
   await applyRootTemplates(yarnRoot, createTokens('yarn'), ['frontend'])
+  await applyRootTemplates(npmRoot, createTokens('npm'), ['frontend'])
+  await applyRootTemplates(bunRoot, createTokens('bun'), ['frontend'])
 
   await syncRootWorkspaceManifest(pnpmRoot, 'pnpm', ['frontend', 'server'])
   await syncRootWorkspaceManifest(yarnRoot, 'yarn', ['frontend', 'backoffice'])
+  await syncRootWorkspaceManifest(npmRoot, 'npm', ['frontend', 'server'])
+  await syncRootWorkspaceManifest(bunRoot, 'bun', ['frontend', 'backoffice'])
 
   const pnpmWorkspaceManifest = await readFile(path.join(pnpmRoot, 'pnpm-workspace.yaml'), 'utf8')
   const yarnPackageJson = JSON.parse(
@@ -414,7 +598,15 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
   ) as {
     workspaces?: string[]
   }
+  const npmPackageJson = JSON.parse(await readFile(path.join(npmRoot, 'package.json'), 'utf8')) as {
+    workspaces?: string[]
+  }
+  const bunPackageJson = JSON.parse(await readFile(path.join(bunRoot, 'package.json'), 'utf8')) as {
+    workspaces?: string[]
+  }
 
   assert.equal(pnpmWorkspaceManifest, 'packages:\n  - frontend\n  - server\n')
   assert.deepEqual(yarnPackageJson.workspaces, ['frontend', 'backoffice'])
+  assert.deepEqual(npmPackageJson.workspaces, ['frontend', 'server'])
+  assert.deepEqual(bunPackageJson.workspaces, ['frontend', 'backoffice'])
 })

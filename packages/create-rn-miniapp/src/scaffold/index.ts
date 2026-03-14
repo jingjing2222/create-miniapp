@@ -28,6 +28,7 @@ import {
 } from './provisioning.js'
 import {
   createTemplateTokens,
+  maybeWriteNpmWorkspaceConfig,
   maybePatchServerWorkspace,
   maybePrepareServerWorkspace,
   resolveRootWorkspaces,
@@ -64,7 +65,15 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     withBackoffice: options.withBackoffice,
   })
 
-  for (const command of phases.frontend) {
+  const [frontendCreateCommand, ...frontendSetupCommands] = phases.frontend
+
+  if (frontendCreateCommand) {
+    log.step(frontendCreateCommand.label)
+    await runCommand(frontendCreateCommand)
+    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'frontend'), options.packageManager)
+  }
+
+  for (const command of frontendSetupCommands) {
     log.step(command.label)
     await runCommand(command)
   }
@@ -120,6 +129,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   for (const command of phases.backoffice) {
     log.step(command.label)
     await runCommand(command)
+  }
+
+  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
+    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'backoffice'), options.packageManager)
   }
 
   if (options.withBackoffice) {
@@ -268,6 +281,10 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   for (const command of phases.backoffice) {
     log.step(command.label)
     await runCommand(command)
+  }
+
+  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
+    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'backoffice'), options.packageManager)
   }
 
   await syncRootWorkspaceManifest(

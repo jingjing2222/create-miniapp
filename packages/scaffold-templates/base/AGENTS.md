@@ -60,10 +60,10 @@
 9. 브랜치, 커밋, 푸시, PR 순으로 마무리한다.
 
 ## Verify Gate
-- `{{packageManagerCommand}} format:check`
-- `{{packageManagerCommand}} lint`
-- `{{packageManagerCommand}} typecheck`
-- `{{packageManagerCommand}} test`
+- `{{packageManagerRunCommand}} format:check`
+- `{{packageManagerRunCommand}} lint`
+- `{{packageManagerRunCommand}} typecheck`
+- `{{packageManagerRunCommand}} test`
 - 문서 링크와 실제 구조 정합성 확인
 
 ## Commit And Branch Policy

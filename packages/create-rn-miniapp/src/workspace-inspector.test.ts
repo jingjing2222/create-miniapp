@@ -171,7 +171,7 @@ test('inspectWorkspace rejects roots without a supported packageManager field', 
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'npm@10.0.0',
+        packageManager: 'unknown@1.0.0',
       },
       null,
       2,
@@ -185,4 +185,47 @@ test('inspectWorkspace rejects roots without a supported packageManager field', 
   )
 
   await assert.rejects(() => inspectWorkspace(targetRoot), /지원하지 않는 package manager/)
+})
+
+test('inspectWorkspace accepts npm and bun packageManager fields', async (t) => {
+  const npmRoot = await createTempWorkspace(t)
+  const bunRoot = await createTempWorkspace(t)
+
+  for (const [targetRoot, packageManager] of [
+    [npmRoot, 'npm@11.11.1'],
+    [bunRoot, 'bun@1.3.4'],
+  ] as const) {
+    await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+    await writeFile(
+      path.join(targetRoot, 'package.json'),
+      JSON.stringify({ packageManager }, null, 2),
+      'utf8',
+    )
+    await writeFile(
+      path.join(targetRoot, 'frontend', 'granite.config.ts'),
+      [
+        "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+        "import { defineConfig } from '@granite-js/react-native/config'",
+        '',
+        'export default defineConfig({',
+        '  appName: "ebook-miniapp",',
+        '  plugins: [',
+        '    appsInToss({',
+        '      brand: {',
+        '        displayName: "전자책 미니앱",',
+        '      },',
+        '    }),',
+        '  ],',
+        '})',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+  }
+
+  const npmInspection = await inspectWorkspace(npmRoot)
+  const bunInspection = await inspectWorkspace(bunRoot)
+
+  assert.equal(npmInspection.packageManager, 'npm')
+  assert.equal(bunInspection.packageManager, 'bun')
 })

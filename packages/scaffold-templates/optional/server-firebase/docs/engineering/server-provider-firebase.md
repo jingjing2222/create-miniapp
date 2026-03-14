@@ -18,10 +18,10 @@
 - `server/README.md`
 
 ## 가장 먼저 쓸 명령
-- `{{packageManagerCommand}} --dir server build`
-- `{{packageManagerCommand}} --dir server typecheck`
-- `{{packageManagerCommand}} --dir server deploy`
-- `{{packageManagerCommand}} --dir server logs`
+- `cd server && {{packageManagerRunCommand}} build`
+- `cd server && {{packageManagerRunCommand}} typecheck`
+- `cd server && {{packageManagerRunCommand}} deploy`
+- `cd server && {{packageManagerRunCommand}} logs`
 
 ## frontend와 backoffice는 어떻게 연결되나요
 - `frontend/src/lib/firebase.ts`

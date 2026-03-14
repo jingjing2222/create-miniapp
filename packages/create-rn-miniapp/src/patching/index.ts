@@ -17,6 +17,7 @@ import {
   pathExists,
   removePathIfExists,
   SUPABASE_DEFAULT_FUNCTION_NAME,
+  writeWorkspaceNpmrc,
 } from '../templates/index.js'
 
 const STATIC_TOOLING_FILES = [
@@ -441,13 +442,13 @@ function renderSupabaseServerReadme(tokens: TemplateTokens) {
     '',
     '## 주요 스크립트',
     '',
-    `- \`${tokens.packageManagerCommand} run dev\`: 로컬 Supabase stack을 시작해요.`,
-    `- \`${tokens.packageManagerCommand} run db:apply\`: \`server/.env.local\`의 \`SUPABASE_DB_PASSWORD\`를 사용해 linked remote project에 migration을 적용해요.`,
-    `- \`${tokens.packageManagerCommand} run functions:serve\`: \`server/.env.local\`을 주입해 Edge Functions를 로컬에서 serve해요.`,
-    `- \`${tokens.packageManagerCommand} run functions:deploy\`: \`server/.env.local\`의 \`SUPABASE_PROJECT_REF\`를 사용해 Edge Functions를 원격 Supabase project에 배포해요.`,
-    `- \`${tokens.packageManagerCommand} run db:apply:local\`: 로컬 Supabase DB에 migration을 적용해요.`,
-    `- \`${tokens.packageManagerCommand} run db:reset\`: 로컬 Supabase DB를 리셋해요.`,
-    `- \`${tokens.packageManagerCommand} run test\`: placeholder 테스트를 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} dev\`: 로컬 Supabase stack을 시작해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} db:apply\`: \`server/.env.local\`의 \`SUPABASE_DB_PASSWORD\`를 사용해 linked remote project에 migration을 적용해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} functions:serve\`: \`server/.env.local\`을 주입해 Edge Functions를 로컬에서 serve해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} functions:deploy\`: \`server/.env.local\`의 \`SUPABASE_PROJECT_REF\`를 사용해 Edge Functions를 원격 Supabase project에 배포해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} db:apply:local\`: 로컬 Supabase DB에 migration을 적용해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} db:reset\`: 로컬 Supabase DB를 리셋해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} test\`: placeholder 테스트를 실행해요.`,
     '',
     '## Miniapp / Backoffice 연결',
     '',
@@ -488,11 +489,11 @@ function renderCloudflareServerReadme(tokens: TemplateTokens) {
     '',
     '## 주요 스크립트',
     '',
-    `- \`${tokens.packageManagerCommand} run dev\`: 로컬 Worker 개발 서버를 실행해요.`,
-    `- \`${tokens.packageManagerCommand} run build\`: \`wrangler deploy --dry-run\`으로 번들을 검증해요.`,
-    `- \`${tokens.packageManagerCommand} run typecheck\`: \`wrangler types\`와 TypeScript 검사를 함께 실행해요.`,
-    `- \`${tokens.packageManagerCommand} run deploy\`: \`wrangler.jsonc\` 기준으로 원격 Worker를 배포해요.`,
-    `- \`${tokens.packageManagerCommand} run test\`: placeholder 테스트를 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} dev\`: 로컬 Worker 개발 서버를 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} build\`: \`wrangler deploy --dry-run\`으로 번들을 검증해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`wrangler types\`와 TypeScript 검사를 함께 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: \`wrangler.jsonc\` 기준으로 원격 Worker를 배포해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} test\`: placeholder 테스트를 실행해요.`,
     '',
     '## Miniapp / Backoffice 연결',
     '',
@@ -533,10 +534,10 @@ function renderFirebaseServerReadme(tokens: TemplateTokens) {
     '',
     '## 주요 스크립트',
     '',
-    `- \`${tokens.packageManagerCommand} run build\`: \`server/functions\`의 TypeScript를 빌드해요.`,
-    `- \`${tokens.packageManagerCommand} run typecheck\`: \`server/functions\` 타입 검사를 실행해요.`,
-    `- \`${tokens.packageManagerCommand} run deploy\`: Firebase Functions를 현재 project로 배포해요.`,
-    `- \`${tokens.packageManagerCommand} run logs\`: Firebase Functions 로그를 확인해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} build\`: \`server/functions\`의 TypeScript를 빌드해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`server/functions\` 타입 검사를 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: Firebase Functions를 현재 project로 배포해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} logs\`: Firebase Functions 로그를 확인해요.`,
     '',
     '## Miniapp / Backoffice 연결',
     '',
@@ -1080,6 +1081,9 @@ export async function patchFrontendWorkspace(
       includeNodeTypes: true,
     },
   ])
+  if (options.packageManager === 'npm') {
+    await writeWorkspaceNpmrc(frontendRoot)
+  }
 
   if (options.serverProvider === 'supabase') {
     await writeFrontendSupabaseBootstrap(frontendRoot)
@@ -1126,6 +1130,9 @@ export async function patchBackofficeWorkspace(
     { fileName: 'tsconfig.node.json' },
   ])
   await patchBackofficeEntryFiles(backofficeRoot)
+  if (options.packageManager === 'npm') {
+    await writeWorkspaceNpmrc(backofficeRoot)
+  }
   await removeToolingFiles(backofficeRoot, options.packageManager)
   await removeWorkspaceArtifacts(backofficeRoot, options.packageManager)
 
@@ -1186,6 +1193,9 @@ export async function patchCloudflareServerWorkspace(
   })
   await patchWranglerConfigSchema(serverRoot, packageJson)
   await writeTextFile(path.join(serverRoot, 'README.md'), renderCloudflareServerReadme(tokens))
+  if (options.packageManager === 'npm') {
+    await writeWorkspaceNpmrc(serverRoot)
+  }
   await ensureRootGitignoreEntry(targetRoot, CLOUDFLARE_ROOT_GITIGNORE_ENTRY)
   await ensureRootBiomeIgnoreEntry(targetRoot, CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY)
   await removePathIfExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'))

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import test from 'node:test'
-import type { ServerProjectMode } from './server-project.js'
 import {
   type CliPrompter,
   createClackPrompter,
@@ -22,7 +21,6 @@ test('parseCliArgs parses long-form CLI options with yargs', async () => {
       '--display-name',
       '전자책 미니앱',
       '--no-git',
-      '--with-server',
       '--server-provider',
       'supabase',
       '--server-project-mode',
@@ -39,7 +37,6 @@ test('parseCliArgs parses long-form CLI options with yargs', async () => {
   assert.equal(argv.name, 'ebook-miniapp')
   assert.equal(argv.displayName, '전자책 미니앱')
   assert.equal(argv.noGit, true)
-  assert.equal(argv.withServer, true)
   assert.equal(argv.serverProvider, 'supabase')
   assert.equal(argv.serverProjectMode, 'existing')
   assert.equal(argv.withBackoffice, true)
@@ -60,6 +57,13 @@ test('parseCliArgs accepts firebase as a server provider', async () => {
   assert.equal(argv.serverProvider, 'firebase')
 })
 
+test('parseCliArgs rejects the removed with-server flag', async () => {
+  await assert.rejects(
+    () => parseCliArgs(['--with-server'], '/workspace'),
+    /옵션을 해석하지 못했습니다\./,
+  )
+})
+
 test('parseCliArgs parses add mode flags', async () => {
   const argv = await parseCliArgs(['--add', '--root-dir', '/tmp/existing-miniapp'], '/workspace')
 
@@ -75,9 +79,10 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   }> = []
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<
-    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
-  > = ['yarn', 'supabase', 'no']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'supabase',
+    'no',
+  ]
 
   const prompts: CliPrompter = {
     async text(options) {
@@ -118,13 +123,13 @@ test('resolveCliOptions asks for missing values when interactive input is needed
     },
     prompts,
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
     },
   )
 
   assert.equal(resolved.appName, 'ebook-miniapp')
   assert.equal(resolved.displayName, '전자책 미니앱')
-  assert.equal(resolved.packageManager, 'yarn')
+  assert.equal(resolved.packageManager, 'pnpm')
   assert.equal(resolved.withServer, true)
   assert.equal(resolved.serverProvider, 'supabase')
   assert.equal(resolved.serverProjectMode, null)
@@ -145,7 +150,6 @@ test('resolveCliOptions asks for missing values when interactive input is needed
     },
   ])
   assert.deepEqual(selectMessages, [
-    '패키지 매니저를 선택하세요.',
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
   ])
@@ -154,9 +158,10 @@ test('resolveCliOptions asks for missing values when interactive input is needed
 test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflare is selected', async () => {
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<
-    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
-  > = ['pnpm', 'cloudflare', 'yes']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'cloudflare',
+    'yes',
+  ]
 
   const resolved = await resolveCliOptions(
     {
@@ -190,17 +195,44 @@ test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflar
       },
     },
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
     },
   )
 
   assert.equal(resolved.serverProvider, 'cloudflare')
   assert.equal(resolved.serverProjectMode, null)
   assert.deepEqual(selectMessages, [
-    '패키지 매니저를 선택하세요.',
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
   ])
+})
+
+test('resolveCliOptions rejects execution when the invoking package manager cannot be detected', async () => {
+  await assert.rejects(
+    () =>
+      resolveCliOptions(
+        {
+          add: false,
+          name: 'ebook-miniapp',
+          rootDir: '/tmp/workspace',
+          outputDir: '/tmp/workspace',
+          skipInstall: false,
+          yes: false,
+          help: false,
+          version: false,
+        },
+        {
+          async text() {
+            throw new Error('text prompt should not be called')
+          },
+          async select() {
+            throw new Error('select prompt should not be called')
+          },
+        },
+        {},
+      ),
+    /호출한 package manager를 감지하지 못했습니다\./,
+  )
 })
 
 test('resolveCliOptions keeps prompts optional when yes flag is set', async () => {
@@ -235,7 +267,7 @@ test('resolveCliOptions keeps prompts optional when yes flag is set', async () =
     },
     prompts,
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v24.0.0 darwin arm64',
     },
   )
 
@@ -250,12 +282,90 @@ test('resolveCliOptions keeps prompts optional when yes flag is set', async () =
   assert.equal(resolved.noGit, false)
 })
 
-test('resolveCliOptions keeps with-server compatibility by defaulting provider to supabase', async () => {
+test('resolveCliOptions accepts an explicit server-provider without extra server prompts', async () => {
+  const selectMessages: string[] = []
   const resolved = await resolveCliOptions(
     {
       add: false,
       name: 'ebook-miniapp',
-      withServer: true,
+      displayName: '전자책 미니앱',
+      serverProvider: 'cloudflare',
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+    },
+  )
+
+  assert.equal(resolved.withServer, true)
+  assert.equal(resolved.serverProvider, 'cloudflare')
+  assert.equal(resolved.serverProjectMode, null)
+  assert.deepEqual(selectMessages, ['`backoffice` 워크스페이스를 같이 만들까요?'])
+})
+
+test('resolveCliOptions rejects server-project-mode without server-provider', async () => {
+  await assert.rejects(
+    () =>
+      resolveCliOptions(
+        {
+          add: false,
+          name: 'ebook-miniapp',
+          displayName: '전자책 미니앱',
+          serverProjectMode: 'existing',
+          rootDir: '/tmp/workspace',
+          outputDir: '/tmp/workspace',
+          skipInstall: false,
+          yes: false,
+          help: false,
+          version: false,
+        },
+        {
+          async text() {
+            throw new Error('text prompt should not be called')
+          },
+          async select(options) {
+            const fallback = options.options[0]
+
+            if (!fallback) {
+              throw new Error('선택지가 없습니다.')
+            }
+
+            return fallback.value
+          },
+        },
+        {
+          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+        },
+      ),
+    /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,
+  )
+})
+
+test('resolveCliOptions does not create a server in yes mode without server-provider', async () => {
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      name: 'ebook-miniapp',
       rootDir: '/tmp/workspace',
       outputDir: '/tmp/workspace',
       skipInstall: false,
@@ -276,8 +386,8 @@ test('resolveCliOptions keeps with-server compatibility by defaulting provider t
     },
   )
 
-  assert.equal(resolved.withServer, true)
-  assert.equal(resolved.serverProvider, 'supabase')
+  assert.equal(resolved.withServer, false)
+  assert.equal(resolved.serverProvider, null)
   assert.equal(resolved.serverProjectMode, null)
 })
 
@@ -288,8 +398,7 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
         {
           add: false,
           name: 'ebook-miniapp',
-          withServer: false,
-          serverProvider: 'supabase',
+          serverProjectMode: 'existing',
           rootDir: '/tmp/workspace',
           outputDir: '/tmp/workspace',
           skipInstall: false,
@@ -309,11 +418,11 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
           npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
         },
       ),
-    /`--with-server` 없이 `--server-provider`를 사용할 수 없습니다\./,
+    /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,
   )
 })
 
-test('detectInvocationPackageManager infers pnpm and yarn from npm_config_user_agent', () => {
+test('detectInvocationPackageManager infers pnpm, yarn, npm, and bun from invocation metadata', () => {
   assert.equal(
     detectInvocationPackageManager({
       npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
@@ -330,7 +439,19 @@ test('detectInvocationPackageManager infers pnpm and yarn from npm_config_user_a
     detectInvocationPackageManager({
       npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
     }),
-    null,
+    'npm',
+  )
+  assert.equal(
+    detectInvocationPackageManager({
+      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+    }),
+    'bun',
+  )
+  assert.equal(
+    detectInvocationPackageManager({
+      npm_execpath: '/opt/homebrew/bin/bun',
+    }),
+    'bun',
   )
 })
 
@@ -430,6 +551,108 @@ test('resolveCliOptions skips package-manager prompt when yarn create invoked th
   )
 
   assert.equal(resolved.packageManager, 'yarn')
+  assert.deepEqual(selectMessages, [
+    '`server` 제공자를 선택하세요.',
+    '`backoffice` 워크스페이스를 같이 만들까요?',
+  ])
+})
+
+test('resolveCliOptions skips package-manager prompt when npm create invoked the CLI', async () => {
+  const selectMessages: string[] = []
+  const promptValues = ['ebook-miniapp', '전자책 미니앱']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'cloudflare',
+    'no',
+  ]
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        return promptValues.shift() ?? ''
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      npm_config_user_agent: 'npm/11.11.1 node/v25.6.1 darwin arm64 workspaces/false',
+    },
+  )
+
+  assert.equal(resolved.packageManager, 'npm')
+  assert.deepEqual(selectMessages, [
+    '`server` 제공자를 선택하세요.',
+    '`backoffice` 워크스페이스를 같이 만들까요?',
+  ])
+})
+
+test('resolveCliOptions skips package-manager prompt when bun create invoked the CLI', async () => {
+  const selectMessages: string[] = []
+  const promptValues = ['ebook-miniapp', '전자책 미니앱']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'firebase',
+    'yes',
+  ]
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        return promptValues.shift() ?? ''
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+    },
+  )
+
+  assert.equal(resolved.packageManager, 'bun')
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
@@ -536,16 +759,95 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
   ])
 })
 
+test('resolveAddCliOptions accepts explicit server-provider in yes mode', async () => {
+  const resolved = await resolveAddCliOptions(
+    {
+      add: true,
+      serverProvider: 'firebase',
+      rootDir: '/tmp/existing-miniapp',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: true,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select() {
+        throw new Error('select prompt should not be called')
+      },
+    },
+    {
+      rootDir: '/tmp/existing-miniapp',
+      packageManager: 'pnpm',
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      hasServer: false,
+      hasBackoffice: false,
+      serverProvider: null,
+    },
+  )
+
+  assert.equal(resolved.withServer, true)
+  assert.equal(resolved.serverProvider, 'firebase')
+  assert.equal(resolved.serverProjectMode, null)
+})
+
+test('resolveAddCliOptions rejects server-project-mode without server-provider', async () => {
+  await assert.rejects(
+    () =>
+      resolveAddCliOptions(
+        {
+          add: true,
+          serverProjectMode: 'existing',
+          rootDir: '/tmp/existing-miniapp',
+          outputDir: '/tmp/workspace',
+          skipInstall: false,
+          yes: false,
+          help: false,
+          version: false,
+        },
+        {
+          async text() {
+            throw new Error('text prompt should not be called')
+          },
+          async select(options) {
+            const fallback = options.options[0]
+
+            if (!fallback) {
+              throw new Error('선택지가 없습니다.')
+            }
+
+            return fallback.value
+          },
+        },
+        {
+          rootDir: '/tmp/existing-miniapp',
+          packageManager: 'pnpm',
+          appName: 'ebook-miniapp',
+          displayName: '전자책 미니앱',
+          hasServer: false,
+          hasBackoffice: false,
+          serverProvider: null,
+        },
+      ),
+    /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,
+  )
+})
+
 test('formatCliHelp renders Korean help text', () => {
   const help = formatCliHelp()
 
   assert.match(help, /사용법/)
   assert.match(help, /옵션/)
-  assert.match(help, /--package-manager <pnpm\|yarn>/)
+  assert.match(help, /--package-manager <pnpm\|yarn\|npm\|bun>/)
   assert.match(help, /--add/)
   assert.match(help, /--root-dir <디렉터리>/)
   assert.match(help, /--server-provider <supabase\|cloudflare\|firebase>/)
   assert.match(help, /--server-project-mode <create\|existing>/)
+  assert.doesNotMatch(help, /--with-server/)
   assert.match(help, /도움말 보기/)
   assert.match(help, /버전 보기/)
 })

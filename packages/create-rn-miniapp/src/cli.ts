@@ -17,7 +17,6 @@ export type ParsedCliArgs = {
   name?: string
   displayName?: string
   noGit?: boolean
-  withServer?: boolean
   serverProvider?: ServerProvider
   serverProjectMode?: ServerProjectMode
   withBackoffice?: boolean
@@ -129,10 +128,6 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
       default: true,
       describe: '생성 완료 후 루트 git init 수행',
     })
-    .option('with-server', {
-      type: 'boolean',
-      describe: '`server` 워크스페이스 포함 (`--server-provider supabase`의 축약형)',
-    })
     .option('server-provider', {
       choices: SERVER_PROVIDERS,
       describe: '`server` 워크스페이스 제공자 지정',
@@ -183,7 +178,6 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     name: argv.name,
     displayName: argv.displayName,
     noGit: argv.git === false,
-    withServer: argv.withServer,
     serverProvider: argv.serverProvider,
     serverProjectMode: argv.serverProjectMode,
     withBackoffice: argv.withBackoffice,
@@ -205,11 +199,10 @@ export function formatCliHelp() {
     '',
     '옵션',
     '  --add                          이미 생성된 워크스페이스에 빠진 `server`/`backoffice` 추가',
-    '  --package-manager <pnpm|yarn> package manager 지정',
+    '  --package-manager <pnpm|yarn|npm|bun> package manager 지정',
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
     '  --no-git                       생성 완료 후 루트 git init 생략',
-    '  --with-server                  `server` 워크스페이스 포함 (`--server-provider supabase`의 축약형)',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
     '  --with-backoffice              `backoffice` 워크스페이스 포함',
@@ -226,9 +219,9 @@ export function formatCliHelp() {
     '  create-miniapp --name my-miniapp --server-provider supabase --with-backoffice',
     '  create-miniapp --name my-miniapp --server-provider cloudflare',
     '  create-miniapp --name my-miniapp --server-provider firebase',
-    '  create-miniapp --name my-miniapp --with-server --server-project-mode existing',
+    '  create-miniapp --name my-miniapp --server-provider supabase --server-project-mode existing',
     '  create-miniapp --name my-miniapp --server-provider cloudflare --server-project-mode existing',
-    '  create-miniapp --add --with-server',
+    '  create-miniapp --add --server-provider supabase',
     '  create-miniapp --add --root-dir /path/to/existing-miniapp --with-backoffice',
     '',
     '옵션으로 주어지지 않은 값은 인터랙티브 입력으로 이어집니다.',
@@ -251,6 +244,29 @@ function resolveServerProjectModeInput(serverProvider: ServerProvider | null, ar
   return Promise.resolve(argv.serverProjectMode ?? null)
 }
 
+async function resolveServerProviderInput(
+  argv: ParsedCliArgs,
+  prompt: CliPrompter,
+  options: {
+    promptMessage: string
+    noneLabel: string
+  },
+) {
+  if (argv.serverProvider) {
+    return argv.serverProvider
+  }
+
+  if (argv.yes) {
+    return null
+  }
+
+  return await prompt.select<'none' | ServerProvider>({
+    message: options.promptMessage,
+    options: [{ label: options.noneLabel, value: 'none' }, ...SERVER_PROVIDER_OPTIONS],
+    initialValue: 'none',
+  })
+}
+
 export function detectInvocationPackageManager(
   env: CliEnvironment = process.env,
 ): PackageManager | null {
@@ -265,7 +281,11 @@ export function detectInvocationPackageManager(
   }
 
   if (userAgent?.startsWith('npm/')) {
-    return null
+    return 'npm'
+  }
+
+  if (userAgent?.startsWith('bun/')) {
+    return 'bun'
   }
 
   const execPath = env.npm_execpath?.toLowerCase() ?? ''
@@ -278,6 +298,14 @@ export function detectInvocationPackageManager(
     return 'yarn'
   }
 
+  if (execPath.includes('bun')) {
+    return 'bun'
+  }
+
+  if (execPath.includes('npm')) {
+    return 'npm'
+  }
+
   return null
 }
 
@@ -286,28 +314,14 @@ export async function resolveCliOptions(
   prompt: CliPrompter,
   env: CliEnvironment = process.env,
 ) {
-  if (argv.withServer === false && argv.serverProvider) {
-    throw new Error('`--with-server` 없이 `--server-provider`를 사용할 수 없습니다.')
-  }
-
-  if (argv.withServer === false && argv.serverProjectMode) {
-    throw new Error('`--with-server` 없이 `--server-project-mode`를 사용할 수 없습니다.')
-  }
-
   const invocationPackageManager = detectInvocationPackageManager(env)
-  const packageManager =
-    argv.packageManager ??
-    invocationPackageManager ??
-    (argv.yes
-      ? 'pnpm'
-      : await prompt.select<PackageManager>({
-          message: '패키지 매니저를 선택하세요.',
-          options: [
-            { label: 'pnpm', value: 'pnpm' },
-            { label: 'yarn', value: 'yarn' },
-          ],
-          initialValue: 'pnpm',
-        }))
+  const packageManager = argv.packageManager ?? invocationPackageManager
+
+  if (!packageManager) {
+    throw new Error(
+      '호출한 package manager를 감지하지 못했습니다. `--package-manager <pnpm|yarn|npm|bun>`을 명시하세요.',
+    )
+  }
 
   const rawName =
     argv.name ??
@@ -342,26 +356,15 @@ export async function resolveCliOptions(
           },
         }))
 
-  const serverProvider =
-    argv.serverProvider ??
-    (argv.withServer
-      ? 'supabase'
-      : argv.withServer === false || argv.yes
-        ? null
-        : await prompt.select<'none' | ServerProvider>({
-            message: '`server` 제공자를 선택하세요.',
-            options: [{ label: '생성 안 함', value: 'none' }, ...SERVER_PROVIDER_OPTIONS],
-            initialValue: 'none',
-          }))
+  const serverProvider = await resolveServerProviderInput(argv, prompt, {
+    promptMessage: '`server` 제공자를 선택하세요.',
+    noneLabel: '생성 안 함',
+  })
 
   const normalizedServerProvider = serverProvider === 'none' ? null : serverProvider
   const withServer = normalizedServerProvider !== null
   const serverProjectMode = await resolveServerProjectModeInput(normalizedServerProvider, argv)
   const skipServerProvisioning = argv.yes && !serverProjectMode
-
-  if (!withServer && argv.serverProjectMode) {
-    throw new Error('`--server-project-mode`는 `server` 워크스페이스와 함께 사용해야 합니다.')
-  }
 
   const withBackoffice =
     argv.withBackoffice ??
@@ -401,27 +404,13 @@ export async function resolveAddCliOptions(
     throw new Error('`--add`에서는 기존 루트의 package manager와 다른 값을 사용할 수 없습니다.')
   }
 
-  if (argv.withServer === false && argv.serverProvider) {
-    throw new Error('`--with-server` 없이 `--server-provider`를 사용할 수 없습니다.')
-  }
-
-  if (argv.withServer === false && argv.serverProjectMode) {
-    throw new Error('`--with-server` 없이 `--server-project-mode`를 사용할 수 없습니다.')
-  }
-
   const rootDir = path.resolve(argv.rootDir)
   const addServerProvider = inspection.hasServer
     ? null
-    : (argv.serverProvider ??
-      (argv.withServer
-        ? 'supabase'
-        : argv.withServer === false || argv.yes
-          ? null
-          : await prompt.select<'none' | ServerProvider>({
-              message: '`server` 제공자를 선택하세요.',
-              options: [{ label: '추가 안 함', value: 'none' }, ...SERVER_PROVIDER_OPTIONS],
-              initialValue: 'none',
-            })))
+    : await resolveServerProviderInput(argv, prompt, {
+        promptMessage: '`server` 제공자를 선택하세요.',
+        noneLabel: '추가 안 함',
+      })
 
   const normalizedServerProvider = addServerProvider === 'none' ? null : addServerProvider
   const withServer = normalizedServerProvider !== null

@@ -16,10 +16,10 @@
 - `server/README.md`
 
 ## 가장 먼저 쓸 명령
-- `{{packageManagerCommand}} --dir server dev`
-- `{{packageManagerCommand}} --dir server build`
-- `{{packageManagerCommand}} --dir server typecheck`
-- `{{packageManagerCommand}} --dir server deploy`
+- `cd server && {{packageManagerRunCommand}} dev`
+- `cd server && {{packageManagerRunCommand}} build`
+- `cd server && {{packageManagerRunCommand}} typecheck`
+- `cd server && {{packageManagerRunCommand}} deploy`
 
 ## frontend와 backoffice는 어떻게 연결되나요
 - `frontend/src/lib/api.ts`

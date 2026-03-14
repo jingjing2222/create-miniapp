@@ -18,10 +18,10 @@
 - `server/README.md`
 
 ## 가장 먼저 쓸 명령
-- `{{packageManagerCommand}} --dir server db:apply`
-- `{{packageManagerCommand}} --dir server db:apply:local`
-- `{{packageManagerCommand}} --dir server functions:serve`
-- `{{packageManagerCommand}} --dir server functions:deploy`
+- `cd server && {{packageManagerRunCommand}} db:apply`
+- `cd server && {{packageManagerRunCommand}} db:apply:local`
+- `cd server && {{packageManagerRunCommand}} functions:serve`
+- `cd server && {{packageManagerRunCommand}} functions:deploy`
 
 ## frontend와 backoffice는 어떻게 연결되나요
 - `frontend/src/lib/supabase.ts`
