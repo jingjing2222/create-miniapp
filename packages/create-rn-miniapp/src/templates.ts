@@ -4,6 +4,10 @@ import path from 'node:path'
 import { patchRootPackageJsonSource } from './ast.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 
+const ROOT_WORKSPACE_ORDER = ['frontend', 'server', 'backoffice'] as const
+
+export type WorkspaceName = (typeof ROOT_WORKSPACE_ORDER)[number]
+
 export type TemplateTokens = {
   appName: string
   displayName: string
@@ -84,10 +88,56 @@ async function writeJsonFile(targetPath: string, value: unknown) {
   await writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
-export async function applyRootTemplates(targetRoot: string, tokens: TemplateTokens) {
+function normalizeRootWorkspaces(workspaces: WorkspaceName[]) {
+  const included = new Set(workspaces)
+  return ROOT_WORKSPACE_ORDER.filter((workspace) => included.has(workspace))
+}
+
+function renderPnpmWorkspaceManifest(workspaces: WorkspaceName[]) {
+  const lines = [
+    'packages:',
+    ...normalizeRootWorkspaces(workspaces).map((workspace) => `  - ${workspace}`),
+  ]
+  return `${lines.join('\n')}\n`
+}
+
+export async function syncRootWorkspaceManifest(
+  targetRoot: string,
+  packageManager: PackageManager,
+  workspaces: WorkspaceName[],
+) {
+  const adapter = getPackageManagerAdapter(packageManager)
+  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
+
+  if (adapter.workspaceManifestFile) {
+    await writeFile(
+      path.join(targetRoot, adapter.workspaceManifestFile),
+      renderPnpmWorkspaceManifest(normalizedWorkspaces),
+      'utf8',
+    )
+    return
+  }
+
+  const rootPackageJsonPath = path.join(targetRoot, 'package.json')
+  const rootPackageJsonSource = await readFile(rootPackageJsonPath, 'utf8')
+  const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
+    packageManagerField: adapter.packageManagerField,
+    scripts: {},
+    workspaces: normalizedWorkspaces,
+  })
+
+  await writeFile(rootPackageJsonPath, nextRootPackageJsonSource, 'utf8')
+}
+
+export async function applyRootTemplates(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  workspaces: WorkspaceName[],
+) {
   const templatesRoot = resolveTemplatesPackageRoot()
   const rootTemplateDir = path.join(templatesRoot, 'root')
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
 
   const fileMappings = [
     ['nx.json', 'nx.json'],
@@ -125,18 +175,17 @@ export async function applyRootTemplates(targetRoot: string, tokens: TemplateTok
       lint: packageManager.rootLintScript(),
       verify: packageManager.rootVerifyScript(),
     },
-    workspaces:
-      packageManager.workspaceManifestFile === null ? ['frontend', 'server', 'backoffice'] : null,
+    workspaces: packageManager.workspaceManifestFile === null ? normalizedWorkspaces : null,
   })
 
   await mkdir(targetRoot, { recursive: true })
   await writeFile(path.join(targetRoot, 'package.json'), nextRootPackageJsonSource, 'utf8')
 
   if (packageManager.workspaceManifestFile) {
-    await copyOptionalTemplateFile(
-      path.join(rootTemplateDir, packageManager.workspaceManifestFile),
+    await writeFile(
       path.join(targetRoot, packageManager.workspaceManifestFile),
-      tokens,
+      renderPnpmWorkspaceManifest(normalizedWorkspaces),
+      'utf8',
     )
   }
 
@@ -167,7 +216,7 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
 
 export async function applyWorkspaceProjectTemplate(
   targetRoot: string,
-  workspace: 'frontend' | 'backoffice' | 'server',
+  workspace: WorkspaceName,
   tokens: TemplateTokens,
 ) {
   const templatesRoot = resolveTemplatesPackageRoot()

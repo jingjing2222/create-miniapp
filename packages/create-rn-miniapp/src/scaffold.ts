@@ -13,10 +13,12 @@ import {
 import type { ServerProvider } from './server-provider.js'
 import {
   type TemplateTokens,
+  type WorkspaceName,
   applyDocsTemplates,
   applyRootTemplates,
   ensureEmptyDirectory,
   pathExists,
+  syncRootWorkspaceManifest,
 } from './templates.js'
 
 export type ScaffoldOptions = {
@@ -72,6 +74,18 @@ export function buildRootFinalizePlan(options: {
   return plan
 }
 
+async function resolveRootWorkspaces(targetRoot: string) {
+  const workspaces: WorkspaceName[] = []
+
+  for (const workspace of ['frontend', 'server', 'backoffice'] as const) {
+    if (await pathExists(path.join(targetRoot, workspace))) {
+      workspaces.push(workspace)
+    }
+  }
+
+  return workspaces
+}
+
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
   const targetRoot = path.resolve(options.outputDir, options.appName)
   const packageManager = getPackageManagerAdapter(options.packageManager)
@@ -103,7 +117,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await runCommand(command)
   }
 
-  await applyRootTemplates(targetRoot, tokens)
+  await applyRootTemplates(targetRoot, tokens, await resolveRootWorkspaces(targetRoot))
   await applyDocsTemplates(targetRoot, tokens)
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
@@ -163,6 +177,12 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     log.step(command.label)
     await runCommand(command)
   }
+
+  await syncRootWorkspaceManifest(
+    targetRoot,
+    options.packageManager,
+    await resolveRootWorkspaces(targetRoot),
+  )
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
 
