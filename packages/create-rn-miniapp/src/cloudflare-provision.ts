@@ -89,7 +89,7 @@ function createCloudflareServerEnvValues(options: {
   apiToken?: string
 }) {
   return [
-    '# Used by server/package.json deploy for remote Cloudflare Worker deploys.',
+    '# Cloudflare Worker metadata for this workspace.',
     `CLOUDFLARE_ACCOUNT_ID=${options.accountId}`,
     `CLOUDFLARE_WORKER_NAME=${options.workerName}`,
     `CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`,
@@ -471,7 +471,8 @@ export function formatCloudflareManualSetupNote(options: {
       apiToken: '<optional api token>',
     }).trimEnd(),
     '',
-    'server/package.json 의 deploy 는 server/.env.local 을 읽어 원격 Worker를 다시 배포합니다.',
+    'server/.env.local 은 현재 Cloudflare Worker 메타데이터를 기록합니다.',
+    'server/package.json 의 deploy 는 wrangler.jsonc 기준으로 원격 Worker를 다시 배포합니다.',
   )
 
   return {
@@ -513,9 +514,7 @@ export async function writeCloudflareServerLocalEnvFile(options: {
 
   const lines = existingSource.length > 0 ? existingSource.split(/\r?\n/) : []
   const nextLines =
-    lines.length > 0
-      ? [...lines]
-      : ['# Used by server/package.json deploy for remote Cloudflare Worker deploys.']
+    lines.length > 0 ? [...lines] : ['# Cloudflare Worker metadata for this workspace.']
 
   let hasAccountId = false
   let hasWorkerName = false
@@ -728,7 +727,7 @@ export async function finalizeCloudflareProvisioning(options: {
           hasBackoffice
             ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 작성했습니다.'
             : 'frontend/.env.local 에 Cloudflare API URL을 작성했습니다.',
-          'server/.env.local 에 Cloudflare Worker 배포 정보를 작성했습니다.',
+          'server/.env.local 에 Cloudflare Worker 메타데이터를 작성했습니다.',
           'server/package.json 의 deploy 로 원격 Worker를 다시 배포할 수 있습니다.',
         ].join('\n'),
       },

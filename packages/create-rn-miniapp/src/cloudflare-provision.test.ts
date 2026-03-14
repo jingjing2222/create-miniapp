@@ -175,7 +175,7 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
     assert.equal(
       initialServerEnv,
       [
-        '# Used by server/package.json deploy for remote Cloudflare Worker deploys.',
+        '# Cloudflare Worker metadata for this workspace.',
         'CLOUDFLARE_ACCOUNT_ID=account-123',
         'CLOUDFLARE_WORKER_NAME=ebook-miniapp',
         'CLOUDFLARE_API_BASE_URL=https://ebook-miniapp.team-ebook.workers.dev',
@@ -187,7 +187,7 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
     await writeFile(
       path.join(targetRoot, 'server', '.env.local'),
       [
-        '# Used by server/package.json deploy for remote Cloudflare Worker deploys.',
+        '# Cloudflare Worker metadata for this workspace.',
         'CLOUDFLARE_ACCOUNT_ID=old-account',
         'CLOUDFLARE_WORKER_NAME=old-worker',
         'CLOUDFLARE_API_BASE_URL=https://old-worker.old-subdomain.workers.dev',

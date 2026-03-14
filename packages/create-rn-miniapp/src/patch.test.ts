@@ -676,10 +676,6 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   ) as {
     $schema?: string
   }
-  const deployScript = await readFile(
-    path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
-    'utf8',
-  )
   const rootGitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
   const rootBiome = JSON.parse(await readFile(path.join(targetRoot, 'biome.json'), 'utf8')) as {
     files?: {
@@ -691,13 +687,10 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.equal(packageJson.scripts?.dev, 'wrangler dev')
   assert.equal(packageJson.scripts?.build, 'wrangler deploy --dry-run')
   assert.equal(packageJson.scripts?.typecheck, 'wrangler types && tsc --noEmit')
-  assert.equal(packageJson.scripts?.deploy, 'node ./scripts/cloudflare-deploy.mjs')
-  assert.equal(packageJson.scripts?.['deploy:remote'], 'node ./scripts/cloudflare-deploy.mjs')
+  assert.equal(packageJson.scripts?.deploy, 'wrangler deploy')
+  assert.equal(packageJson.scripts?.['deploy:remote'], undefined)
   assert.equal(packageJson.scripts?.test, 'vitest')
   assert.equal(wranglerConfig.$schema, 'https://unpkg.com/wrangler@4.73.0/config-schema.json')
-  assert.match(deployScript, /CLOUDFLARE_WORKER_NAME/)
-  assert.match(deployScript, /wrangler', 'deploy'/)
-  assert.match(deployScript, /--env-file/)
   assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
   assert.equal(projectJson.targets?.typecheck?.command, 'pnpm --dir server typecheck')
   assert.match(rootGitignore, /^server\/worker-configuration\.d\.ts$/m)
@@ -711,5 +704,6 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.equal(await pathExists(path.join(serverRoot, '.prettierrc')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.editorconfig')), false)
   assert.equal(await pathExists(path.join(serverRoot, 'AGENTS.md')), false)
+  assert.equal(await pathExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.vscode', 'settings.json')), false)
 })

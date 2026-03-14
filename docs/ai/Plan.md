@@ -557,3 +557,10 @@ docs/
    - onboarding 에러라도 subdomain 또는 worker가 없으면 복구하지 않는지 검증
 4. 완료 기준
    - `pnpm verify` 통과
+
+## 현재 Cloudflare deploy script 정리
+1. Cloudflare server `package.json`에서 중복인 `deploy:remote`를 제거하고 `deploy`만 남긴다.
+2. 테스트 범위
+   - Cloudflare server patch 결과에 `deploy`만 남는지 검증
+3. 완료 기준
+   - `pnpm verify` 통과
