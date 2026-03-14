@@ -51,6 +51,12 @@ test('parseCliArgs accepts cloudflare as a server provider', async () => {
   assert.equal(argv.serverProvider, 'cloudflare')
 })
 
+test('parseCliArgs accepts firebase as a server provider', async () => {
+  const argv = await parseCliArgs(['--server-provider', 'firebase'], '/workspace')
+
+  assert.equal(argv.serverProvider, 'firebase')
+})
+
 test('parseCliArgs parses add mode flags', async () => {
   const argv = await parseCliArgs(['--add', '--root-dir', '/tmp/existing-miniapp'], '/workspace')
 
@@ -66,11 +72,9 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   }> = []
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'yes' | 'no'> = [
-    'yarn',
-    'supabase',
-    'no',
-  ]
+  const promptSelections: Array<
+    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
+  > = ['yarn', 'supabase', 'no']
 
   const prompts: CliPrompter = {
     async text(options) {
@@ -143,11 +147,9 @@ test('resolveCliOptions asks for missing values when interactive input is needed
 test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflare is selected', async () => {
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'yes' | 'no'> = [
-    'pnpm',
-    'cloudflare',
-    'yes',
-  ]
+  const promptSelections: Array<
+    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
+  > = ['pnpm', 'cloudflare', 'yes']
 
   const resolved = await resolveCliOptions(
     {
@@ -293,7 +295,10 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
 
 test('resolveAddCliOptions detects additive targets from an existing workspace', async () => {
   const selectMessages: string[] = []
-  const promptSelections: Array<'supabase' | 'cloudflare' | 'yes' | 'no'> = ['supabase', 'yes']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'supabase',
+    'yes',
+  ]
 
   const resolved = await resolveAddCliOptions(
     {
@@ -361,7 +366,7 @@ test('formatCliHelp renders Korean help text', () => {
   assert.match(help, /--package-manager <pnpm\|yarn>/)
   assert.match(help, /--add/)
   assert.match(help, /--root-dir <디렉터리>/)
-  assert.match(help, /--server-provider <supabase\|cloudflare>/)
+  assert.match(help, /--server-provider <supabase\|cloudflare\|firebase>/)
   assert.match(help, /--server-project-mode <create\|existing>/)
   assert.match(help, /도움말 보기/)
   assert.match(help, /버전 보기/)
@@ -418,13 +423,13 @@ test('createClackPrompter delegates text input and single-choice selection to cl
     message: '`server` 제공자를 선택하세요.',
     options: [
       { label: '생성 안 함', value: 'none' },
-      { label: 'Supabase', value: 'supabase' },
+      { label: 'Firebase', value: 'firebase' },
     ],
     initialValue: 'none',
   })
 
   assert.equal(textValue, 'ebook-miniapp')
-  assert.equal(selectValue, 'supabase')
+  assert.equal(selectValue, 'firebase')
   assert.deepEqual(messages, [
     'text:appName을 입력하세요',
     'guide:보여지는 이름이니 한글로 해주세요.',

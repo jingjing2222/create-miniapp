@@ -438,10 +438,13 @@ const FRONTEND_REPO_ROOT_PREAMBLE = ["const repoRoot = path.resolve(__dirname, '
   '\n',
 )
 
-function createFrontendEnvPreamble(bindings: Array<{ envName: string; identifierName: string }>) {
+function createFrontendEnvPreamble(
+  bindings: Array<{ envName: string; identifierName: string; required?: boolean }>,
+) {
   const envNameUnion = bindings.map((binding) => `'${binding.envName}'`).join(' | ')
   const envStatements = bindings.map(
-    (binding) => `const ${binding.identifierName} = resolveMiniappEnv('${binding.envName}')`,
+    (binding) =>
+      `const ${binding.identifierName} = ${binding.required === false ? 'resolveOptionalMiniappEnv' : 'resolveMiniappEnv'}('${binding.envName}')`,
   )
 
   return [
@@ -458,6 +461,10 @@ function createFrontendEnvPreamble(bindings: Array<{ envName: string; identifier
     '  }',
     '',
     '  return value.trim()',
+    '}',
+    '',
+    `function resolveOptionalMiniappEnv(name: ${envNameUnion}) {`,
+    '  return process.env[name]?.trim() ?? ""',
     '}',
     '',
     ...envStatements,
@@ -489,6 +496,41 @@ const FRONTEND_PROVIDER_ENV_CONFIG = {
       },
     ]),
   },
+  firebase: {
+    pluginSource:
+      'env({ MINIAPP_FIREBASE_API_KEY: miniappFirebaseApiKey, MINIAPP_FIREBASE_AUTH_DOMAIN: miniappFirebaseAuthDomain, MINIAPP_FIREBASE_PROJECT_ID: miniappFirebaseProjectId, MINIAPP_FIREBASE_STORAGE_BUCKET: miniappFirebaseStorageBucket, MINIAPP_FIREBASE_MESSAGING_SENDER_ID: miniappFirebaseMessagingSenderId, MINIAPP_FIREBASE_APP_ID: miniappFirebaseAppId, MINIAPP_FIREBASE_MEASUREMENT_ID: miniappFirebaseMeasurementId }, { dts: false })',
+    preamble: createFrontendEnvPreamble([
+      {
+        envName: 'MINIAPP_FIREBASE_API_KEY',
+        identifierName: 'miniappFirebaseApiKey',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_AUTH_DOMAIN',
+        identifierName: 'miniappFirebaseAuthDomain',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_PROJECT_ID',
+        identifierName: 'miniappFirebaseProjectId',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_STORAGE_BUCKET',
+        identifierName: 'miniappFirebaseStorageBucket',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_MESSAGING_SENDER_ID',
+        identifierName: 'miniappFirebaseMessagingSenderId',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_APP_ID',
+        identifierName: 'miniappFirebaseAppId',
+      },
+      {
+        envName: 'MINIAPP_FIREBASE_MEASUREMENT_ID',
+        identifierName: 'miniappFirebaseMeasurementId',
+        required: false,
+      },
+    ]),
+  },
 } as const satisfies Partial<
   Record<
     ServerProvider,
@@ -514,6 +556,13 @@ function formatGraniteConfigSource(source: string) {
     'const miniappSupabaseUrl =',
     'const miniappSupabasePublishableKey =',
     'const miniappApiBaseUrl =',
+    'const miniappFirebaseApiKey =',
+    'const miniappFirebaseAuthDomain =',
+    'const miniappFirebaseProjectId =',
+    'const miniappFirebaseStorageBucket =',
+    'const miniappFirebaseMessagingSenderId =',
+    'const miniappFirebaseAppId =',
+    'const miniappFirebaseMeasurementId =',
     'export default defineConfig(',
   ]) {
     next = ensureBlankLineBefore(next, marker)

@@ -25,6 +25,28 @@ type ServerPackageJson = {
   scripts?: Record<string, string>
 }
 
+type FirebaseFunctionsPackageJson = {
+  name: string
+  private: boolean
+  main: string
+  packageManager?: string
+  engines: {
+    node: string
+  }
+  scripts: Record<string, string>
+  dependencies: Record<string, string>
+  devDependencies: Record<string, string>
+}
+
+export const FIREBASE_DEFAULT_FUNCTION_NAME = 'api'
+export const FIREBASE_DEFAULT_FUNCTION_REGION = 'asia-northeast3'
+const FIREBASE_NODE_ENGINE = '24'
+const FIREBASE_WEB_SDK_VERSION = '^12.10.0'
+const FIREBASE_ADMIN_VERSION = '^13.6.0'
+const FIREBASE_FUNCTIONS_VERSION = '^7.0.0'
+const GOOGLE_CLOUD_FUNCTIONS_FRAMEWORK_VERSION = '^3.4.5'
+const FIREBASE_FUNCTIONS_TYPESCRIPT_VERSION = '^5.7.3'
+
 const require = createRequire(import.meta.url)
 
 function resolveTemplatesPackageRoot() {
@@ -165,6 +187,180 @@ function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
     'process.exit(1)',
     '',
   ].join('\n')
+}
+
+function renderFirebaseFirebaserc(projectId?: string | null) {
+  return `${JSON.stringify(
+    {
+      projects: {
+        default: projectId ?? '',
+      },
+    },
+    null,
+    2,
+  )}\n`
+}
+
+function renderFirebaseJson(tokens: TemplateTokens) {
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const installCommand = renderFirebaseFunctionsInstallCommand(
+    tokens.packageManager,
+    '"$RESOURCE_DIR"',
+  )
+  const predeployCommand = `${installCommand} && ${packageManager.runScriptInDirectoryCommand('"$RESOURCE_DIR"', 'build')}`
+
+  return `${JSON.stringify(
+    {
+      functions: [
+        {
+          source: 'functions',
+          codebase: 'default',
+          ignore: ['node_modules', '.git', 'firebase-debug.log', 'firebase-debug.*.log', '*.local'],
+          predeploy: [predeployCommand],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`
+}
+
+function renderFirebaseServerGitignore() {
+  return [
+    '# Firebase cache',
+    '.firebase/',
+    'firebase-debug.log*',
+    '',
+    '# Local env',
+    '.env.local',
+    '',
+    '# Functions output',
+    'functions/lib/',
+    'functions/node_modules/',
+    '',
+  ].join('\n')
+}
+
+function renderFirebaseFunctionsGitignore(packageManager: PackageManager) {
+  const lines = ['lib/', 'node_modules/']
+
+  if (packageManager === 'yarn') {
+    lines.push('.yarn/', '.pnp.*')
+  }
+
+  lines.push('')
+
+  return lines.join('\n')
+}
+
+function renderFirebaseFunctionsYarnrc() {
+  return ['nodeLinker: node-modules', ''].join('\n')
+}
+
+function renderFirebaseFunctionsPackageJson(
+  packageManager: PackageManager,
+): FirebaseFunctionsPackageJson {
+  return {
+    name: 'functions',
+    private: true,
+    main: 'lib/index.js',
+    ...(packageManager === 'yarn'
+      ? { packageManager: getPackageManagerAdapter('yarn').packageManagerField }
+      : {}),
+    engines: {
+      node: FIREBASE_NODE_ENGINE,
+    },
+    scripts: {
+      build: 'tsc -p tsconfig.json',
+      typecheck: 'tsc --noEmit -p tsconfig.json',
+      test: `node -e "console.log('firebase functions test placeholder')"`,
+    },
+    dependencies: {
+      '@google-cloud/functions-framework': GOOGLE_CLOUD_FUNCTIONS_FRAMEWORK_VERSION,
+      'firebase-admin': FIREBASE_ADMIN_VERSION,
+      'firebase-functions': FIREBASE_FUNCTIONS_VERSION,
+    },
+    devDependencies: {
+      '@types/node': '^24.10.1',
+      typescript: FIREBASE_FUNCTIONS_TYPESCRIPT_VERSION,
+    },
+  }
+}
+
+function renderFirebaseFunctionsTsconfig() {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        module: 'NodeNext',
+        esModuleInterop: true,
+        moduleResolution: 'nodenext',
+        noImplicitReturns: true,
+        noUnusedLocals: true,
+        skipLibCheck: true,
+        outDir: 'lib',
+        sourceMap: true,
+        strict: true,
+        target: 'es2017',
+      },
+      compileOnSave: true,
+      include: ['src'],
+    },
+    null,
+    2,
+  )}\n`
+}
+
+function renderFirebaseFunctionsIndex(region = FIREBASE_DEFAULT_FUNCTION_REGION) {
+  return [
+    "import { setGlobalOptions } from 'firebase-functions'",
+    "import { onRequest } from 'firebase-functions/https'",
+    '',
+    'setGlobalOptions({',
+    `  region: '${region}',`,
+    '  maxInstances: 10,',
+    '})',
+    '',
+    `export const ${FIREBASE_DEFAULT_FUNCTION_NAME} = onRequest((request, response) => {`,
+    '  response.json({',
+    '    ok: true,',
+    "    provider: 'firebase',",
+    '    path: request.path,',
+    '  })',
+    '})',
+    '',
+  ].join('\n')
+}
+
+function renderFirebaseFunctionsInstallCommand(packageManager: PackageManager, directory: string) {
+  const adapter = getPackageManagerAdapter(packageManager)
+
+  if (packageManager === 'pnpm') {
+    return `${adapter.installInDirectoryCommand(directory)} --ignore-workspace`
+  }
+
+  return adapter.installInDirectoryCommand(directory)
+}
+
+function renderFirebaseServerPackageJson(tokens: TemplateTokens) {
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const functionsDirectory = './functions'
+  const installFunctionsCommand = renderFirebaseFunctionsInstallCommand(
+    tokens.packageManager,
+    functionsDirectory,
+  )
+
+  return {
+    name: 'server',
+    private: true,
+    scripts: {
+      dev: `${installFunctionsCommand} && ${packageManager.dlxCommand('firebase-tools', ['emulators:start', '--only', 'functions', '--config', 'firebase.json'])}`,
+      build: `${installFunctionsCommand} && ${packageManager.runScriptInDirectoryCommand(functionsDirectory, 'build')}`,
+      typecheck: `${installFunctionsCommand} && ${packageManager.runScriptInDirectoryCommand(functionsDirectory, 'typecheck')}`,
+      test: `node -e "console.log('firebase server test placeholder')"`,
+      deploy: `${installFunctionsCommand} && ${packageManager.dlxCommand('firebase-tools', ['deploy', '--only', 'functions', '--config', 'firebase.json'])}`,
+      logs: packageManager.dlxCommand('firebase-tools', ['functions:log']),
+    },
+  }
 }
 
 function normalizeRootWorkspaces(workspaces: WorkspaceName[]) {
@@ -342,6 +538,78 @@ export async function applyServerPackageTemplate(targetRoot: string, tokens: Tem
     renderSupabaseDbApplyScript(tokens),
     'utf8',
   )
+}
+
+export async function applyFirebaseServerWorkspaceTemplate(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  options?: {
+    projectId?: string | null
+    functionRegion?: string
+  },
+) {
+  const serverRoot = path.join(targetRoot, 'server')
+  const functionsRoot = path.join(serverRoot, 'functions')
+
+  await mkdir(path.join(functionsRoot, 'src'), { recursive: true })
+  await writeFile(
+    path.join(serverRoot, '.firebaserc'),
+    renderFirebaseFirebaserc(options?.projectId),
+    'utf8',
+  )
+  await writeFile(path.join(serverRoot, 'firebase.json'), renderFirebaseJson(tokens), 'utf8')
+  await writeFile(path.join(serverRoot, '.gitignore'), renderFirebaseServerGitignore(), 'utf8')
+  await writeJsonFile(
+    path.join(serverRoot, 'package.json'),
+    renderFirebaseServerPackageJson(tokens),
+  )
+  await writeFile(
+    path.join(functionsRoot, '.gitignore'),
+    renderFirebaseFunctionsGitignore(tokens.packageManager),
+    'utf8',
+  )
+  await writeJsonFile(
+    path.join(functionsRoot, 'package.json'),
+    renderFirebaseFunctionsPackageJson(tokens.packageManager),
+  )
+  if (tokens.packageManager === 'yarn') {
+    await writeFile(
+      path.join(functionsRoot, '.yarnrc.yml'),
+      renderFirebaseFunctionsYarnrc(),
+      'utf8',
+    )
+    await writeFile(path.join(functionsRoot, 'yarn.lock'), '', 'utf8')
+  }
+  await writeFile(
+    path.join(functionsRoot, 'tsconfig.json'),
+    renderFirebaseFunctionsTsconfig(),
+    'utf8',
+  )
+  await writeFile(
+    path.join(functionsRoot, 'src', 'index.ts'),
+    renderFirebaseFunctionsIndex(options?.functionRegion),
+    'utf8',
+  )
+}
+
+export async function patchFirebaseServerProjectId(targetRoot: string, projectId: string) {
+  await writeFile(
+    path.join(targetRoot, 'server', '.firebaserc'),
+    renderFirebaseFirebaserc(projectId),
+    'utf8',
+  )
+}
+
+export async function patchFirebaseFunctionRegion(targetRoot: string, region: string) {
+  await writeFile(
+    path.join(targetRoot, 'server', 'functions', 'src', 'index.ts'),
+    renderFirebaseFunctionsIndex(region),
+    'utf8',
+  )
+}
+
+export function getFirebaseWebSdkVersion() {
+  return FIREBASE_WEB_SDK_VERSION
 }
 
 export async function removePathIfExists(targetPath: string) {

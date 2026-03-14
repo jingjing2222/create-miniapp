@@ -29,6 +29,9 @@ export type PackageManagerAdapter = {
   createGraniteApp(targetDirectory: string): PackageManagerCommand
   createViteApp(targetDirectory: string): PackageManagerCommand
   createCloudflareApp(targetDirectory: string): PackageManagerCommand
+  installInDirectoryCommand(directory: string): string
+  runScriptInDirectoryCommand(directory: string, script: string): string
+  dlxCommand(packageName: string, args: string[]): string
   workspaceRunCommand(workspace: 'frontend' | 'backoffice' | 'server', script: string): string
   runScript(script: string): string
   rootFormatScript(): string
@@ -101,6 +104,15 @@ const pnpmAdapter: PackageManagerAdapter = {
       '--no-git',
       '--accept-defaults',
     ])
+  },
+  installInDirectoryCommand(directory) {
+    return `pnpm --dir ${directory} install`
+  },
+  runScriptInDirectoryCommand(directory, script) {
+    return `pnpm --dir ${directory} ${script}`
+  },
+  dlxCommand(packageName, args) {
+    return ['pnpm', 'dlx', packageName, ...args].join(' ')
   },
   workspaceRunCommand(workspace, script) {
     return `pnpm --dir ${workspace} ${script}`
@@ -186,6 +198,15 @@ const yarnAdapter: PackageManagerAdapter = {
       '--no-git',
       '--accept-defaults',
     ])
+  },
+  installInDirectoryCommand(directory) {
+    return `yarn --cwd ${directory} install`
+  },
+  runScriptInDirectoryCommand(directory, script) {
+    return `yarn --cwd ${directory} ${script}`
+  },
+  dlxCommand(packageName, args) {
+    return ['yarn', 'dlx', packageName, ...args].join(' ')
   },
   workspaceRunCommand(workspace, script) {
     return `yarn workspace ${workspace} ${script}`

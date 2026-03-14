@@ -148,9 +148,11 @@ async function executeCommand(spec: CommandSpec, captureOutput: boolean) {
         return
       }
 
+      const combinedOutput = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n')
+
       reject(
         new Error(
-          `${spec.label} 단계가 실패했습니다. (${spec.command} ${spec.args.join(' ')})${captureOutput && stderr ? `\n${stderr.trim()}` : ''}`,
+          `${spec.label} 단계가 실패했습니다. (${spec.command} ${spec.args.join(' ')})${captureOutput && combinedOutput ? `\n${combinedOutput}` : ''}`,
         ),
       )
     })

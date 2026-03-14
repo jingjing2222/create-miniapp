@@ -1,14 +1,21 @@
 import path from 'node:path'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import {
+  ensureBackofficeFirebaseBootstrap,
   ensureBackofficeCloudflareBootstrap,
   ensureBackofficeSupabaseBootstrap,
+  ensureFrontendFirebaseBootstrap,
   ensureFrontendCloudflareBootstrap,
   ensureFrontendSupabaseBootstrap,
+  patchFirebaseServerWorkspace,
   patchCloudflareServerWorkspace,
   patchSupabaseServerWorkspace,
 } from './patch.js'
-import { pathExists, type TemplateTokens } from './templates.js'
+import {
+  applyFirebaseServerWorkspaceTemplate,
+  pathExists,
+  type TemplateTokens,
+} from './templates.js'
 
 export type ServerProviderCommandSpec = {
   cwd: string
@@ -29,11 +36,12 @@ type ProviderPatchOptions = {
 }
 
 export type ServerProviderAdapter = {
-  id: 'supabase' | 'cloudflare'
+  id: 'supabase' | 'cloudflare' | 'firebase'
   label: string
   detect(rootDir: string): Promise<boolean>
   buildCreatePlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
   buildAddPlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
+  prepareServerWorkspace?(options: ProviderPatchOptions): Promise<void>
   patchServerWorkspace(options: ProviderPatchOptions): Promise<void>
   bootstrapFrontend?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
   bootstrapBackoffice?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
@@ -117,9 +125,38 @@ const cloudflareAdapter: ServerProviderAdapter = {
   },
 }
 
+const firebaseAdapter: ServerProviderAdapter = {
+  id: 'firebase',
+  label: 'Firebase',
+  async detect(rootDir) {
+    return pathExists(path.join(rootDir, 'server', 'firebase.json'))
+  },
+  buildCreatePlan() {
+    return []
+  },
+  buildAddPlan() {
+    return []
+  },
+  async prepareServerWorkspace(options) {
+    await applyFirebaseServerWorkspaceTemplate(options.targetRoot, options.tokens)
+  },
+  async patchServerWorkspace(options) {
+    await patchFirebaseServerWorkspace(options.targetRoot, options.tokens, {
+      packageManager: options.packageManager,
+    })
+  },
+  async bootstrapFrontend(options) {
+    await ensureFrontendFirebaseBootstrap(options.targetRoot, options.tokens)
+  },
+  async bootstrapBackoffice(options) {
+    await ensureBackofficeFirebaseBootstrap(options.targetRoot, options.tokens)
+  },
+}
+
 const serverProviders = {
   supabase: supabaseAdapter,
   cloudflare: cloudflareAdapter,
+  firebase: firebaseAdapter,
 } as const satisfies Record<ServerProviderAdapter['id'], ServerProviderAdapter>
 
 export const SERVER_PROVIDERS = Object.keys(serverProviders) as Array<keyof typeof serverProviders>

@@ -1,6 +1,278 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 현재 Firebase 프로젝트 생성 복구 작업
+1. `firebase projects:create <projectId>`는 Google Cloud project 생성까지 성공한 뒤, Firebase 리소스 연결 단계에서 비영(非0) 종료할 수 있다.
+2. 이 경우 현재 CLI는 전체 생성 실패로 취급하고 중단하지만, 실제로는 `projects:addfirebase <projectId>`로 이어서 복구 가능한 케이스가 있다.
+3. 재현 로그 기준 실패 패턴
+   - `Creating Google Cloud Platform project` 성공
+   - `Adding Firebase resources to Google Cloud Platform project` 실패
+4. 대응 방향
+   - 실패 메시지 분류 로직을 테스트로 추가
+   - duplicate projectId 에러는 기존처럼 재입력
+   - partial-create 에러는 `projects:addfirebase` 자동 복구 시도
+   - captureOutput 에러 메시지에는 stdout/stderr를 모두 포함해 복구 판단에 필요한 문자열을 잃지 않게 한다.
+5. 완료 기준
+   - 위 partial-create 패턴에서 생성 흐름이 바로 죽지 않고 `projects:addfirebase`를 시도한다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase addfirebase 실패 원인 분리 작업
+1. `projects:addfirebase` 자동 복구를 붙였지만, 실제 사용자 계정에서는 이 단계도 실패할 수 있다.
+2. 먼저 `firebase-debug.log`를 읽어 실패 원인이 권한/결제/프로젝트 상태인지, 우리가 추가로 복구할 수 있는 종류인지 구분한다.
+3. 대응 방향
+   - 자동 복구 가능한 케이스면 로직 추가
+   - 자동 복구 불가능한 케이스면 raw 에러 대신 이유와 다음 조치를 TUI에 명시
+   - 가능하면 `firebase-debug.log` 경로도 함께 안내
+4. 완료 기준
+   - 동일 실패에서 사용자가 `왜 안 되는지`를 바로 이해할 수 있다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase Functions 배포 실패 원인 분리 작업
+1. Firebase project 연결 이후 `firebase deploy --only functions`도 실제 계정 상태나 플랜, API 활성화 상태에 따라 실패할 수 있다.
+2. 먼저 `firebase-debug.log` 기준으로 실패 유형을 분리한다.
+   - Blaze 플랜 미가입
+   - Cloud Build / Artifact Registry / Functions API 미활성
+   - 권한 부족
+3. 대응 방향
+   - 자동 복구 가능한 케이스면 안내 또는 선행 명령 추가
+   - 자동 복구가 어려운 케이스면 TUI에서 이유와 다음 조치를 명시
+4. 완료 기준
+   - Functions deploy 실패 시 raw 종료 대신 원인 중심 메시지가 나온다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase Functions build service account 안내 보강 작업
+1. 실제 Yarn Firebase 배포는 이제 source analysis와 업로드 단계까지 통과하지만, 원격 Cloud Build에서 `missing permission on the build service account`로 실패할 수 있다.
+2. 이 단계는 로컬 PnP나 packageExtensions 문제가 아니라 Google Cloud IAM/조직 정책 문제이므로, CLI가 그 차이를 명확히 설명해야 한다.
+3. 대응 방향
+   - `firebase-debug.log` 기준으로 build service account 권한 부족/비활성 상태를 분리한다.
+   - Cloud Build 콘솔 URL이 있으면 그대로 노출한다.
+   - 공식 문서 기준으로 다음 조치를 안내한다.
+     - custom build service account 사용
+     - default Compute Engine service account에 `roles/cloudbuild.builds.builder` 부여
+     - Cloud Build default service account 변경 가이드 확인
+4. 완료 기준
+   - 동일 실패에서 "로컬 Yarn 문제"가 아니라 "원격 IAM 문제"라는 점이 바로 드러난다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase 오류 상세 로그 노출 보강 작업
+1. Firebase Functions deploy 실패 시 현재 메시지는 요약은 되지만, 사용자가 실제 어떤 줄에서 실패했는지 바로 보기 어렵다.
+2. 대응 방향
+   - 원인 요약 아래에 raw CLI 에러 본문을 같이 붙인다.
+   - `firebase-debug.log`가 있으면 마지막 핵심 몇 줄도 같이 노출한다.
+   - 여전히 debug log 전체 경로는 유지해서 더 깊은 확인도 가능하게 한다.
+3. 완료 기준
+   - 사용자 메시지 하나만 보고도 실패 원인 문자열과 관련 로그 URL을 확인할 수 있다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase Functions build output root ignore 보강 작업
+1. Firebase provider는 `server/functions/lib` 빌드 산출물을 만들 수 있는데, 현재 루트 `biome check --write --unsafe`가 이 파일까지 검사해서 실패할 수 있다.
+2. 이 산출물은 루트에서 관리할 대상이 아니라 Firebase functions workspace의 build artifact다.
+3. 대응 방향
+   - 공통 템플릿은 건드리지 않고 Firebase provider patch에서만 루트 `.gitignore`와 `biome.json` ignore에 `server/functions/lib`를 추가한다.
+   - 회귀 테스트로 Firebase일 때만 ignore가 생기는지 고정한다.
+4. 완료 기준
+   - Firebase 스캐폴드 뒤 루트 biome가 `server/functions/lib` 때문에 깨지지 않는다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase predeploy install 누락 수정 작업
+1. Firebase provider의 `server/firebase.json`은 현재 `functions.predeploy`에서 `build`만 실행한다.
+2. 실제 `firebase deploy --only functions`는 이 `predeploy`를 직접 호출하므로, `server/functions` 의존성이 아직 설치되지 않은 첫 배포에서는 `Cannot find module 'firebase-functions'`로 바로 실패할 수 있다.
+3. 대응 방향
+   - `firebase.json`의 `predeploy`를 package manager별 `install && build`로 바꾼다.
+   - pnpm / yarn 둘 다 template 테스트로 고정한다.
+4. 완료 기준
+   - 첫 Firebase Functions 배포에서 predeploy가 `functions` install 이후 build를 수행한다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase nested functions install 실패 원인 분리 작업
+1. `firebase.json` predeploy를 `install && build`로 바꿨는데도, pnpm 기준으로는 `server/functions`에 `node_modules`가 생기지 않아 `firebase-functions` 해석이 계속 실패하고 있다.
+2. 이 이슈는 `firebase-tools` 실행 경로와 별개로, nested `server/functions` package에 대한 package manager install 방식이 잘못됐을 가능성이 높다.
+3. 대응 방향
+   - 실제 생성물에서 `pnpm --dir server/functions install`과 유사 명령을 재현해 본다.
+   - parent workspace 영향인지, pnpm nested package 제약인지, 실행 경로 문제인지 분리한다.
+   - 원인에 따라 `predeploy`/`server` scripts를 `npx` 또는 다른 install strategy로 바꾼다.
+4. 완료 기준
+   - pnpm Firebase functions 경로에서 install 후 실제 dependency 해석이 가능하다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase Blaze 플랜 게이트 작업
+1. Firebase Functions 2nd gen 배포는 Blaze 플랜(활성 billing account)이 필요하므로, 새 Firebase 프로젝트를 만들거나 기존 프로젝트를 고른 직후 이를 확인해야 한다.
+2. 사용자가 Spark 프로젝트를 골랐거나 billing account가 비활성이면, Firebase Web App 생성이나 Functions deploy로 넘어가면 안 된다.
+3. 대응 방향
+   - `gcloud billing projects describe <projectId> --format=json`로 `billingEnabled`를 확인한다.
+   - `billingEnabled: false`면 Blaze 업그레이드 URL과 billing 확인 문서를 출력한다.
+   - 사용자가 `확인했나요?`에서 다시 확인을 고르면 재조회하고, 여전히 false면 계속 그 자리에서 멈춘다.
+   - `gcloud`가 없거나 권한이 없으면 설치/인증 안내와 함께 중단한다.
+4. 완료 기준
+   - Firebase project 선택/생성 뒤 Blaze 플랜이 아니면 다음 단계로 진행하지 않는다.
+   - `pnpm verify` 통과
+
+## 현재 gcloud auth 만료 자동 복구 작업
+1. 로컬에 `gcloud`를 자동 설치해도, `billing projects describe`에서 `invalid_grant`나 만료된 토큰 때문에 바로 실패할 수 있다.
+2. 이 경우 사용자가 PATH에 없는 `gcloud`를 직접 실행하려 하면 다시 막히므로, CLI 안에서 설치된 `gcloud` 경로로 `auth login`을 바로 이어서 태우는 게 맞다.
+3. 대응 방향
+   - `invalid_grant`, `Please run: gcloud auth login`, `gcloud config set account` 패턴을 auth refresh 오류로 분류
+   - 설치된 `gcloud` binary로 `gcloud auth login` 실행
+   - 성공 후 `billing projects describe` 재시도
+4. 완료 기준
+   - `invalid_grant`에서 CLI가 곧바로 죽지 않고 `gcloud auth login` 후 재확인한다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase build service account IAM 자동 보정 작업
+1. Blaze 플랜 확인은 사용자가 직접 해야 하지만, Firebase Functions deploy에 필요한 기본 build service account IAM role은 CLI에서 자동으로 맞출 수 있다.
+2. 현재는 deploy 실패 후에야 문서 링크와 수동 명령을 안내하지만, 이 권한은 project 선택 직후 선행 보정하는 편이 더 자연스럽다.
+3. 대응 방향
+   - Blaze 확인 직후 `gcloud projects describe`로 project number를 조회한다.
+   - default Compute Engine service account에 필요한 role이 있는지 `gcloud projects get-iam-policy`로 확인한다.
+   - 누락 시 `gcloud projects add-iam-policy-binding`으로 자동 부여한다.
+   - `invalid_grant` 같은 gcloud auth 만료는 기존처럼 자동 `gcloud auth login` 후 재시도한다.
+4. 완료 기준
+   - Firebase Functions deploy 전에 필요한 기본 IAM role이 자동으로 보정된다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase pnpm Functions Framework 누락 수정 작업
+1. Cloud Run functions build는 `pnpm-lock.yaml`가 있는 Node.js 함수 소스에서 `@google-cloud/functions-framework`를 명시 dependency로 요구한다.
+2. 현재 Firebase functions 템플릿은 `firebase-admin`, `firebase-functions`만 넣고 있어, 원격 build에서 `pnpm add @google-cloud/functions-framework`를 요구하며 실패한다.
+3. 대응 방향
+   - Firebase functions package 템플릿에 `@google-cloud/functions-framework` dependency를 추가한다.
+   - 템플릿 테스트로 고정한다.
+4. 완료 기준
+   - Firebase functions 배포에서 Functions Framework 누락 에러가 재발하지 않는다.
+   - `pnpm verify` 통과
+
+## 현재 Yarn Firebase CLI 실행 경로 수정 작업
+1. Yarn PnP 환경에서 `yarn dlx firebase-tools ...`는 임시 dlx project 내부 PnP 제약 때문에 실패할 수 있다.
+2. 재현 로그 기준 원인
+   - `@apphosting/build tried to access yaml, but it isn't declared in its dependencies`
+3. 대응 방향
+   - Firebase provider용 CLI 실행은 Yarn일 때 `npx firebase-tools ...`로 우회한다.
+   - 기존 package manager 선택과 무관하게, Firebase CLI 자체만 안정적인 실행 경로를 쓴다.
+4. 완료 기준
+   - Yarn 프로젝트에서 Firebase CLI 단계가 `yarn dlx firebase-tools` 대신 PnP 비의존 경로를 사용한다.
+   - `pnpm verify` 통과
+
+## 현재 Firebase Functions TypeScript lib check 완화 작업
+1. Firebase Functions build는 third-party declaration file까지 검사할 필요가 없다.
+2. 재현 로그 기준 현재 실패는 `@firebase/app-types/index.d.ts` 내부의 `@firebase/logger` 해석 문제다.
+3. 작은 TypeScript 재현으로 `skipLibCheck: true`면 이 종류의 오류가 사라지는 것을 확인했다.
+4. 대응 방향
+   - Firebase functions 전용 `tsconfig.json`에 `skipLibCheck: true` 추가
+   - 템플릿 테스트로 고정
+5. 완료 기준
+   - Yarn Firebase Functions build가 dependency `.d.ts` 때문에 멈추지 않는다.
+   - `pnpm verify` 통과
+
+## 현재 Yarn Firebase functions linker 조정 작업
+1. Firebase CLI의 source analysis는 `functions` source directory에서 `firebase-functions` 실제 설치 위치를 찾으려는 경향이 있다.
+2. Yarn PnP nested project는 build는 통과해도 deploy analysis에서 SDK 위치 탐색이 깨질 수 있다.
+3. 대응 방향
+   - `server/functions`가 Yarn일 때는 독립 nested project를 유지하되 `.yarnrc.yml`에 `nodeLinker: node-modules`를 둔다.
+   - 루트는 그대로 PnP를 유지한다.
+4. 완료 기준
+   - Yarn Firebase functions source directory는 `node_modules` 기반으로 설치된다.
+   - `pnpm verify` 통과
+
+## 다음 provider 작업: Firebase 계획
+1. `firebase`는 `frontend`/`backoffice`에 Firebase Web SDK 기본 bootstrap을 넣고, `server`는 Firebase Functions workspace로 두는 provider로 구현한다.
+2. 이유
+   - MiniApp에서도 결국 네트워크 계층은 `fetch`를 쓰므로 Firebase Web SDK를 쓰는 쪽이 기본 데이터 접근 모델과 더 잘 맞다.
+   - RN용 Firebase 네이티브 SDK를 기본값으로 넣는 것보다 web SDK bootstrap이 더 가볍고 현재 Granite 정책에도 덜 부딪힌다.
+   - Firebase provider의 가장 기본적인 클라이언트 연결면은 `app`, `firestore`, `storage`다.
+   - 다만 서버측 권한 로직과 deploy 대상은 여전히 Firebase Functions workspace가 맡는다.
+3. 1차 범위
+   - `server-provider` registry에 `firebase` 추가
+   - `create` / `--add` 흐름에서 Firebase project 선택/생성 IaC 추가
+   - `server/`에 Firebase Functions workspace 생성
+   - `frontend`/optional `backoffice`에 Firebase app / firestore / storage bootstrap 추가
+   - `server/.env.local`에 Firebase project / region / credentials path 자리 추가
+   - provider별 `server/README.md`에 Firebase용 운영 가이드 추가
+4. 1차에서 의도적으로 제외
+   - Firebase Auth 기본 bootstrap
+   - Hosting 설정
+   - Realtime Database bootstrap
+   - Remote Config / Analytics 기본 bootstrap
+5. 공식 CLI 기준
+   - `firebase login`
+   - `firebase projects:list --json`
+   - `firebase projects:create <projectId>` 또는 기존 project 선택
+   - `firebase init`으로 `server/`를 Firebase project directory로 초기화
+   - `firebase deploy --only functions`
+   - 필요 시 `firebase apps:create WEB` / `firebase apps:sdkconfig WEB`는 2차 검토
+6. IaC 흐름
+   - Firebase CLI 설치/로그인 상태 확인
+   - 필요 시 `gcloud` 설치/로그인 확인
+   - 기존 Firebase project 목록 조회
+   - 기존 project 선택 또는 새 project 생성
+   - 기존 function region 확인 또는 새 region 선택
+   - `server/` Firebase workspace 생성 및 active project 연결
+   - Functions deploy
+   - Firebase Web app config를 확인할 수 있으면 `frontend/.env.local` / `backoffice/.env.local` 작성
+   - `server/.env.local`에 `FIREBASE_PROJECT_ID`, `FIREBASE_FUNCTION_REGION`, `GOOGLE_APPLICATION_CREDENTIALS` 자리 작성
+7. 서버 워크스페이스 형태
+   - `functions/` TypeScript codebase
+   - `firebase.json`
+   - `.firebaserc`
+   - 필요 최소한의 Firestore rules / indexes 파일은 2차 범위로 미룬다.
+   - 루트 monorepo 원칙에 맞게 workspace 내부 lint/formatter 설정은 제거하거나 최소화한다.
+8. `frontend` / `backoffice` bootstrap
+   - Firebase Web SDK 중심 bootstrap을 쓴다.
+   - `frontend`
+     - Firebase env 타입 선언
+     - `src/lib/firebase.ts`
+     - `src/lib/firestore.ts`
+     - `src/lib/storage.ts`
+     - Granite env plugin patch
+   - `backoffice`
+     - Firebase env 타입 선언
+     - `src/lib/firebase.ts`
+     - `src/lib/firestore.ts`
+     - `src/lib/storage.ts`
+9. `server/.env.local`와 운영 스크립트
+   - `FIREBASE_PROJECT_ID=`
+   - `FIREBASE_FUNCTION_REGION=`
+   - `GOOGLE_APPLICATION_CREDENTIALS=`
+   - `deploy`: `firebase deploy --only functions`
+   - `build`: functions TypeScript build
+   - `emulators:start`: 필요 시 2차 범위
+10. env 기본값
+   - `frontend`
+     - `MINIAPP_FIREBASE_API_KEY=`
+     - `MINIAPP_FIREBASE_AUTH_DOMAIN=`
+     - `MINIAPP_FIREBASE_PROJECT_ID=`
+     - `MINIAPP_FIREBASE_STORAGE_BUCKET=`
+     - `MINIAPP_FIREBASE_APP_ID=`
+   - `backoffice`
+     - `VITE_FIREBASE_API_KEY=`
+     - `VITE_FIREBASE_AUTH_DOMAIN=`
+     - `VITE_FIREBASE_PROJECT_ID=`
+     - `VITE_FIREBASE_STORAGE_BUCKET=`
+     - `VITE_FIREBASE_APP_ID=`
+   - 필요하면 `MEASUREMENT_ID`는 2차 범위로 둔다.
+11. 사용자 안내
+   - `GOOGLE_APPLICATION_CREDENTIALS`가 비어 있으면 service account JSON 경로를 직접 넣으라고 마지막 note에 명시한다.
+   - Firebase Web app config를 자동으로 못 얻으면 Firebase Console의 project settings / app config 경로를 안내한다.
+12. `hot-updater` 참고 구현
+   - `/Users/kimhyeongjeong/Desktop/code/hot-updater/plugins/firebase/iac/select.ts`
+   - `/Users/kimhyeongjeong/Desktop/code/hot-updater/plugins/firebase/iac/index.ts`
+   - project 선택/생성, region 선택, deploy, IAM 안내 흐름은 여기서 재사용 가능한 부분이 많다.
+13. 구현 순서
+   - `ServerProvider` 타입에 `firebase` 추가
+   - CLI / help / tests에 `firebase` 선택지 추가
+   - Firebase scaffold command 추가
+   - Firebase provisioning module 추가
+   - Firebase workspace patch + frontend/backoffice bootstrap 추가
+   - README / tests 갱신
+14. 테스트 범위
+   - CLI가 `firebase` provider를 해석하는지 검증
+   - command plan이 Firebase scaffold 단계를 넣는지 검증
+   - provisioning finalizer가 Firebase web config를 env 파일에 쓰는지 검증
+   - `server/.env.local`이 기존 `GOOGLE_APPLICATION_CREDENTIALS`를 보존하는지 검증
+   - Firebase server patch가 README, scripts, cleanup을 적용하는지 검증
+   - `frontend`/`backoffice` bootstrap이 `firebase/app`, `firestore`, `storage`를 바로 사용할 수 있는 구조인지 검증
+15. 완료 기준
+   - `create-miniapp --server-provider firebase`가 Functions 기반 server workspace와 Firebase app / firestore / storage bootstrap을 함께 제공한다.
+   - `pnpm verify` 통과
+
 ## 현재 changeset / PR 설명 정리 작업
 1. PR `#22`는 초기 Cloudflare provider 추가를 넘어서 provider별 IaC, env bootstrap, server README, root README 개편까지 포함하게 됐다.
 2. 기존 changeset 한 줄 요약으로는 실제 변경 범위를 설명하지 못하므로, 사용자 관점 release note로 다시 쓴다.
@@ -611,5 +883,14 @@ docs/
 3. 테스트 범위
    - Supabase server patch 결과에 README가 생성되고 핵심 스크립트/연결 설명이 포함되는지 검증
    - Cloudflare server patch 결과에 README가 생성되고 핵심 스크립트/연결 설명이 포함되는지 검증
+4. 완료 기준
+   - `pnpm verify` 통과
+
+## 현재 Firebase projectId 중복 재시도
+1. Firebase 새 프로젝트 생성 시 `projectId`가 이미 존재하면 흐름을 중단하지 않고 같은 세션에서 다시 입력받는다.
+2. 중복 판별은 Firebase CLI stderr message를 구조적으로 분리해서 처리한다.
+3. 테스트 범위
+   - Firebase CLI error message에서 중복 projectId를 감지하는지 검증
+   - 관련 사용자 안내 문구가 포함되는지 검증
 4. 완료 기준
    - `pnpm verify` 통과

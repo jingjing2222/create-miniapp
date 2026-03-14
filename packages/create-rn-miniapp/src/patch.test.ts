@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   patchBackofficeWorkspace,
   patchCloudflareServerWorkspace,
+  patchFirebaseServerWorkspace,
   patchFrontendWorkspace,
   patchSupabaseServerWorkspace,
 } from './patch.js'
@@ -360,6 +361,93 @@ test('patchFrontendWorkspace adds cloudflare API bootstrap when cloudflare serve
   assert.match(apiClient, /export async function apiFetch/)
 })
 
+test('patchFrontendWorkspace adds firebase bootstrap when firebase server provider is selected', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+  const frontendRoot = path.join(targetRoot, 'frontend')
+
+  await mkdir(path.join(frontendRoot, 'src'), { recursive: true })
+  await writeJson(path.join(frontendRoot, 'package.json'), {
+    name: 'ebook-miniapp',
+    private: true,
+    scripts: {
+      dev: 'granite dev',
+      build: 'ait build',
+    },
+    dependencies: {
+      '@apps-in-toss/framework': '^2.0.5',
+    },
+    devDependencies: {
+      '@granite-js/plugin-hermes': '1.0.7',
+      '@granite-js/plugin-router': '1.0.7',
+      typescript: '^5.8.3',
+    },
+  })
+  await writeFile(
+    path.join(frontendRoot, 'tsconfig.json'),
+    ['{', '  "compilerOptions": {', '    "module": "commonjs"', '  }', '}', ''].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(frontendRoot, 'granite.config.ts'),
+    [
+      "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+      "import { defineConfig } from '@granite-js/react-native/config'",
+      '',
+      'export default defineConfig({',
+      '  appName: "ebook-miniapp",',
+      '  plugins: [appsInToss({ brand: { displayName: "전자책 미니앱" } })],',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  await patchFrontendWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'pnpm',
+      packageManagerCommand: 'pnpm',
+      packageManagerExecCommand: 'pnpm exec',
+      verifyCommand: 'pnpm verify',
+    },
+    { packageManager: 'pnpm', serverProvider: 'firebase' },
+  )
+
+  const packageJson = JSON.parse(
+    await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
+  ) as {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+  }
+  const graniteConfig = await readFile(path.join(frontendRoot, 'granite.config.ts'), 'utf8')
+  const envTypes = await readFile(path.join(frontendRoot, 'src', 'env.d.ts'), 'utf8')
+  const firebaseClient = await readFile(
+    path.join(frontendRoot, 'src', 'lib', 'firebase.ts'),
+    'utf8',
+  )
+  const firestoreClient = await readFile(
+    path.join(frontendRoot, 'src', 'lib', 'firestore.ts'),
+    'utf8',
+  )
+  const storageClient = await readFile(path.join(frontendRoot, 'src', 'lib', 'storage.ts'), 'utf8')
+
+  assert.equal(packageJson.dependencies?.firebase, '^12.10.0')
+  assert.equal(packageJson.devDependencies?.['@granite-js/plugin-env'], '1.0.7')
+  assert.equal(packageJson.devDependencies?.dotenv, '^16.4.7')
+  assert.match(graniteConfig, /MINIAPP_FIREBASE_API_KEY: miniappFirebaseApiKey/)
+  assert.match(
+    graniteConfig,
+    /const miniappFirebaseMeasurementId = resolveOptionalMiniappEnv\('MINIAPP_FIREBASE_MEASUREMENT_ID'\)/,
+  )
+  assert.match(envTypes, /readonly MINIAPP_FIREBASE_STORAGE_BUCKET: string/)
+  assert.match(firebaseClient, /initializeApp/)
+  assert.match(firebaseClient, /import\.meta\.env\.MINIAPP_FIREBASE_PROJECT_ID/)
+  assert.match(firestoreClient, /getFirestore/)
+  assert.match(storageClient, /getStorage/)
+})
+
 test('patchBackofficeWorkspace adds supabase bootstrap when supabase server provider is selected', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const backofficeRoot = path.join(targetRoot, 'backoffice')
@@ -600,6 +688,119 @@ test('patchBackofficeWorkspace adds cloudflare API bootstrap when cloudflare ser
   assert.match(apiClient, /export async function apiFetch/)
 })
 
+test('patchBackofficeWorkspace adds firebase bootstrap when firebase server provider is selected', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+  const backofficeRoot = path.join(targetRoot, 'backoffice')
+
+  await mkdir(path.join(backofficeRoot, 'src'), { recursive: true })
+  await writeJson(path.join(backofficeRoot, 'package.json'), {
+    name: 'backoffice',
+    private: true,
+    version: '0.0.0',
+    type: 'module',
+    scripts: {
+      dev: 'vite',
+      build: 'tsc -b && vite build',
+    },
+    dependencies: {
+      react: '^19.2.4',
+      'react-dom': '^19.2.4',
+    },
+    devDependencies: {
+      vite: '^8.0.0',
+      typescript: '~5.9.3',
+    },
+  })
+  await writeJson(path.join(backofficeRoot, 'tsconfig.json'), {
+    compilerOptions: {
+      module: 'commonjs',
+    },
+    files: [],
+    references: [{ path: './tsconfig.app.json' }, { path: './tsconfig.node.json' }],
+  })
+  await writeJson(path.join(backofficeRoot, 'tsconfig.app.json'), {
+    compilerOptions: {
+      module: 'commonjs',
+    },
+    include: ['src'],
+  })
+  await writeJson(path.join(backofficeRoot, 'tsconfig.node.json'), {
+    compilerOptions: {
+      composite: true,
+      module: 'commonjs',
+    },
+    include: ['vite.config.ts'],
+  })
+  await writeFile(
+    path.join(backofficeRoot, 'src', 'main.tsx'),
+    [
+      "import { StrictMode } from 'react'",
+      "import { createRoot } from 'react-dom/client'",
+      "import './index.css'",
+      "import App from './App.tsx'",
+      '',
+      'createRoot(document.getElementById("root")!).render(',
+      '  <StrictMode>',
+      '    <App />',
+      '  </StrictMode>,',
+      ')',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(backofficeRoot, 'src', 'App.tsx'),
+    [
+      'export default function App() {',
+      '  return (',
+      "    <button data-kind='counter' className='counter'>count is 0</button>",
+      '  )',
+      '}',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  await patchBackofficeWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'pnpm',
+      packageManagerCommand: 'pnpm',
+      packageManagerExecCommand: 'pnpm exec',
+      verifyCommand: 'pnpm verify',
+    },
+    { packageManager: 'pnpm', serverProvider: 'firebase' },
+  )
+
+  const packageJson = JSON.parse(
+    await readFile(path.join(backofficeRoot, 'package.json'), 'utf8'),
+  ) as {
+    dependencies?: Record<string, string>
+  }
+  const envTypes = await readFile(path.join(backofficeRoot, 'src', 'vite-env.d.ts'), 'utf8')
+  const firebaseClient = await readFile(
+    path.join(backofficeRoot, 'src', 'lib', 'firebase.ts'),
+    'utf8',
+  )
+  const firestoreClient = await readFile(
+    path.join(backofficeRoot, 'src', 'lib', 'firestore.ts'),
+    'utf8',
+  )
+  const storageClient = await readFile(
+    path.join(backofficeRoot, 'src', 'lib', 'storage.ts'),
+    'utf8',
+  )
+
+  assert.equal(packageJson.dependencies?.firebase, '^12.10.0')
+  assert.match(envTypes, /readonly VITE_FIREBASE_STORAGE_BUCKET: string/)
+  assert.match(firebaseClient, /initializeApp/)
+  assert.match(firebaseClient, /import\.meta\.env\.VITE_FIREBASE_PROJECT_ID/)
+  assert.match(firestoreClient, /getFirestore/)
+  assert.match(storageClient, /getStorage/)
+})
+
 test('patchCloudflareServerWorkspace keeps worker scripts and removes local tooling files', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const serverRoot = path.join(targetRoot, 'server')
@@ -753,4 +954,112 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /MINIAPP_SUPABASE_URL/)
   assert.match(readme, /backoffice\/src\/lib\/supabase\.ts/)
   assert.match(readme, /VITE_SUPABASE_URL/)
+})
+
+test('patchFirebaseServerWorkspace creates a server README for firebase functions', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+  const serverRoot = path.join(targetRoot, 'server')
+
+  await mkdir(path.join(serverRoot, 'functions', 'src'), { recursive: true })
+  await writeFile(path.join(targetRoot, '.gitignore'), 'node_modules\n', 'utf8')
+  await writeJson(path.join(targetRoot, 'biome.json'), {
+    files: {
+      ignore: ['node_modules'],
+    },
+  })
+  await writeJson(path.join(serverRoot, 'package.json'), {
+    name: 'server',
+    private: true,
+    scripts: {
+      deploy: 'pnpm dlx firebase-tools deploy --only functions --config firebase.json',
+      build: 'pnpm --dir ./functions install && pnpm --dir ./functions build',
+      typecheck: 'pnpm --dir ./functions install && pnpm --dir ./functions typecheck',
+      logs: 'pnpm dlx firebase-tools functions:log',
+      test: `node -e "console.log('firebase server test placeholder')"`,
+    },
+  })
+
+  await patchFirebaseServerWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'pnpm',
+      packageManagerCommand: 'pnpm',
+      packageManagerExecCommand: 'pnpm exec',
+      verifyCommand: 'pnpm verify',
+    },
+    { packageManager: 'pnpm' },
+  )
+
+  const projectJson = JSON.parse(await readFile(path.join(serverRoot, 'project.json'), 'utf8')) as {
+    targets?: Record<string, { command?: string }>
+  }
+  const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
+  const rootGitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
+  const rootBiome = JSON.parse(await readFile(path.join(targetRoot, 'biome.json'), 'utf8')) as {
+    files?: {
+      ignore?: string[]
+    }
+  }
+
+  assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
+  assert.match(readme, /^# server$/m)
+  assert.match(readme, /Firebase Functions/)
+  assert.match(readme, /server\/functions\/src\/index\.ts/)
+  assert.match(readme, /pnpm run deploy/)
+  assert.match(readme, /frontend\/src\/lib\/firebase\.ts/)
+  assert.match(readme, /frontend\/src\/lib\/firestore\.ts/)
+  assert.match(readme, /frontend\/src\/lib\/storage\.ts/)
+  assert.match(readme, /MINIAPP_FIREBASE_API_KEY/)
+  assert.match(readme, /VITE_FIREBASE_API_KEY/)
+  assert.match(readme, /GOOGLE_APPLICATION_CREDENTIALS/)
+  assert.match(rootGitignore, /^server\/functions\/lib\/$/m)
+  assert.deepEqual(rootBiome.files?.ignore, ['node_modules', '**/server/functions/lib/**'])
+})
+
+test('patchFirebaseServerWorkspace adds firebase-only yarn packageExtensions to root yarnrc', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+  const serverRoot = path.join(targetRoot, 'server')
+
+  await mkdir(path.join(serverRoot, 'functions', 'src'), { recursive: true })
+  await writeJson(path.join(serverRoot, 'package.json'), {
+    name: 'server',
+    private: true,
+    scripts: {
+      deploy: 'yarn dlx firebase-tools deploy --only functions --config firebase.json',
+    },
+  })
+  await writeFile(
+    path.join(targetRoot, '.yarnrc.yml'),
+    [
+      'nodeLinker: pnp',
+      '',
+      'packageExtensions:',
+      '  "@react-native-community/cli-debugger-ui@*":',
+      '    dependencies:',
+      '      "@babel/runtime": "^7.0.0"',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  await patchFirebaseServerWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'yarn',
+      packageManagerCommand: 'yarn',
+      packageManagerExecCommand: 'yarn exec',
+      verifyCommand: 'yarn verify',
+    },
+    { packageManager: 'yarn' },
+  )
+
+  const yarnrc = await readFile(path.join(targetRoot, '.yarnrc.yml'), 'utf8')
+
+  assert.match(yarnrc, /"@react-native-community\/cli-debugger-ui@\*":/)
+  assert.match(yarnrc, /"@apphosting\/build@\*":/)
+  assert.match(yarnrc, /yaml: "\^2\.4\.1"/)
 })
