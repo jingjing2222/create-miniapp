@@ -39,9 +39,9 @@
 ## format and lint
 - Biome는 루트 단일 진입점만 사용한다.
 - 아래 명령은 반드시 저장소 루트에서 실행한다.
-  - `{{packageManagerCommand}} format`
-  - `{{packageManagerCommand}} format:check`
-  - `{{packageManagerCommand}} lint`
+  - `{{packageManagerRunCommand}} format`
+  - `{{packageManagerRunCommand}} format:check`
+  - `{{packageManagerRunCommand}} lint`
   - `{{verifyCommand}}`
 
 ## Nx 실행 가이드

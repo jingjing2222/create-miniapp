@@ -45,6 +45,39 @@ test('buildRootFinalizePlan adds yarn sdk generation after root install', () => 
   })
 })
 
+test('buildRootFinalizePlan keeps npm and bun finalize steps minimal', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const npmPlan = buildRootFinalizePlan({
+    targetRoot,
+    packageManager: 'npm',
+  })
+  const bunPlan = buildRootFinalizePlan({
+    targetRoot,
+    packageManager: 'bun',
+  })
+
+  assert.deepEqual(
+    npmPlan.map((step) => step.label),
+    ['루트 npm install', '루트 biome check --write --unsafe'],
+  )
+  assert.deepEqual(npmPlan[0], {
+    cwd: targetRoot,
+    command: 'npm',
+    args: ['install'],
+    label: '루트 npm install',
+  })
+  assert.deepEqual(
+    bunPlan.map((step) => step.label),
+    ['루트 bun install', '루트 biome check --write --unsafe'],
+  )
+  assert.deepEqual(bunPlan[0], {
+    cwd: targetRoot,
+    command: 'bun',
+    args: ['install'],
+    label: '루트 bun install',
+  })
+})
+
 test('buildCreateExecutionOrder runs server scaffold before backoffice scaffold', () => {
   const labels = buildCreateExecutionOrder({
     appName: 'ebook',

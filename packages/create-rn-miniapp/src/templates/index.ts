@@ -13,6 +13,7 @@ export type TemplateTokens = {
   displayName: string
   packageManager: PackageManager
   packageManagerCommand: string
+  packageManagerRunCommand: string
   packageManagerExecCommand: string
   verifyCommand: string
 }
@@ -58,6 +59,7 @@ const OPTIONAL_AGENTS_START_MARKER = '<!-- optional-doc-links:start -->'
 const OPTIONAL_AGENTS_END_MARKER = '<!-- optional-doc-links:end -->'
 const OPTIONAL_DOCS_INDEX_START_MARKER = '<!-- optional-engineering-links:start -->'
 const OPTIONAL_DOCS_INDEX_END_MARKER = '<!-- optional-engineering-links:end -->'
+const NPMRC_SOURCE = 'legacy-peer-deps=true\n'
 
 const require = createRequire(import.meta.url)
 
@@ -72,6 +74,7 @@ function replaceTemplateTokens(source: string, tokens: TemplateTokens) {
     .replaceAll('{{displayName}}', tokens.displayName)
     .replaceAll('{{packageManager}}', tokens.packageManager)
     .replaceAll('{{packageManagerCommand}}', tokens.packageManagerCommand)
+    .replaceAll('{{packageManagerRunCommand}}', tokens.packageManagerRunCommand)
     .replaceAll('{{packageManagerExecCommand}}', tokens.packageManagerExecCommand)
     .replaceAll('{{verifyCommand}}', tokens.verifyCommand)
 }
@@ -130,7 +133,25 @@ async function writeJsonFile(targetPath: string, value: unknown) {
   await writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
+export async function writeWorkspaceNpmrc(targetRoot: string) {
+  await mkdir(targetRoot, { recursive: true })
+  await writeFile(path.join(targetRoot, '.npmrc'), NPMRC_SOURCE, 'utf8')
+}
+
 function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const command = packageManager.dlx('supabase', [
+    'db',
+    'push',
+    '--workdir',
+    '.',
+    '--linked',
+    '--password',
+    '__SUPABASE_DB_PASSWORD__',
+    '--yes',
+  ])
+  const passwordPlaceholderIndex = command.args.indexOf('__SUPABASE_DB_PASSWORD__')
+
   return [
     "import { spawnSync } from 'node:child_process'",
     "import { existsSync, readFileSync } from 'node:fs'",
@@ -185,10 +206,15 @@ function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
     '  process.exit(1)',
     '}',
     '',
-    `const packageManagerCommand = process.platform === 'win32' ? '${tokens.packageManagerCommand}.cmd' : '${tokens.packageManagerCommand}'`,
+    `const packageManagerCommand = process.platform === 'win32' ? '${command.command}.cmd' : '${command.command}'`,
+    `const baseArgs = ${JSON.stringify(command.args)};`,
     'const result = spawnSync(',
     '  packageManagerCommand,',
-    "  ['dlx', 'supabase', 'db', 'push', '--workdir', '.', '--linked', '--password', password, '--yes'],",
+    '  [',
+    `    ...baseArgs.slice(0, ${passwordPlaceholderIndex}),`,
+    '    password,',
+    `    ...baseArgs.slice(${passwordPlaceholderIndex + 1}),`,
+    '  ],',
     '  {',
     '    cwd: serverRoot,',
     "    stdio: 'inherit',",
@@ -210,6 +236,20 @@ function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
 }
 
 function renderSupabaseFunctionsDeployScript(tokens: TemplateTokens) {
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const command = packageManager.dlx('supabase', [
+    'functions',
+    'deploy',
+    '__REQUESTED_FUNCTIONS__',
+    '--project-ref',
+    '__SUPABASE_PROJECT_REF__',
+    '--workdir',
+    '.',
+    '--yes',
+  ])
+  const requestedFunctionsPlaceholderIndex = command.args.indexOf('__REQUESTED_FUNCTIONS__')
+  const projectRefPlaceholderIndex = command.args.indexOf('__SUPABASE_PROJECT_REF__')
+
   return [
     "import { spawnSync } from 'node:child_process'",
     "import { existsSync, readFileSync } from 'node:fs'",
@@ -264,21 +304,17 @@ function renderSupabaseFunctionsDeployScript(tokens: TemplateTokens) {
     '  process.exit(1)',
     '}',
     '',
-    `const packageManagerCommand = process.platform === 'win32' ? '${tokens.packageManagerCommand}.cmd' : '${tokens.packageManagerCommand}'`,
+    `const packageManagerCommand = process.platform === 'win32' ? '${command.command}.cmd' : '${command.command}'`,
+    `const baseArgs = ${JSON.stringify(command.args)};`,
     'const requestedFunctions = process.argv.slice(2).map((value) => value.trim()).filter(Boolean)',
     'const result = spawnSync(',
     '  packageManagerCommand,',
     '  [',
-    "    'dlx',",
-    "    'supabase',",
-    "    'functions',",
-    "    'deploy',",
+    `    ...baseArgs.slice(0, ${requestedFunctionsPlaceholderIndex}),`,
     '    ...requestedFunctions,',
-    "    '--project-ref',",
+    `    ...baseArgs.slice(${requestedFunctionsPlaceholderIndex + 1}, ${projectRefPlaceholderIndex}),`,
     '    projectRef,',
-    "    '--workdir',",
-    "    '.',",
-    "    '--yes',",
+    `    ...baseArgs.slice(${projectRefPlaceholderIndex + 1}),`,
     '  ],',
     '  {',
     '    cwd: serverRoot,',
@@ -773,33 +809,53 @@ export async function applyWorkspaceProjectTemplate(
 export async function applyServerPackageTemplate(targetRoot: string, tokens: TemplateTokens) {
   const templatesRoot = resolveTemplatesPackageRoot()
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const serverRoot = path.join(targetRoot, 'server')
   const packageJson = await readJsonTemplate<ServerPackageJson>(
     path.join(templatesRoot, 'root', 'server.package.json'),
     tokens,
   )
 
   packageJson.scripts ??= {}
-  packageJson.scripts.dev = `${packageManager.runScript('dlx')} supabase start --workdir .`
+  packageJson.scripts.dev = packageManager.dlxCommand('supabase', ['start', '--workdir', '.'])
   packageJson.scripts.build = packageManager.runScript('typecheck')
   packageJson.scripts['db:apply'] = 'node ./scripts/supabase-db-apply.mjs'
   packageJson.scripts['db:apply:remote'] = 'node ./scripts/supabase-db-apply.mjs'
-  packageJson.scripts['functions:serve'] =
-    `${packageManager.runScript('dlx')} supabase functions serve --env-file ./.env.local --workdir .`
+  packageJson.scripts['functions:serve'] = packageManager.dlxCommand('supabase', [
+    'functions',
+    'serve',
+    '--env-file',
+    './.env.local',
+    '--workdir',
+    '.',
+  ])
   packageJson.scripts['functions:deploy'] = 'node ./scripts/supabase-functions-deploy.mjs'
-  packageJson.scripts['db:apply:local'] =
-    `${packageManager.runScript('dlx')} supabase db push --local --workdir .`
-  packageJson.scripts['db:reset'] =
-    `${packageManager.runScript('dlx')} supabase db reset --local --workdir .`
+  packageJson.scripts['db:apply:local'] = packageManager.dlxCommand('supabase', [
+    'db',
+    'push',
+    '--local',
+    '--workdir',
+    '.',
+  ])
+  packageJson.scripts['db:reset'] = packageManager.dlxCommand('supabase', [
+    'db',
+    'reset',
+    '--local',
+    '--workdir',
+    '.',
+  ])
 
-  await writeJsonFile(path.join(targetRoot, 'server', 'package.json'), packageJson)
-  await mkdir(path.join(targetRoot, 'server', 'scripts'), { recursive: true })
+  await writeJsonFile(path.join(serverRoot, 'package.json'), packageJson)
+  if (tokens.packageManager === 'npm') {
+    await writeWorkspaceNpmrc(serverRoot)
+  }
+  await mkdir(path.join(serverRoot, 'scripts'), { recursive: true })
   await writeFile(
-    path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
+    path.join(serverRoot, 'scripts', 'supabase-db-apply.mjs'),
     renderSupabaseDbApplyScript(tokens),
     'utf8',
   )
   await writeFile(
-    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-deploy.mjs'),
+    path.join(serverRoot, 'scripts', 'supabase-functions-deploy.mjs'),
     renderSupabaseFunctionsDeployScript(tokens),
     'utf8',
   )
@@ -828,6 +884,10 @@ export async function applyFirebaseServerWorkspaceTemplate(
     path.join(serverRoot, 'package.json'),
     renderFirebaseServerPackageJson(tokens),
   )
+  if (tokens.packageManager === 'npm') {
+    await writeWorkspaceNpmrc(serverRoot)
+    await writeWorkspaceNpmrc(functionsRoot)
+  }
   await writeFile(
     path.join(functionsRoot, '.gitignore'),
     renderFirebaseFunctionsGitignore(tokens.packageManager),

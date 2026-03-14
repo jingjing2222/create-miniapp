@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import { formatDevPublishVersion, prepareDevPublishPackageJsons } from './release/dev-publish.js'
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..')
 
@@ -13,6 +14,43 @@ test('version-packages formats workspace after changeset bump', () => {
   }
 
   assert.equal(packageJson.scripts?.['version-packages'], 'changeset version && pnpm format')
+  assert.equal(
+    packageJson.scripts?.['publish:dev'],
+    'pnpm exec tsx packages/create-rn-miniapp/src/release/dev-publish.ts',
+  )
+})
+
+test('formatDevPublishVersion renders a timestamped prerelease version', () => {
+  assert.equal(
+    formatDevPublishVersion(new Date('2026-03-15T09:08:07.000Z')),
+    '0.0.0-dev.20260315090807',
+  )
+})
+
+test('prepareDevPublishPackageJsons rewrites both publish manifests to the same dev version', () => {
+  const prepared = prepareDevPublishPackageJsons({
+    version: '0.0.0-dev.20260315090807',
+    cliPackageJson: {
+      name: 'create-rn-miniapp',
+      version: '0.0.9',
+      dependencies: {
+        '@create-rn-miniapp/scaffold-templates': 'workspace:*',
+        yargs: '^18.0.0',
+      },
+    },
+    templatesPackageJson: {
+      name: '@create-rn-miniapp/scaffold-templates',
+      version: '0.0.9',
+    },
+  })
+
+  assert.equal(prepared.cliPackageJson.version, '0.0.0-dev.20260315090807')
+  assert.equal(prepared.templatesPackageJson.version, '0.0.0-dev.20260315090807')
+  assert.equal(
+    prepared.cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-templates'],
+    '0.0.0-dev.20260315090807',
+  )
+  assert.equal(prepared.cliPackageJson.dependencies?.yargs, '^18.0.0')
 })
 
 test('published package names match the released npm packages', () => {
@@ -73,6 +111,22 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
   )
   assert.equal(
     packResult.files.some((file) => file.path === 'root/yarn.biome.json'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'root/npm.gitignore'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'root/npm.biome.json'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'root/bun.gitignore'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'root/bun.biome.json'),
     true,
   )
   assert.equal(

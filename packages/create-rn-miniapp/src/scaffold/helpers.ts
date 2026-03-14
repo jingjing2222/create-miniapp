@@ -2,7 +2,12 @@ import path from 'node:path'
 import { log } from '@clack/prompts'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import { getServerProviderAdapter, type ServerProvider } from '../providers/index.js'
-import { pathExists, type TemplateTokens, type WorkspaceName } from '../templates/index.js'
+import {
+  pathExists,
+  type TemplateTokens,
+  type WorkspaceName,
+  writeWorkspaceNpmrc,
+} from '../templates/index.js'
 
 export function createTemplateTokens(options: {
   appName: string
@@ -16,9 +21,21 @@ export function createTemplateTokens(options: {
     displayName: options.displayName,
     packageManager: options.packageManager,
     packageManagerCommand: options.packageManager,
-    packageManagerExecCommand: `${options.packageManager} exec`,
+    packageManagerRunCommand: packageManager.runCommandPrefix,
+    packageManagerExecCommand: packageManager.execCommandPrefix,
     verifyCommand: packageManager.verifyCommand(),
   } satisfies TemplateTokens
+}
+
+export async function maybeWriteNpmWorkspaceConfig(
+  workspaceRoot: string,
+  packageManager: PackageManager,
+) {
+  if (packageManager !== 'npm') {
+    return
+  }
+
+  await writeWorkspaceNpmrc(workspaceRoot)
 }
 
 export async function resolveRootWorkspaces(targetRoot: string) {

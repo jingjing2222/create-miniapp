@@ -47,11 +47,6 @@ type GoogleCloudProjectBillingInfo = {
   billingEnabled?: boolean
 }
 
-type GoogleCloudProjectDescription = {
-  projectId?: string
-  projectNumber?: string | number
-}
-
 type GoogleCloudIamPolicyBinding = {
   role?: string
   members?: string[]
@@ -103,6 +98,7 @@ const FIREBASE_REQUIRED_BUILD_SERVICE_ACCOUNT_ROLES = [
   'roles/cloudbuild.builds.builder',
   'roles/run.builder',
 ] as const
+const CLOUD_BUILD_API_SERVICE = 'cloudbuild.googleapis.com'
 
 const GOOGLE_CLOUD_PROJECT_BILLING_URL = (projectId: string) =>
   `https://console.cloud.google.com/billing/linkedaccount?project=${projectId}`
@@ -330,27 +326,6 @@ function createFirebaseEnvValues(config: FirebaseWebSdkConfig) {
   }
 }
 
-function parseGoogleCloudProjectDescriptionPayload(
-  output: Pick<CommandOutput, 'stdout' | 'stderr'>,
-) {
-  const payload = extractJsonPayload<unknown>(output)
-
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Google Cloud 프로젝트 정보를 해석하지 못했습니다.')
-  }
-
-  const candidate = payload as GoogleCloudProjectDescription
-
-  if (candidate.projectNumber === undefined || candidate.projectNumber === null) {
-    throw new Error('Google Cloud 프로젝트 번호를 찾지 못했습니다.')
-  }
-
-  return {
-    projectId: candidate.projectId,
-    projectNumber: String(candidate.projectNumber),
-  }
-}
-
 function parseGoogleCloudProjectIamPolicyPayload(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
   const payload = extractJsonPayload<unknown>(output)
 
@@ -462,6 +437,24 @@ export function isGoogleCloudAuthRefreshError(message: string) {
     normalized.includes('there was a problem refreshing your current auth tokens') ||
     normalized.includes('gcloud config set account')
   )
+}
+
+export function isGoogleCloudServiceDisabledError(message: string, service?: string) {
+  const normalized = message.toLowerCase()
+  const serviceDisabled =
+    normalized.includes('service_disabled') ||
+    normalized.includes('it is disabled') ||
+    normalized.includes('has not been used in project')
+
+  if (!serviceDisabled) {
+    return false
+  }
+
+  if (!service) {
+    return true
+  }
+
+  return normalized.includes(service.toLowerCase())
 }
 
 export function formatFirebaseBlazeUpgradeMessage(options: {
@@ -606,15 +599,17 @@ async function describeGoogleCloudProjectBillingInfo(
   return parseGoogleCloudBillingInfoPayload(`${output.stdout}\n${output.stderr}`)
 }
 
-async function describeGoogleCloudProject(cwd: string, projectId: string, gcloudCommand: string) {
-  const output = await runCommandWithOutput({
-    cwd,
-    command: gcloudCommand,
-    args: ['projects', 'describe', projectId, '--format=json'],
-    label: 'Google Cloud 프로젝트 정보 확인',
-  })
+function parseGoogleCloudDefaultBuildServiceAccount(
+  output: Pick<CommandOutput, 'stdout' | 'stderr'>,
+) {
+  const combined = `${output.stdout}\n${output.stderr}`
+  const emailMatch = combined.match(/[A-Za-z0-9-]+@[A-Za-z0-9.-]+/)
 
-  return parseGoogleCloudProjectDescriptionPayload(output)
+  if (!emailMatch) {
+    throw new Error('Cloud Build 기본 service account를 해석하지 못했습니다.')
+  }
+
+  return emailMatch[0]
 }
 
 async function getGoogleCloudProjectIamPolicy(
@@ -630,6 +625,78 @@ async function getGoogleCloudProjectIamPolicy(
   })
 
   return parseGoogleCloudProjectIamPolicyPayload(output)
+}
+
+async function getGoogleCloudDefaultBuildServiceAccount(
+  cwd: string,
+  projectId: string,
+  gcloudCommand: string,
+) {
+  const output = await runCommandWithOutput({
+    cwd,
+    command: gcloudCommand,
+    args: ['builds', 'get-default-service-account', '--project', projectId],
+    label: 'Cloud Build 기본 service account 확인',
+  })
+
+  return parseGoogleCloudDefaultBuildServiceAccount(output)
+}
+
+async function ensureGoogleCloudServiceAccountExists(
+  cwd: string,
+  projectId: string,
+  serviceAccountEmail: string,
+  gcloudCommand: string,
+) {
+  try {
+    await runCommandWithOutput({
+      cwd,
+      command: gcloudCommand,
+      args: [
+        'iam',
+        'service-accounts',
+        'describe',
+        serviceAccountEmail,
+        '--project',
+        projectId,
+        '--format=json',
+      ],
+      label: 'Cloud Build service account 존재 확인',
+    })
+
+    return true
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+
+    if (isGoogleCloudAuthRefreshError(message)) {
+      throw error
+    }
+
+    if (/does not exist|NOT_FOUND|not found/i.test(message)) {
+      return false
+    }
+
+    throw error
+  }
+}
+
+async function enableGoogleCloudServices(
+  cwd: string,
+  projectId: string,
+  services: string[],
+  gcloudCommand: string,
+) {
+  if (services.length === 0) {
+    return
+  }
+
+  log.step(`Google Cloud API 활성화 (${services.join(', ')})`)
+  await runCommandWithOutput({
+    cwd,
+    command: gcloudCommand,
+    args: ['services', 'enable', ...services, '--project', projectId],
+    label: `Google Cloud API 활성화 (${services.join(', ')})`,
+  })
 }
 
 async function addGoogleCloudProjectIamBinding(
@@ -735,7 +802,13 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
   projectId: string
   ensureGcloudInstalled?: (cwd: string) => Promise<string>
   ensureGcloudAuth?: (cwd: string, gcloudCommand: string) => Promise<void>
-  describeProject?: (cwd: string, projectId: string) => Promise<GoogleCloudProjectDescription>
+  getDefaultBuildServiceAccount?: (cwd: string, projectId: string) => Promise<string>
+  ensureBuildServiceAccountExists?: (
+    cwd: string,
+    projectId: string,
+    serviceAccountEmail: string,
+  ) => Promise<boolean>
+  enableGoogleCloudServices?: (cwd: string, projectId: string, services: string[]) => Promise<void>
   getProjectIamPolicy?: (cwd: string, projectId: string) => Promise<GoogleCloudIamPolicy>
   addProjectIamBinding?: (
     cwd: string,
@@ -748,10 +821,23 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
     options.cwd,
   )
   const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
-  const describeProject =
-    options.describeProject ??
+  const getDefaultBuildServiceAccount =
+    options.getDefaultBuildServiceAccount ??
     (async (cwd: string, projectId: string) =>
-      await describeGoogleCloudProject(cwd, projectId, gcloudCommand))
+      await getGoogleCloudDefaultBuildServiceAccount(cwd, projectId, gcloudCommand))
+  const ensureBuildServiceAccountExists =
+    options.ensureBuildServiceAccountExists ??
+    (async (cwd: string, projectId: string, serviceAccountEmail: string) =>
+      await ensureGoogleCloudServiceAccountExists(
+        cwd,
+        projectId,
+        serviceAccountEmail,
+        gcloudCommand,
+      ))
+  const enableServices =
+    options.enableGoogleCloudServices ??
+    (async (cwd: string, projectId: string, services: string[]) =>
+      await enableGoogleCloudServices(cwd, projectId, services, gcloudCommand))
   const getProjectIamPolicy =
     options.getProjectIamPolicy ??
     (async (cwd: string, projectId: string) =>
@@ -762,14 +848,36 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
       await addGoogleCloudProjectIamBinding(cwd, projectId, member, role, gcloudCommand))
 
   while (true) {
-    let project: GoogleCloudProjectDescription
+    let buildServiceAccountEmail: string
     let policy: GoogleCloudIamPolicy
 
     try {
-      project = await describeProject(options.cwd, options.projectId)
+      buildServiceAccountEmail = await getDefaultBuildServiceAccount(options.cwd, options.projectId)
+
+      const buildServiceAccountExists = await ensureBuildServiceAccountExists(
+        options.cwd,
+        options.projectId,
+        buildServiceAccountEmail,
+      )
+
+      if (!buildServiceAccountExists) {
+        throw new Error(
+          [
+            `Cloud Build 기본 service account \`${buildServiceAccountEmail}\` 가 존재하지 않습니다.`,
+            '이 계정이 삭제된 상태면 복구하거나, Cloud Build 기본 service account 설정을 다시 확인해야 합니다.',
+            '참고 문서: https://cloud.google.com/build/docs/cloud-build-service-account-updates',
+          ].join('\n'),
+        )
+      }
+
       policy = await getProjectIamPolicy(options.cwd, options.projectId)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+
+      if (isGoogleCloudServiceDisabledError(message, CLOUD_BUILD_API_SERVICE)) {
+        await enableServices(options.cwd, options.projectId, [CLOUD_BUILD_API_SERVICE])
+        continue
+      }
 
       if (!isGoogleCloudAuthRefreshError(message)) {
         throw error
@@ -779,16 +887,7 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
       continue
     }
 
-    const projectNumber =
-      project.projectNumber === undefined || project.projectNumber === null
-        ? ''
-        : String(project.projectNumber).trim()
-
-    if (!projectNumber) {
-      throw new Error('Google Cloud 프로젝트 번호를 찾지 못했습니다.')
-    }
-
-    const buildServiceAccountMember = `serviceAccount:${projectNumber}-compute@developer.gserviceaccount.com`
+    const buildServiceAccountMember = `serviceAccount:${buildServiceAccountEmail}`
     const missingRoles = FIREBASE_REQUIRED_BUILD_SERVICE_ACCOUNT_ROLES.filter(
       (role) => !hasGoogleCloudIamBinding(policy, buildServiceAccountMember, role),
     )

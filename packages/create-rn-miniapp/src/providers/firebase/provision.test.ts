@@ -24,7 +24,7 @@ import {
   writeFirebaseServerLocalEnvFile,
 } from './provision.js'
 
-test('buildFirebaseCommand uses package-manager dlx for pnpm and yarn', () => {
+test('buildFirebaseCommand uses package-manager execution commands for all supported managers', () => {
   assert.deepEqual(buildFirebaseCommand('pnpm', '/tmp/ebook', 'Firebase 테스트', ['login']), {
     cwd: '/tmp/ebook',
     command: 'pnpm',
@@ -36,6 +36,20 @@ test('buildFirebaseCommand uses package-manager dlx for pnpm and yarn', () => {
     cwd: '/tmp/ebook',
     command: 'yarn',
     args: ['dlx', 'firebase-tools', 'login'],
+    label: 'Firebase 테스트',
+  })
+
+  assert.deepEqual(buildFirebaseCommand('npm', '/tmp/ebook', 'Firebase 테스트', ['login']), {
+    cwd: '/tmp/ebook',
+    command: 'npx',
+    args: ['firebase-tools', 'login'],
+    label: 'Firebase 테스트',
+  })
+
+  assert.deepEqual(buildFirebaseCommand('bun', '/tmp/ebook', 'Firebase 테스트', ['login']), {
+    cwd: '/tmp/ebook',
+    command: 'bunx',
+    args: ['firebase-tools', 'login'],
     label: 'Firebase 테스트',
   })
 })
@@ -274,7 +288,7 @@ test('ensureFirebaseProjectIsOnBlazePlan stops when user cancels Blaze upgrade l
   )
 })
 
-test('ensureFirebaseBuildServiceAccountPermissions grants missing IAM roles to the default compute service account', async () => {
+test('ensureFirebaseBuildServiceAccountPermissions grants missing IAM roles to the actual Cloud Build default service account', async () => {
   const actions: string[] = []
   let policyAttempt = 0
 
@@ -282,9 +296,8 @@ test('ensureFirebaseBuildServiceAccountPermissions grants missing IAM roles to t
     cwd: '/tmp/ebook',
     projectId: 'miniapp-8000b',
     ensureGcloudInstalled: async () => '/tmp/google-cloud-sdk/bin/gcloud',
-    describeProject: async () => ({
-      projectNumber: '563134134914',
-    }),
+    getDefaultBuildServiceAccount: async () => '563134134914@cloudbuild.gserviceaccount.com',
+    ensureBuildServiceAccountExists: async () => true,
     getProjectIamPolicy: async () => {
       policyAttempt += 1
 
@@ -298,11 +311,11 @@ test('ensureFirebaseBuildServiceAccountPermissions grants missing IAM roles to t
         bindings: [
           {
             role: 'roles/cloudbuild.builds.builder',
-            members: ['serviceAccount:563134134914-compute@developer.gserviceaccount.com'],
+            members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
           },
           {
             role: 'roles/run.builder',
-            members: ['serviceAccount:563134134914-compute@developer.gserviceaccount.com'],
+            members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
           },
         ],
       }
@@ -314,8 +327,8 @@ test('ensureFirebaseBuildServiceAccountPermissions grants missing IAM roles to t
 
   assert.equal(policyAttempt, 2)
   assert.deepEqual(actions, [
-    'serviceAccount:563134134914-compute@developer.gserviceaccount.com:roles/cloudbuild.builds.builder',
-    'serviceAccount:563134134914-compute@developer.gserviceaccount.com:roles/run.builder',
+    'serviceAccount:563134134914@cloudbuild.gserviceaccount.com:roles/cloudbuild.builds.builder',
+    'serviceAccount:563134134914@cloudbuild.gserviceaccount.com:roles/run.builder',
   ])
 })
 
@@ -330,9 +343,8 @@ test('ensureFirebaseBuildServiceAccountPermissions refreshes gcloud auth before 
     ensureGcloudAuth: async () => {
       actions.push('auth')
     },
-    describeProject: async () => ({
-      projectNumber: '563134134914',
-    }),
+    getDefaultBuildServiceAccount: async () => '563134134914@cloudbuild.gserviceaccount.com',
+    ensureBuildServiceAccountExists: async () => true,
     getProjectIamPolicy: async () => {
       policyAttempt += 1
 
@@ -350,11 +362,11 @@ test('ensureFirebaseBuildServiceAccountPermissions refreshes gcloud auth before 
         bindings: [
           {
             role: 'roles/cloudbuild.builds.builder',
-            members: ['serviceAccount:563134134914-compute@developer.gserviceaccount.com'],
+            members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
           },
           {
             role: 'roles/run.builder',
-            members: ['serviceAccount:563134134914-compute@developer.gserviceaccount.com'],
+            members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
           },
         ],
       }
@@ -366,6 +378,74 @@ test('ensureFirebaseBuildServiceAccountPermissions refreshes gcloud auth before 
 
   assert.equal(policyAttempt, 2)
   assert.deepEqual(actions, ['auth'])
+})
+
+test('ensureFirebaseBuildServiceAccountPermissions enables Cloud Build API and retries when default service account lookup reports SERVICE_DISABLED', async () => {
+  const actions: string[] = []
+  let defaultServiceAccountAttempt = 0
+
+  await ensureFirebaseBuildServiceAccountPermissions({
+    cwd: '/tmp/ebook',
+    projectId: 'miniapp-8000b',
+    ensureGcloudInstalled: async () => '/tmp/google-cloud-sdk/bin/gcloud',
+    getDefaultBuildServiceAccount: async () => {
+      defaultServiceAccountAttempt += 1
+
+      if (defaultServiceAccountAttempt === 1) {
+        throw new Error(
+          [
+            'ERROR: (gcloud.builds.get-default-service-account) PERMISSION_DENIED: Cloud Build API has not been used in project miniapp-8000b before or it is disabled.',
+            'reason: SERVICE_DISABLED',
+            'service: cloudbuild.googleapis.com',
+          ].join('\n'),
+        )
+      }
+
+      return '563134134914@cloudbuild.gserviceaccount.com'
+    },
+    enableGoogleCloudServices: async (_cwd, _projectId, services) => {
+      actions.push(`enable:${services.join(',')}`)
+    },
+    ensureBuildServiceAccountExists: async () => true,
+    getProjectIamPolicy: async () => ({
+      bindings: [
+        {
+          role: 'roles/cloudbuild.builds.builder',
+          members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
+        },
+        {
+          role: 'roles/run.builder',
+          members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
+        },
+      ],
+    }),
+    addProjectIamBinding: async () => {
+      throw new Error('addProjectIamBinding should not be called')
+    },
+  })
+
+  assert.equal(defaultServiceAccountAttempt, 2)
+  assert.deepEqual(actions, ['enable:cloudbuild.googleapis.com'])
+})
+
+test('ensureFirebaseBuildServiceAccountPermissions stops with a clear error when the detected build service account does not exist', async () => {
+  await assert.rejects(
+    ensureFirebaseBuildServiceAccountPermissions({
+      cwd: '/tmp/ebook',
+      projectId: 'miniapp-8000b',
+      ensureGcloudInstalled: async () => '/tmp/google-cloud-sdk/bin/gcloud',
+      getDefaultBuildServiceAccount: async () =>
+        '452297252702-compute@developer.gserviceaccount.com',
+      ensureBuildServiceAccountExists: async () => false,
+      getProjectIamPolicy: async () => {
+        throw new Error('getProjectIamPolicy should not be called')
+      },
+      addProjectIamBinding: async () => {
+        throw new Error('addProjectIamBinding should not be called')
+      },
+    }),
+    /Cloud Build 기본 service account .* 존재하지 않습니다/,
+  )
 })
 
 test('isFirebaseFunctionsBuildServiceAccountPermissionError detects Cloud Build IAM failures', () => {

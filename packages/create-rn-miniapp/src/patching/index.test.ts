@@ -102,6 +102,7 @@ test('patchFrontendWorkspace keeps supabase bootstrap out when no server provide
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -208,6 +209,7 @@ test('patchFrontendWorkspace adds supabase bootstrap when supabase server provid
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -332,6 +334,7 @@ test('patchFrontendWorkspace adds cloudflare API bootstrap when cloudflare serve
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -409,6 +412,7 @@ test('patchFrontendWorkspace adds firebase bootstrap when firebase server provid
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -548,6 +552,7 @@ test('patchBackofficeWorkspace adds supabase bootstrap when supabase server prov
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -668,6 +673,7 @@ test('patchBackofficeWorkspace adds cloudflare API bootstrap when cloudflare ser
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -768,6 +774,7 @@ test('patchBackofficeWorkspace adds firebase bootstrap when firebase server prov
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -860,6 +867,7 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -907,7 +915,7 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.match(readme, /Cloudflare Worker/)
   assert.match(readme, /wrangler\.jsonc/)
   assert.match(readme, /worker-configuration\.d\.ts/)
-  assert.match(readme, /pnpm run deploy/)
+  assert.match(readme, /cd server && pnpm deploy/)
   assert.match(readme, /frontend\/\.env\.local/)
   assert.match(readme, /MINIAPP_API_BASE_URL/)
   assert.match(readme, /backoffice\/\.env\.local/)
@@ -930,6 +938,7 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -949,10 +958,10 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /supabase\/config\.toml/)
   assert.match(readme, /supabase\/migrations\//)
   assert.match(readme, /supabase\/functions\/api\/index\.ts/)
-  assert.match(readme, /pnpm run db:apply/)
-  assert.match(readme, /pnpm run functions:serve/)
-  assert.match(readme, /pnpm run functions:deploy/)
-  assert.match(readme, /pnpm run db:apply:local/)
+  assert.match(readme, /cd server && pnpm db:apply/)
+  assert.match(readme, /cd server && pnpm functions:serve/)
+  assert.match(readme, /cd server && pnpm functions:deploy/)
+  assert.match(readme, /cd server && pnpm db:apply:local/)
   assert.match(readme, /frontend\/src\/lib\/supabase\.ts/)
   assert.match(readme, /supabase\.functions\.invoke\('api'\)/)
   assert.match(readme, /MINIAPP_SUPABASE_URL/)
@@ -990,6 +999,7 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
       displayName: '전자책 미니앱',
       packageManager: 'pnpm',
       packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
@@ -1011,7 +1021,7 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Firebase Functions/)
   assert.match(readme, /server\/functions\/src\/index\.ts/)
-  assert.match(readme, /pnpm run deploy/)
+  assert.match(readme, /cd server && pnpm deploy/)
   assert.match(readme, /frontend\/src\/lib\/firebase\.ts/)
   assert.match(readme, /frontend\/src\/lib\/firestore\.ts/)
   assert.match(readme, /frontend\/src\/lib\/storage\.ts/)
@@ -1055,6 +1065,7 @@ test('patchFirebaseServerWorkspace adds firebase-only yarn packageExtensions to 
       displayName: '전자책 미니앱',
       packageManager: 'yarn',
       packageManagerCommand: 'yarn',
+      packageManagerRunCommand: 'yarn',
       packageManagerExecCommand: 'yarn exec',
       verifyCommand: 'yarn verify',
     },

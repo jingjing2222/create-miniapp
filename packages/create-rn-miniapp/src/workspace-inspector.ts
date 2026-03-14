@@ -29,6 +29,14 @@ function parsePackageManagerField(value: string | undefined): PackageManager {
     return 'yarn'
   }
 
+  if (value?.startsWith('npm@')) {
+    return 'npm'
+  }
+
+  if (value?.startsWith('bun@')) {
+    return 'bun'
+  }
+
   throw new Error(
     '지원하지 않는 package manager입니다. root package.json의 `packageManager`를 확인하세요.',
   )

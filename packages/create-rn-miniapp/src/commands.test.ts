@@ -118,6 +118,22 @@ test('buildCommandPlan emits yarn commands when yarn is selected', () => {
   ])
 })
 
+test('buildCommandPlan emits plain npm install commands when workspace npmrc handles peer resolution', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const plan = buildCommandPlan({
+    appName: 'ebook',
+    targetRoot,
+    packageManager: 'npm',
+    serverProvider: null,
+    withBackoffice: false,
+  })
+
+  assert.equal(plan[0]?.command, 'npx')
+  assert.deepEqual(plan[1]?.args, ['install'])
+  assert.deepEqual(plan[2]?.args, ['install', '@apps-in-toss/framework'])
+  assert.deepEqual(plan[4]?.args, ['install', '@toss/tds-react-native@2.0.2'])
+})
+
 test('buildCommandPlan emits Cloudflare C3 commands when cloudflare is selected', () => {
   const targetRoot = path.join('/tmp', 'ebook')
   const plan = buildCommandPlan({
@@ -225,6 +241,51 @@ test('buildAddCommandPlan emits cloudflare add step when requested', () => {
   assert.deepEqual(plan[0]?.args, [
     'create',
     'cloudflare@latest',
+    'server',
+    '--type',
+    'hello-world',
+    '--lang',
+    'ts',
+    '--no-deploy',
+    '--no-git',
+    '--accept-defaults',
+  ])
+})
+
+test('buildCommandPlan emits npm and bun scaffold commands for supported managers', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const npmPlan = buildCommandPlan({
+    appName: 'ebook',
+    targetRoot,
+    packageManager: 'npm',
+    serverProvider: 'supabase',
+    withBackoffice: true,
+  })
+  const bunPlan = buildCommandPlan({
+    appName: 'ebook',
+    targetRoot,
+    packageManager: 'bun',
+    serverProvider: 'cloudflare',
+    withBackoffice: false,
+  })
+
+  assert.equal(npmPlan[0]?.command, 'npx')
+  assert.deepEqual(npmPlan[0]?.args, ['create-granite-app', 'frontend', '--tools', 'biome'])
+  assert.deepEqual(npmPlan[1]?.args, ['install'])
+  assert.deepEqual(npmPlan[2]?.args, ['install', '@apps-in-toss/framework'])
+  assert.deepEqual(npmPlan[5]?.args, ['supabase', 'init'])
+  assert.deepEqual(npmPlan[7]?.args, [
+    'create-vite',
+    'backoffice',
+    '--template',
+    'react-ts',
+    '--no-interactive',
+  ])
+
+  assert.equal(bunPlan[0]?.command, 'bunx')
+  assert.deepEqual(bunPlan[0]?.args, ['create-granite-app', 'frontend', '--tools', 'biome'])
+  assert.deepEqual(bunPlan[5]?.args, [
+    'create-cloudflare@latest',
     'server',
     '--type',
     'hello-world',

@@ -205,7 +205,7 @@ export function formatCliHelp() {
     '',
     '옵션',
     '  --add                          이미 생성된 워크스페이스에 빠진 `server`/`backoffice` 추가',
-    '  --package-manager <pnpm|yarn> package manager 지정',
+    '  --package-manager <pnpm|yarn|npm|bun> package manager 지정',
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
     '  --no-git                       생성 완료 후 루트 git init 생략',
@@ -265,7 +265,11 @@ export function detectInvocationPackageManager(
   }
 
   if (userAgent?.startsWith('npm/')) {
-    return null
+    return 'npm'
+  }
+
+  if (userAgent?.startsWith('bun/')) {
+    return 'bun'
   }
 
   const execPath = env.npm_execpath?.toLowerCase() ?? ''
@@ -276,6 +280,14 @@ export function detectInvocationPackageManager(
 
   if (execPath.includes('yarn')) {
     return 'yarn'
+  }
+
+  if (execPath.includes('bun')) {
+    return 'bun'
+  }
+
+  if (execPath.includes('npm')) {
+    return 'npm'
   }
 
   return null
@@ -295,19 +307,13 @@ export async function resolveCliOptions(
   }
 
   const invocationPackageManager = detectInvocationPackageManager(env)
-  const packageManager =
-    argv.packageManager ??
-    invocationPackageManager ??
-    (argv.yes
-      ? 'pnpm'
-      : await prompt.select<PackageManager>({
-          message: '패키지 매니저를 선택하세요.',
-          options: [
-            { label: 'pnpm', value: 'pnpm' },
-            { label: 'yarn', value: 'yarn' },
-          ],
-          initialValue: 'pnpm',
-        }))
+  const packageManager = argv.packageManager ?? invocationPackageManager
+
+  if (!packageManager) {
+    throw new Error(
+      '호출한 package manager를 감지하지 못했습니다. `--package-manager <pnpm|yarn|npm|bun>`을 명시하세요.',
+    )
+  }
 
   const rawName =
     argv.name ??

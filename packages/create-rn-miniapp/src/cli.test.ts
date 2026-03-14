@@ -75,9 +75,10 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   }> = []
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<
-    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
-  > = ['yarn', 'supabase', 'no']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'supabase',
+    'no',
+  ]
 
   const prompts: CliPrompter = {
     async text(options) {
@@ -118,13 +119,13 @@ test('resolveCliOptions asks for missing values when interactive input is needed
     },
     prompts,
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
     },
   )
 
   assert.equal(resolved.appName, 'ebook-miniapp')
   assert.equal(resolved.displayName, '전자책 미니앱')
-  assert.equal(resolved.packageManager, 'yarn')
+  assert.equal(resolved.packageManager, 'pnpm')
   assert.equal(resolved.withServer, true)
   assert.equal(resolved.serverProvider, 'supabase')
   assert.equal(resolved.serverProjectMode, null)
@@ -145,7 +146,6 @@ test('resolveCliOptions asks for missing values when interactive input is needed
     },
   ])
   assert.deepEqual(selectMessages, [
-    '패키지 매니저를 선택하세요.',
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
   ])
@@ -154,9 +154,10 @@ test('resolveCliOptions asks for missing values when interactive input is needed
 test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflare is selected', async () => {
   const selectMessages: string[] = []
   const promptValues = ['ebook-miniapp', '전자책 미니앱']
-  const promptSelections: Array<
-    'pnpm' | 'yarn' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'
-  > = ['pnpm', 'cloudflare', 'yes']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'cloudflare',
+    'yes',
+  ]
 
   const resolved = await resolveCliOptions(
     {
@@ -190,17 +191,44 @@ test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflar
       },
     },
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
     },
   )
 
   assert.equal(resolved.serverProvider, 'cloudflare')
   assert.equal(resolved.serverProjectMode, null)
   assert.deepEqual(selectMessages, [
-    '패키지 매니저를 선택하세요.',
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
   ])
+})
+
+test('resolveCliOptions rejects execution when the invoking package manager cannot be detected', async () => {
+  await assert.rejects(
+    () =>
+      resolveCliOptions(
+        {
+          add: false,
+          name: 'ebook-miniapp',
+          rootDir: '/tmp/workspace',
+          outputDir: '/tmp/workspace',
+          skipInstall: false,
+          yes: false,
+          help: false,
+          version: false,
+        },
+        {
+          async text() {
+            throw new Error('text prompt should not be called')
+          },
+          async select() {
+            throw new Error('select prompt should not be called')
+          },
+        },
+        {},
+      ),
+    /호출한 package manager를 감지하지 못했습니다\./,
+  )
 })
 
 test('resolveCliOptions keeps prompts optional when yes flag is set', async () => {
@@ -235,7 +263,7 @@ test('resolveCliOptions keeps prompts optional when yes flag is set', async () =
     },
     prompts,
     {
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v24.0.0 darwin arm64',
     },
   )
 
@@ -313,7 +341,7 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
   )
 })
 
-test('detectInvocationPackageManager infers pnpm and yarn from npm_config_user_agent', () => {
+test('detectInvocationPackageManager infers pnpm, yarn, npm, and bun from invocation metadata', () => {
   assert.equal(
     detectInvocationPackageManager({
       npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
@@ -330,7 +358,19 @@ test('detectInvocationPackageManager infers pnpm and yarn from npm_config_user_a
     detectInvocationPackageManager({
       npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
     }),
-    null,
+    'npm',
+  )
+  assert.equal(
+    detectInvocationPackageManager({
+      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+    }),
+    'bun',
+  )
+  assert.equal(
+    detectInvocationPackageManager({
+      npm_execpath: '/opt/homebrew/bin/bun',
+    }),
+    'bun',
   )
 })
 
@@ -430,6 +470,108 @@ test('resolveCliOptions skips package-manager prompt when yarn create invoked th
   )
 
   assert.equal(resolved.packageManager, 'yarn')
+  assert.deepEqual(selectMessages, [
+    '`server` 제공자를 선택하세요.',
+    '`backoffice` 워크스페이스를 같이 만들까요?',
+  ])
+})
+
+test('resolveCliOptions skips package-manager prompt when npm create invoked the CLI', async () => {
+  const selectMessages: string[] = []
+  const promptValues = ['ebook-miniapp', '전자책 미니앱']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'cloudflare',
+    'no',
+  ]
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        return promptValues.shift() ?? ''
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      npm_config_user_agent: 'npm/11.11.1 node/v25.6.1 darwin arm64 workspaces/false',
+    },
+  )
+
+  assert.equal(resolved.packageManager, 'npm')
+  assert.deepEqual(selectMessages, [
+    '`server` 제공자를 선택하세요.',
+    '`backoffice` 워크스페이스를 같이 만들까요?',
+  ])
+})
+
+test('resolveCliOptions skips package-manager prompt when bun create invoked the CLI', async () => {
+  const selectMessages: string[] = []
+  const promptValues = ['ebook-miniapp', '전자책 미니앱']
+  const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'firebase',
+    'yes',
+  ]
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        return promptValues.shift() ?? ''
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+    },
+  )
+
+  assert.equal(resolved.packageManager, 'bun')
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 선택하세요.',
     '`backoffice` 워크스페이스를 같이 만들까요?',
@@ -541,7 +683,7 @@ test('formatCliHelp renders Korean help text', () => {
 
   assert.match(help, /사용법/)
   assert.match(help, /옵션/)
-  assert.match(help, /--package-manager <pnpm\|yarn>/)
+  assert.match(help, /--package-manager <pnpm\|yarn\|npm\|bun>/)
   assert.match(help, /--add/)
   assert.match(help, /--root-dir <디렉터리>/)
   assert.match(help, /--server-provider <supabase\|cloudflare\|firebase>/)
