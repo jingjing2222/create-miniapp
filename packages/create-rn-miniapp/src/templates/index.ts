@@ -1,8 +1,8 @@
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { patchRootPackageJsonSource } from './ast.js'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
+import { patchRootPackageJsonSource } from '../patching/package-json.js'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 
 const ROOT_WORKSPACE_ORDER = ['frontend', 'server', 'backoffice'] as const
 
@@ -15,6 +15,13 @@ export type TemplateTokens = {
   packageManagerCommand: string
   packageManagerExecCommand: string
   verifyCommand: string
+}
+
+type OptionalDocsServerProvider = 'supabase' | 'cloudflare' | 'firebase'
+
+export type OptionalDocsOptions = {
+  hasBackoffice: boolean
+  serverProvider: OptionalDocsServerProvider | null
 }
 
 type WorkspaceProjectJson = {
@@ -47,6 +54,10 @@ const FIREBASE_ADMIN_VERSION = '^13.6.0'
 const FIREBASE_FUNCTIONS_VERSION = '^7.0.0'
 const GOOGLE_CLOUD_FUNCTIONS_FRAMEWORK_VERSION = '^3.4.5'
 const FIREBASE_FUNCTIONS_TYPESCRIPT_VERSION = '^5.7.3'
+const OPTIONAL_AGENTS_START_MARKER = '<!-- optional-doc-links:start -->'
+const OPTIONAL_AGENTS_END_MARKER = '<!-- optional-doc-links:end -->'
+const OPTIONAL_DOCS_INDEX_START_MARKER = '<!-- optional-engineering-links:start -->'
+const OPTIONAL_DOCS_INDEX_END_MARKER = '<!-- optional-engineering-links:end -->'
 
 const require = createRequire(import.meta.url)
 
@@ -99,6 +110,14 @@ async function copyOptionalTemplateFile(
   tokens: TemplateTokens,
 ) {
   await copyFileWithTokens(sourcePath, targetPath, tokens)
+}
+
+async function copyOptionalTemplateDirectory(
+  sourceDir: string,
+  targetRoot: string,
+  tokens: TemplateTokens,
+) {
+  await copyDirectoryWithTokens(sourceDir, targetRoot, tokens)
 }
 
 async function readJsonTemplate<T>(sourcePath: string, tokens: TemplateTokens) {
@@ -468,6 +487,111 @@ function renderPnpmWorkspaceManifest(workspaces: WorkspaceName[]) {
   return `${lines.join('\n')}\n`
 }
 
+function renderOptionalAgentsSection(options: OptionalDocsOptions) {
+  const lines: string[] = []
+
+  if (options.hasBackoffice) {
+    lines.push(
+      '- `docs/engineering/backoffice-react-best-practices.md`',
+      '  - backoffice React/Vite 작업에서 상태, 렌더링, 번들 규칙을 빠르게 확인할 때 보는 문서',
+    )
+  }
+
+  if (options.serverProvider === 'supabase') {
+    lines.push(
+      '- `docs/engineering/server-provider-supabase.md`',
+      '  - server가 Supabase workspace일 때 DB, Edge Functions, 클라이언트 연결 흐름을 먼저 보는 문서',
+    )
+  }
+
+  if (options.serverProvider === 'cloudflare') {
+    lines.push(
+      '- `docs/engineering/server-provider-cloudflare.md`',
+      '  - server가 Cloudflare Worker workspace일 때 deploy, API URL, 운영 흐름을 먼저 보는 문서',
+    )
+  }
+
+  if (options.serverProvider === 'firebase') {
+    lines.push(
+      '- `docs/engineering/server-provider-firebase.md`',
+      '  - server가 Firebase Functions workspace일 때 billing, IAM, deploy 흐름을 먼저 보는 문서',
+    )
+  }
+
+  return lines.join('\n')
+}
+
+function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
+  const lines: string[] = []
+
+  if (options.hasBackoffice) {
+    lines.push(
+      '- Backoffice React best practices: `engineering/backoffice-react-best-practices.md`',
+    )
+  }
+
+  if (options.serverProvider === 'supabase') {
+    lines.push('- Server provider guide (Supabase): `engineering/server-provider-supabase.md`')
+  }
+
+  if (options.serverProvider === 'cloudflare') {
+    lines.push('- Server provider guide (Cloudflare): `engineering/server-provider-cloudflare.md`')
+  }
+
+  if (options.serverProvider === 'firebase') {
+    lines.push('- Server provider guide (Firebase): `engineering/server-provider-firebase.md`')
+  }
+
+  return lines.join('\n')
+}
+
+function replaceMarkedSection(
+  source: string,
+  options: {
+    startMarker: string
+    endMarker: string
+    renderedSection: string
+    fallbackAnchor: string
+  },
+) {
+  const replacement = options.renderedSection
+    ? `${options.startMarker}\n${options.renderedSection}\n${options.endMarker}`
+    : `${options.startMarker}\n${options.endMarker}`
+
+  if (source.includes(options.startMarker) && source.includes(options.endMarker)) {
+    const pattern = new RegExp(`${options.startMarker}[\\s\\S]*?${options.endMarker}`, 'm')
+    return source.replace(pattern, replacement)
+  }
+
+  if (source.includes(options.fallbackAnchor)) {
+    return source.replace(options.fallbackAnchor, `${replacement}\n${options.fallbackAnchor}`)
+  }
+
+  return `${source.trimEnd()}\n\n${replacement}\n`
+}
+
+type OptionalDocTemplate = {
+  templateDir: string
+}
+
+function resolveOptionalDocTemplates(options: OptionalDocsOptions): OptionalDocTemplate[] {
+  const templates: OptionalDocTemplate[] = []
+
+  if (options.hasBackoffice) {
+    templates.push({
+      templateDir: 'backoffice',
+    })
+  }
+
+  if (options.serverProvider) {
+    templates.push({
+      templateDir: `server-${options.serverProvider}`,
+    })
+  }
+
+  return templates
+}
+
 export async function syncRootWorkspaceManifest(
   targetRoot: string,
   packageManager: PackageManager,
@@ -579,6 +703,47 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
     path.join(targetRoot, 'docs'),
     tokens,
   )
+}
+
+export async function syncOptionalDocsTemplates(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  options: OptionalDocsOptions,
+) {
+  const templatesRoot = resolveTemplatesPackageRoot()
+  const optionalTemplateRoot = path.join(templatesRoot, 'optional')
+
+  for (const template of resolveOptionalDocTemplates(options)) {
+    await copyOptionalTemplateDirectory(
+      path.join(optionalTemplateRoot, template.templateDir),
+      targetRoot,
+      tokens,
+    )
+  }
+
+  const agentsPath = path.join(targetRoot, 'AGENTS.md')
+  if (await pathExists(agentsPath)) {
+    const agentsSource = await readFile(agentsPath, 'utf8')
+    const nextAgentsSource = replaceMarkedSection(agentsSource, {
+      startMarker: OPTIONAL_AGENTS_START_MARKER,
+      endMarker: OPTIONAL_AGENTS_END_MARKER,
+      renderedSection: renderOptionalAgentsSection(options),
+      fallbackAnchor: '- `docs/engineering/native-modules-policy.md`',
+    })
+    await writeFile(agentsPath, nextAgentsSource, 'utf8')
+  }
+
+  const docsIndexPath = path.join(targetRoot, 'docs', 'index.md')
+  if (await pathExists(docsIndexPath)) {
+    const docsIndexSource = await readFile(docsIndexPath, 'utf8')
+    const nextDocsIndexSource = replaceMarkedSection(docsIndexSource, {
+      startMarker: OPTIONAL_DOCS_INDEX_START_MARKER,
+      endMarker: OPTIONAL_DOCS_INDEX_END_MARKER,
+      renderedSection: renderOptionalDocsIndexSection(options),
+      fallbackAnchor: '- Native modules policy: `engineering/native-modules-policy.md`',
+    })
+    await writeFile(docsIndexPath, nextDocsIndexSource, 'utf8')
+  }
 }
 
 export async function applyWorkspaceProjectTemplate(

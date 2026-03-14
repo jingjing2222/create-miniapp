@@ -4,7 +4,7 @@
 - 루트 기준 `{{packageManagerCommand}}` workspace + `nx` + `biome`
 - `frontend`: AppInToss + Granite + `@apps-in-toss/framework` + TDS
 - `backoffice`: optional Vite workspace
-- `server`: optional Supabase workspace
+- `server`: optional server workspace
 
 ## 구현 규칙
 - 구현 전에 문서를 먼저 갱신한다.

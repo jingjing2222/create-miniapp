@@ -4,7 +4,7 @@ import {
   getServerProviderAdapter,
   type ServerProvider,
   type ServerProviderCommandSpec,
-} from './server-provider.js'
+} from './providers/index.js'
 
 export type CommandSpec = ServerProviderCommandSpec
 

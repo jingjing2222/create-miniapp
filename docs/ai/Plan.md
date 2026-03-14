@@ -1,6 +1,155 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: patching/ast 디렉터리 정합성 정리
+1. 문제
+   - 방금 `patching/ast.ts`를 분해했지만, `patching/ast/index.ts`가 상위 디렉터리의 `granite.ts`, `backoffice.ts`를 다시 export하고 있다.
+   - 즉 `patching/ast` 디렉터리 이름과 실제 파일 배치가 어긋나서 구조가 부자연스럽다.
+2. 방향
+   - AST 축 파일은 모두 `patching/ast/` 아래에 둔다.
+   - `patching/ast/index.ts`는 같은 디렉터리 안의 파일만 re-export한다.
+3. 작업
+   - `patching/granite.ts` -> `patching/ast/granite.ts`
+   - `patching/backoffice.ts` -> `patching/ast/backoffice.ts`
+   - `patching/swc.ts` -> `patching/ast/shared.ts`
+   - 관련 import 전부 갱신
+4. 완료 기준
+   - `patching/ast/index.ts`가 상위 디렉터리 파일을 가리키지 않는다.
+   - `pnpm verify` 통과
+
+## 다음 작업: patching/ast.ts 책임 분리
+1. 문제
+   - `packages/create-rn-miniapp/src/patching/ast.ts`가 1000줄이 넘고, SWC 유틸, Granite config patch, backoffice TSX patch, JSONC patch, package.json ordered patch가 한 파일에 섞여 있다.
+   - 현재는 “AST 관련 파일”이라는 이름 아래 구현 축이 너무 넓어서, 특정 patch를 수정할 때도 unrelated helper를 계속 같이 열어야 한다.
+2. 현재 섞여 있는 책임
+   - SWC 공통 유틸
+     - parse/print/identifier/member/call/object property helper
+   - Granite config patch
+     - `patchGraniteConfigSource`
+     - `readGraniteConfigMetadata`
+     - env plugin / AppsInToss brand / metro watchFolders
+   - backoffice TSX patch
+     - `patchBackofficeMainSource`
+     - `patchBackofficeAppSource`
+   - JSONC patch
+     - `patchTsconfigModuleSource`
+     - `patchWranglerConfigSource`
+   - ordered JSON patch
+     - `patchPackageJsonSource`
+     - `patchRootPackageJsonSource`
+3. 분리 방향
+   - `patching/ast/shared.ts`
+     - SWC node type alias
+     - parse/print helper
+     - identifier/member/call/object property 유틸
+   - `patching/ast/granite.ts`
+     - `patchGraniteConfigSource`
+     - `readGraniteConfigMetadata`
+     - Granite 전용 preamble / provider env config
+   - `patching/ast/backoffice.ts`
+     - `patchBackofficeMainSource`
+     - `patchBackofficeAppSource`
+   - `patching/jsonc.ts`
+     - `patchTsconfigModuleSource`
+     - `patchWranglerConfigSource`
+   - `patching/package-json.ts`
+     - ordered entry parser/upsert/remove/stringify
+     - `patchPackageJsonSource`
+     - `patchRootPackageJsonSource`
+   - `patching/ast/index.ts`
+     - 외부에서 쓰는 export만 얇게 재조합
+4. 구현 원칙
+   - `index.ts`만 barrel로 둔다.
+   - `patching/index.ts`에서는 Granite/backoffice/jsonc/package-json 세부 구현 위치를 몰라도 되게 유지한다.
+   - 테스트도 구현 옆으로 붙인다.
+     - Granite metadata/patch 테스트
+     - backoffice TSX patch 테스트
+     - JSONC patch 테스트
+     - package.json ordered patch 테스트
+5. 순서
+   - 1차: SWC shared helper 분리
+   - 2차: Granite 전용 파일 분리
+   - 3차: backoffice TSX patch 분리
+   - 4차: JSONC / package.json patch 분리
+   - 5차: AST 테스트도 파일 옆으로 이동
+6. 완료 기준
+   - `patching/ast.ts` 단일 거대 파일이 사라지거나, 최소한 orchestration용 `index.ts` 수준으로 얇아진다.
+   - 각 patch 축이 파일 이름만 보고 역할을 알 수 있다.
+   - `pnpm verify` 통과
+
+## 다음 작업: 단위 테스트 코로케이션 정리
+1. 문제
+   - 최근 `src/providers`, `src/patching`, `src/scaffold`, `src/templates`로 구현을 분리했지만, 대응 테스트는 아직 `src` 루트에 남아 있다.
+   - 구현과 테스트가 멀어져서 리팩터링 시 찾기 어렵다.
+2. 방향
+   - 폴더로 분리된 구현은 같은 디렉터리에 `*.test.ts`를 둔다.
+   - 루트 전용 모듈(`cli`, `commands`, `layout`, `workspace-inspector`, `release`) 테스트는 그대로 유지한다.
+3. 작업
+   - provider provisioning 테스트를 각 provider 폴더로 이동
+   - `patch.test.ts`, `scaffold.test.ts`, `templates.test.ts`를 해당 구현 폴더로 이동
+   - import 경로와 테스트 실행 패턴이 그대로 동작하는지 확인
+4. 완료 기준
+   - 분리된 구현 폴더 옆에 대응 단위 테스트가 위치한다.
+   - `pnpm verify` 통과
+
+## 다음 작업: create-rn-miniapp src 루트 barrel 제거
+1. 문제
+   - 최근 구조 리팩터링으로 `src/providers`, `src/patching`, `src/scaffold`, `src/templates`를 만들었지만, 루트에 `export * from ...`만 남은 non-index 파일이 생겼다.
+   - `src/ast.ts`, `src/patch.ts`, `src/scaffold.ts`, `src/server-provider.ts`, `src/*-provision.ts`, `src/templates.ts` 같은 파일은 실제 구현이 아니라 alias라서 구조를 다시 흐린다.
+2. 방향
+   - `index.ts`만 barrel로 허용한다.
+   - 나머지 파일은 모두 직접 구현 경로를 import하도록 바꾸고 삭제한다.
+3. 작업
+   - 내부 import와 테스트 import를 실제 구현 경로로 전환
+   - root non-index barrel 파일 삭제
+   - `pnpm verify`로 회귀 확인
+4. 완료 기준
+   - `packages/create-rn-miniapp/src` 아래 non-index re-export file이 남지 않는다.
+   - `pnpm verify` 통과
+
+## 다음 작업: provider별 AGENTS.md 분기 계획
+1. 문제
+   - 생성 직후 가장 먼저 보는 문서는 root `AGENTS.md`인데, 현재 내용은 provider 차이를 거의 반영하지 못한다.
+   - 특히 `supabase`, `cloudflare`, `firebase`는 `server` 워크스페이스의 역할, 운영 스크립트, 주의사항이 다르다.
+   - 지금처럼 완전 공통 템플릿 하나만 쓰면 첫 진입 문서가 너무 일반적이고, 반대로 세 provider 설명을 다 넣으면 너무 길고 헷갈리기 쉽다.
+2. 방향
+   - 완전히 다른 `AGENTS.md` 3개를 유지하지 않고, root `AGENTS.md`에는 provider별 안내를 한두 줄만 추가한다.
+   - 대신 provider-specific 설명은 `docs/engineering` 아래 별도 문서로 분리한다.
+   - 즉 `AGENTS.md`는 여전히 “가장 먼저 보는 1페이지” 역할만 하고, provider별 차이는 링크 중심으로 안내한다.
+3. 구현 구조 제안
+   - `packages/scaffold-templates/base/AGENTS.md`는 공통 골격을 유지한다.
+   - `docs/engineering`에 provider별 문서를 추가한다.
+     - `server-provider-supabase.md`
+     - `server-provider-cloudflare.md`
+     - `server-provider-firebase.md`
+   - root `AGENTS.md`에는 현재 선택된 provider에 맞는 한 줄 정도만 추가한다.
+     - 예: `server는 Supabase workspace예요. 먼저 docs/engineering/server-provider-supabase.md 와 server/README.md 를 보세요.`
+4. provider별로 들어갈 핵심 차이
+   - `supabase`
+     - `server`는 Supabase project 연결, SQL migration, Edge Functions 배포 workspace라고 명시
+     - 먼저 볼 파일: `server/README.md`, `server/.env.local`
+     - 우선 스크립트: `db:apply`, `functions:serve`, `functions:deploy`
+     - frontend/backoffice는 `src/lib/supabase.ts`와 `supabase.functions.invoke()` 흐름을 쓴다고 안내
+   - `cloudflare`
+     - `server`는 Worker 배포 workspace라고 명시
+     - 먼저 볼 파일: `server/wrangler.jsonc`, `server/README.md`, `server/.env.local`
+     - 우선 스크립트: `dev`, `build`, `typecheck`, `deploy`
+     - frontend/backoffice는 `API_BASE_URL` 기반 helper를 쓴다고 안내
+   - `firebase`
+     - `server`는 Functions 배포 workspace라고 명시
+     - 먼저 볼 파일: `server/firebase.json`, `server/functions/src/index.ts`, `server/.env.local`, `server/README.md`
+     - 우선 스크립트: `build`, `typecheck`, `deploy`, `logs`
+     - frontend/backoffice는 Firebase Web SDK(`firebase.ts`, `firestore.ts`, `storage.ts`)를 쓴다고 안내
+5. 문서 길이 제어 원칙
+   - root `AGENTS.md`에는 provider-specific 문단을 길게 넣지 않는다.
+   - 긴 배경 설명은 provider 문서로 보내고, `AGENTS.md`에는 “무엇을 먼저 볼지”만 남긴다.
+   - provider 문서에는 “server가 무엇인지 / 먼저 볼 파일 / 먼저 쓸 명령 / frontend/backoffice 연결”만 남긴다.
+   - 상세 운영 설명은 계속 `server/README.md`가 맡는다.
+6. 테스트/검증
+   - provider별 생성 결과에서 root `AGENTS.md`가 해당 provider 문구와 링크를 포함하는지 검증
+   - provider 문서가 docs 템플릿으로 생성되는지 검증
+   - `pnpm verify` 통과
+
 ## 현재 README 톤 정리
 1. 루트 `README.md`, `packages/scaffold-templates/README.md`, provider별 `server/README.md` 문구를 Toss식 `~요` 체로 정리한다.
 2. 사용자에게 직접 보이는 설명은 명령형보다 “이렇게 동작해요 / 이렇게 쓸 수 있어요 / 필요하면 이렇게 하면 돼요” 톤을 우선한다.
@@ -916,4 +1065,28 @@ docs/
    - Firebase CLI error message에서 중복 projectId를 감지하는지 검증
    - 관련 사용자 안내 문구가 포함되는지 검증
 4. 완료 기준
+   - `pnpm verify` 통과
+
+## 현재 backoffice React best practices 문서 추가
+1. root `AGENTS.md`는 짧게 유지하고, backoffice React 작업용 상세 가이드는 `docs/engineering/backoffice-react-best-practices.md`로 분리한다.
+2. 문서 내용은 Vercel `react-best-practices`를 참고하되, Next.js server 전용 규칙은 제외하고 현재 스택인 Vite + React + TypeScript backoffice 기준으로 재구성한다.
+3. `AGENTS.md`에는 새 문서를 가리키는 한 줄 인덱스만 추가한다.
+4. `docs/index.md`에도 새 engineering 문서 링크를 추가한다.
+5. 테스트 범위
+   - docs-only 변경으로 `pnpm verify` 통과
+6. 완료 기준
+   - 생성되는 `AGENTS.md`와 `docs/index.md`에서 새 문서를 찾을 수 있다.
+
+## 현재 optional workspace 문서 동적 생성
+1. `backoffice`와 `server provider` 관련 engineering 문서는 더 이상 `base` 공통 템플릿에 두지 않는다.
+2. `packages/scaffold-templates/optional/*` 아래에 backoffice 및 provider별 문서를 둔다.
+3. create 시에는 최종 선택된 workspace와 provider 기준으로 optional docs를 복사하고 `AGENTS.md`, `docs/index.md`를 동기화한다.
+4. `--add` 시에도 기존 문서를 덮어쓰지 않고, 필요한 optional docs만 추가하고 `AGENTS.md`, `docs/index.md` 인덱스만 보강한다.
+5. 이전 버전 생성물처럼 marker가 없는 `AGENTS.md`, `docs/index.md`도 `--add`에서 보강 가능해야 한다.
+6. 테스트 범위
+   - frontend only면 backoffice/provider 문서와 링크가 생기지 않는지 검증
+   - backoffice 선택 시에만 backoffice 문서와 링크가 생기는지 검증
+   - server provider별로 해당 문서와 링크만 생기는지 검증
+   - marker가 없는 예전 문서에도 optional 링크를 삽입할 수 있는지 검증
+7. 완료 기준
    - `pnpm verify` 통과

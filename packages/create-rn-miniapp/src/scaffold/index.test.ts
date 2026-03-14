@@ -5,7 +5,7 @@ import {
   buildCreateExecutionOrder,
   buildCreateLifecycleOrder,
   buildRootFinalizePlan,
-} from './scaffold.js'
+} from './index.js'
 
 test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
   const targetRoot = path.join('/tmp', 'ebook')

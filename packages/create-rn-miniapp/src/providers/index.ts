@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
   ensureBackofficeFirebaseBootstrap,
   ensureBackofficeCloudflareBootstrap,
@@ -10,13 +10,13 @@ import {
   patchFirebaseServerWorkspace,
   patchCloudflareServerWorkspace,
   patchSupabaseServerWorkspace,
-} from './patch.js'
+} from '../patching/index.js'
 import {
   applyFirebaseServerWorkspaceTemplate,
   pathExists,
   SUPABASE_DEFAULT_FUNCTION_NAME,
   type TemplateTokens,
-} from './templates.js'
+} from '../templates/index.js'
 
 export type ServerProviderCommandSpec = {
   cwd: string

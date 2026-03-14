@@ -2,7 +2,7 @@
   "name": "@create-rn-miniapp/scaffold-templates",
   "private": false,
   "version": "0.0.7",
-  "files": ["base", "root"],
+  "files": ["base", "root", "optional"],
   "publishConfig": {
     "access": "public"
   },
