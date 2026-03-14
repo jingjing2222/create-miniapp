@@ -1,5 +1,13 @@
 # create-rn-miniapp
 
+## 0.0.2
+
+### Patch Changes
+
+- 4725346: fix: dependencies
+- Updated dependencies [4725346]
+  - @create-rn-miniapp/scaffold-templates@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes
