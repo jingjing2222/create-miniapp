@@ -573,3 +573,12 @@ docs/
    - 기존 token이 있으면 token 입력 안내가 생략되는지 검증
 4. 완료 기준
    - `pnpm verify` 통과
+
+## 현재 provider별 server README 추가
+1. Supabase server와 Cloudflare server에 provider별 `README.md`를 patch 단계에서 생성한다.
+2. README에는 디렉토리 구조, 주요 스크립트, frontend/backoffice 연결 방식을 포함한다.
+3. 테스트 범위
+   - Supabase server patch 결과에 README가 생성되고 핵심 스크립트/연결 설명이 포함되는지 검증
+   - Cloudflare server patch 결과에 README가 생성되고 핵심 스크립트/연결 설명이 포함되는지 검증
+4. 완료 기준
+   - `pnpm verify` 통과

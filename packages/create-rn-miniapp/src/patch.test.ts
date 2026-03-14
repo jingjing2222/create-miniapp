@@ -7,6 +7,7 @@ import {
   patchBackofficeWorkspace,
   patchCloudflareServerWorkspace,
   patchFrontendWorkspace,
+  patchSupabaseServerWorkspace,
 } from './patch.js'
 
 async function createTempWorkspace(t: test.TestContext) {
@@ -682,6 +683,7 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
       ignore?: string[]
     }
   }
+  const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
 
   assert.equal(packageJson.name, 'server')
   assert.equal(packageJson.scripts?.dev, 'wrangler dev')
@@ -700,10 +702,55 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
     '**/dist/**',
     '**/server/worker-configuration.d.ts',
   ])
+  assert.match(readme, /^# server$/m)
+  assert.match(readme, /Cloudflare Worker/)
+  assert.match(readme, /wrangler\.jsonc/)
+  assert.match(readme, /worker-configuration\.d\.ts/)
+  assert.match(readme, /pnpm run deploy/)
+  assert.match(readme, /frontend\/\.env\.local/)
+  assert.match(readme, /MINIAPP_API_BASE_URL/)
+  assert.match(readme, /backoffice\/\.env\.local/)
+  assert.match(readme, /VITE_API_BASE_URL/)
   assert.equal(await pathExists(path.join(serverRoot, '.gitignore')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.prettierrc')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.editorconfig')), false)
   assert.equal(await pathExists(path.join(serverRoot, 'AGENTS.md')), false)
   assert.equal(await pathExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.vscode', 'settings.json')), false)
+})
+
+test('patchSupabaseServerWorkspace creates a server README with remote and local guidance', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+
+  await patchSupabaseServerWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'pnpm',
+      packageManagerCommand: 'pnpm',
+      packageManagerExecCommand: 'pnpm exec',
+      verifyCommand: 'pnpm verify',
+    },
+    { packageManager: 'pnpm' },
+  )
+
+  const serverPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const readme = await readFile(path.join(targetRoot, 'server', 'README.md'), 'utf8')
+
+  assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
+  assert.match(readme, /^# server$/m)
+  assert.match(readme, /Supabase/)
+  assert.match(readme, /supabase\/config\.toml/)
+  assert.match(readme, /supabase\/migrations\//)
+  assert.match(readme, /pnpm run db:apply/)
+  assert.match(readme, /pnpm run db:apply:local/)
+  assert.match(readme, /frontend\/src\/lib\/supabase\.ts/)
+  assert.match(readme, /MINIAPP_SUPABASE_URL/)
+  assert.match(readme, /backoffice\/src\/lib\/supabase\.ts/)
+  assert.match(readme, /VITE_SUPABASE_URL/)
 })

@@ -304,6 +304,90 @@ async function writeTextFile(filePath: string, contents: string) {
   await writeFile(filePath, contents, 'utf8')
 }
 
+function renderSupabaseServerReadme(tokens: TemplateTokens) {
+  return [
+    '# server',
+    '',
+    '이 워크스페이스는 Supabase 프로젝트와 SQL migration을 관리하는 server 워크스페이스입니다.',
+    '',
+    '## 디렉토리 구조',
+    '',
+    '```text',
+    'server/',
+    '  supabase/config.toml',
+    '  supabase/migrations/',
+    '  scripts/supabase-db-apply.mjs',
+    '  .env.local',
+    '  package.json',
+    '```',
+    '',
+    '## 주요 스크립트',
+    '',
+    `- \`${tokens.packageManagerCommand} run dev\`: 로컬 Supabase stack 시작`,
+    `- \`${tokens.packageManagerCommand} run db:apply\`: \`server/.env.local\`의 \`SUPABASE_DB_PASSWORD\`를 사용해 linked remote project에 migration 적용`,
+    `- \`${tokens.packageManagerCommand} run db:apply:local\`: 로컬 Supabase DB에 migration 적용`,
+    `- \`${tokens.packageManagerCommand} run db:reset\`: 로컬 Supabase DB 리셋`,
+    `- \`${tokens.packageManagerCommand} run test\`: placeholder 테스트`,
+    '',
+    '## Miniapp / Backoffice 연결',
+    '',
+    '- miniapp frontend는 `frontend/src/lib/supabase.ts`에서 Supabase client를 생성합니다.',
+    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 사용합니다.',
+    '- frontend `granite.config.ts`는 `.env.local` 값을 읽어 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 주입합니다.',
+    '- backoffice가 있으면 `backoffice/src/lib/supabase.ts`에서 별도 browser client를 생성합니다.',
+    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용합니다.',
+    '- backoffice는 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용합니다.',
+    '',
+    '## 운영 메모',
+    '',
+    '- 원격 SQL push를 계속하려면 `server/.env.local`의 `SUPABASE_DB_PASSWORD`를 채우세요.',
+    '- frontend/backoffice의 `.env.local`은 server provisioning 결과와 같은 Supabase project를 가리켜야 합니다.',
+    '',
+  ].join('\n')
+}
+
+function renderCloudflareServerReadme(tokens: TemplateTokens) {
+  return [
+    '# server',
+    '',
+    '이 워크스페이스는 Cloudflare Worker를 배포하는 server 워크스페이스입니다.',
+    '',
+    '## 디렉토리 구조',
+    '',
+    '```text',
+    'server/',
+    '  src/index.ts',
+    '  wrangler.jsonc',
+    '  worker-configuration.d.ts',
+    '  .env.local',
+    '  package.json',
+    '```',
+    '',
+    '## 주요 스크립트',
+    '',
+    `- \`${tokens.packageManagerCommand} run dev\`: 로컬 Worker 개발 서버`,
+    `- \`${tokens.packageManagerCommand} run build\`: \`wrangler deploy --dry-run\`으로 번들 검증`,
+    `- \`${tokens.packageManagerCommand} run typecheck\`: \`wrangler types\` + TypeScript 검사`,
+    `- \`${tokens.packageManagerCommand} run deploy\`: \`wrangler.jsonc\` 기준으로 원격 Worker 배포`,
+    `- \`${tokens.packageManagerCommand} run test\`: placeholder 테스트`,
+    '',
+    '## Miniapp / Backoffice 연결',
+    '',
+    '- miniapp frontend는 `frontend/src/lib/api.ts`에서 API helper를 만들고 `MINIAPP_API_BASE_URL`을 사용합니다.',
+    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_API_BASE_URL`을 사용합니다.',
+    '- backoffice가 있으면 `backoffice/src/lib/api.ts`에서 `VITE_API_BASE_URL` 기반 helper를 사용합니다.',
+    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_API_BASE_URL`을 사용합니다.',
+    '- provisioning이 성공하면 frontend/backoffice `.env.local`에 Worker URL이 자동으로 기록됩니다.',
+    '',
+    '## 운영 메모',
+    '',
+    '- `worker-configuration.d.ts`는 `wrangler types`가 생성하는 파일입니다.',
+    '- `server/.env.local`은 Cloudflare account/worker 메타데이터를 기록합니다.',
+    '- 후속 자동화가 필요하면 `server/.env.local`의 `CLOUDFLARE_API_TOKEN`을 직접 채우세요.',
+    '',
+  ].join('\n')
+}
+
 async function patchTsconfigModuleFile(
   filePath: string,
   options?: {
@@ -787,9 +871,11 @@ export async function patchSupabaseServerWorkspace(
   tokens: TemplateTokens,
   options: Pick<WorkspacePatchOptions, 'packageManager'>,
 ) {
+  const serverRoot = path.join(targetRoot, 'server')
   await applyServerPackageTemplate(targetRoot, tokens)
-  await removeToolingFiles(path.join(targetRoot, 'server'), options.packageManager)
-  await removeWorkspaceArtifacts(path.join(targetRoot, 'server'), options.packageManager)
+  await writeTextFile(path.join(serverRoot, 'README.md'), renderSupabaseServerReadme(tokens))
+  await removeToolingFiles(serverRoot, options.packageManager)
+  await removeWorkspaceArtifacts(serverRoot, options.packageManager)
   await applyWorkspaceProjectTemplate(targetRoot, 'server', tokens)
 }
 
@@ -821,6 +907,7 @@ export async function patchCloudflareServerWorkspace(
     },
   })
   await patchWranglerConfigSchema(serverRoot, packageJson)
+  await writeTextFile(path.join(serverRoot, 'README.md'), renderCloudflareServerReadme(tokens))
   await ensureRootGitignoreEntry(targetRoot, CLOUDFLARE_ROOT_GITIGNORE_ENTRY)
   await ensureRootBiomeIgnoreEntry(targetRoot, CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY)
   await removePathIfExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'))
