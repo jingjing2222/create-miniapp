@@ -89,6 +89,8 @@ pnpm verify
 
 즉 이 저장소가 만드는 건 단순 폴더 구조가 아니라, MiniApp이 Granite, `@apps-in-toss/framework`, TDS를 원활하게 사용할 수 있도록 문서와 설정까지 포함한 작업 컨텍스트예요.
 
+생성이 끝나면 바로 구현부터 들어가기보다, 먼저 `docs/product/기능명세서.md`에 만들 기능을 정리해두는 걸 권장해요. 그다음 `docs/ai/Plan.md`와 `docs/ai/Implement.md`를 함께 보면서, 방금 적은 기능 명세를 기준으로 구현을 하나씩 이끌어가면 돼요.
+
 ## CLI 옵션
 
 - `--package-manager <pnpm|yarn>`: 생성과 루트 monorepo에 사용할 package manager를 고를 수 있어요.

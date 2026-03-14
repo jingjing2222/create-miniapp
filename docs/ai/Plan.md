@@ -1,6 +1,15 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: README에 기능명세서 우선 흐름 추가
+1. 문제
+   - 현재 README는 생성 결과물과 provider 흐름은 설명하지만, 생성 직후 사용자가 어떤 순서로 작업을 시작하면 좋은지는 약하다.
+2. 방향
+   - 생성 후에는 먼저 `docs/product/기능명세서.md`를 작성하고, 그 명세를 기준으로 구현을 진행하는 흐름을 README에 명시한다.
+3. 완료 기준
+   - README에 생성 직후 추천 작업 순서가 추가된다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: patching/ast 디렉터리 정합성 정리
 1. 문제
    - 방금 `patching/ast.ts`를 분해했지만, `patching/ast/index.ts`가 상위 디렉터리의 `granite.ts`, `backoffice.ts`를 다시 export하고 있다.
