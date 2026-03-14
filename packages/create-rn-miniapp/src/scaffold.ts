@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
-import { buildCommandPlan, runCommand } from './commands.js'
+import { buildCommandPlan, runCommand, type CommandSpec } from './commands.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import { patchBackofficeWorkspace, patchFrontendWorkspace, patchServerWorkspace } from './patch.js'
 import type { ServerProvider } from './server-provider.js'
@@ -21,6 +21,36 @@ export type ScaffoldOptions = {
   serverProvider: ServerProvider | null
   withBackoffice: boolean
   skipInstall: boolean
+}
+
+export function buildRootFinalizePlan(options: {
+  targetRoot: string
+  packageManager: PackageManager
+}) {
+  const packageManager = getPackageManagerAdapter(options.packageManager)
+  const plan: CommandSpec[] = [
+    {
+      cwd: options.targetRoot,
+      ...packageManager.install(),
+      label: `루트 ${options.packageManager} install`,
+    },
+  ]
+
+  if (options.packageManager === 'yarn') {
+    plan.push({
+      cwd: options.targetRoot,
+      ...packageManager.dlx('@yarnpkg/sdks', ['base']),
+      label: '루트 yarn sdks 생성',
+    })
+  }
+
+  plan.push({
+    cwd: options.targetRoot,
+    ...packageManager.exec('biome', ['check', '.', '--write', '--unsafe']),
+    label: '루트 biome check --write --unsafe',
+  })
+
+  return plan
 }
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
@@ -75,19 +105,13 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
 
   if (!options.skipInstall) {
-    log.step(`루트 ${options.packageManager} install`)
-    await runCommand({
-      cwd: targetRoot,
-      ...packageManager.install(),
-      label: `루트 ${options.packageManager} install`,
-    })
-
-    log.step('루트 biome check --write --unsafe')
-    await runCommand({
-      cwd: targetRoot,
-      ...packageManager.exec('biome', ['check', '.', '--write', '--unsafe']),
-      label: '루트 biome check --write --unsafe',
-    })
+    for (const command of buildRootFinalizePlan({
+      targetRoot,
+      packageManager: options.packageManager,
+    })) {
+      log.step(command.label)
+      await runCommand(command)
+    }
   }
 
   return { targetRoot }

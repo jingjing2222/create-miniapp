@@ -1,5 +1,5 @@
 import { parseSync, printSync } from '@swc/core'
-import { applyEdits, findNodeAtLocation, modify, parse, parseTree } from 'jsonc-parser'
+import { parse } from 'jsonc-parser'
 import type { ServerProvider } from './server-provider.js'
 import type { TemplateTokens } from './templates.js'
 
@@ -33,12 +33,6 @@ const JSONC_PARSE_OPTIONS = {
   allowTrailingComma: true,
 }
 
-const JSONC_FORMATTING_OPTIONS = {
-  eol: '\n',
-  insertSpaces: true,
-  tabSize: 2,
-}
-
 function parseTypeScriptModule(source: string, tsx = false) {
   return parseSync(source, {
     syntax: 'typescript',
@@ -48,6 +42,10 @@ function parseTypeScriptModule(source: string, tsx = false) {
 
 function printTypeScriptModule(module: SwcModule) {
   return `${printSync(module as unknown as Parameters<typeof printSync>[0]).code.trimEnd()}\n`
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function parseExpression(source: string, tsx = false) {
@@ -459,6 +457,27 @@ const FRONTEND_SUPABASE_PREAMBLE = [
   '',
 ].join('\n')
 
+function ensureBlankLineBefore(source: string, marker: string) {
+  const pattern = new RegExp(`([^\\n])\\n(${escapeRegExp(marker)})`, 'g')
+  return source.replace(pattern, '$1\n\n$2')
+}
+
+function formatGraniteConfigSource(source: string) {
+  let next = source
+
+  for (const marker of [
+    'const repoRoot =',
+    'dotenv.config({',
+    'function resolveMiniappEnv(',
+    'const miniappSupabaseUrl =',
+    'export default defineConfig(',
+  ]) {
+    next = ensureBlankLineBefore(next, marker)
+  }
+
+  return next
+}
+
 export function patchGraniteConfigSource(
   source: string,
   tokens: TemplateTokens,
@@ -484,7 +503,7 @@ export function patchGraniteConfigSource(
     ensureEnvPlugin(ensurePluginsArrayExpression(configObject))
   }
 
-  return printTypeScriptModule(module)
+  return formatGraniteConfigSource(printTypeScriptModule(module))
 }
 
 function isDocumentGetElementByIdRoot(expression: SwcExpression | undefined) {
@@ -672,32 +691,42 @@ export function patchBackofficeAppSource(source: string) {
   return printTypeScriptModule(module)
 }
 
-export function patchTsconfigModuleSource(source: string) {
-  const root = parseTree(source, [], JSONC_PARSE_OPTIONS)
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
-  if (!root || root.type !== 'object') {
+export function patchTsconfigModuleSource(
+  source: string,
+  options?: {
+    includeNodeTypes?: boolean
+  },
+) {
+  const parsed = parse(source, [], JSONC_PARSE_OPTIONS)
+
+  if (!isRecord(parsed)) {
     return source
   }
 
-  const moduleNode = findNodeAtLocation(root, ['compilerOptions', 'module'])
-  const editedSource =
-    moduleNode?.type === 'string' && moduleNode.value === 'esnext'
-      ? source
-      : applyEdits(
-          source,
-          modify(source, ['compilerOptions', 'module'], 'esnext', {
-            formattingOptions: JSONC_FORMATTING_OPTIONS,
-          }),
-        )
+  const next = { ...parsed }
+  const compilerOptions = isRecord(next.compilerOptions) ? { ...next.compilerOptions } : {}
 
-  const nextRoot = parseTree(editedSource, [], JSONC_PARSE_OPTIONS)
-  if (!nextRoot || nextRoot.type !== 'object') {
-    throw new Error('tsconfig를 수정한 뒤 JSONC를 다시 파싱하지 못했습니다.')
+  compilerOptions.module = 'esnext'
+
+  if (options?.includeNodeTypes) {
+    const existingTypes = Array.isArray(compilerOptions.types)
+      ? compilerOptions.types.filter((value): value is string => typeof value === 'string')
+      : []
+
+    if (!existingTypes.includes('node')) {
+      existingTypes.push('node')
+    }
+
+    compilerOptions.types = existingTypes
   }
 
-  const normalized = parse(editedSource, [], JSONC_PARSE_OPTIONS)
+  next.compilerOptions = compilerOptions
 
-  return `${JSON.stringify(normalized, null, 2)}\n`
+  return `${JSON.stringify(next, null, 2)}\n`
 }
 
 type OrderedJsonEntry = {
