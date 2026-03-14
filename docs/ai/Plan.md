@@ -254,6 +254,8 @@ docs/
 7. Yarn SDK 후처리
    - `yarn` 선택 시 root install 뒤에 `yarn dlx @yarnpkg/sdks base`를 실행해 editor SDK를 생성한다.
    - 이 단계는 `pnpm`에는 추가하지 않고, `skipInstall`일 때도 실행하지 않는다.
+8. 저장소 메타데이터
+   - 루트 `LICENSE.md`를 MIT 텍스트로 추가해 저장소와 배포 패키지의 라이선스 문서를 명시한다.
 8. 테스트 범위
    - CLI가 `--package-manager`를 파싱하고, 프롬프트 첫 단계에서 선택을 받는지 검증
    - command plan이 `pnpm`과 `yarn`에서 각각 다른 명령을 생성하는지 검증
