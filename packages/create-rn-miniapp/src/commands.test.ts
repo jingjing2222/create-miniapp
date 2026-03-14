@@ -22,6 +22,7 @@ test('buildCommandPlan keeps AppInToss frontend steps first', () => {
       'frontend ait 초기화',
       'frontend TDS 설치',
       'server Supabase 초기화',
+      'server Supabase Edge Function 생성',
       'backoffice Vite 생성',
     ],
   )
@@ -99,6 +100,16 @@ test('buildCommandPlan emits yarn commands when yarn is selected', () => {
   assert.deepEqual(plan[5]?.args, ['dlx', 'supabase', 'init'])
   assert.deepEqual(plan[6]?.args, [
     'dlx',
+    'supabase',
+    'functions',
+    'new',
+    'api',
+    '--workdir',
+    '.',
+    '--yes',
+  ])
+  assert.deepEqual(plan[7]?.args, [
+    'dlx',
     'create-vite',
     'backoffice',
     '--template',
@@ -175,10 +186,20 @@ test('buildAddCommandPlan only includes requested missing workspaces', () => {
 
   assert.deepEqual(
     plan.map((step) => step.label),
-    ['server Supabase 초기화', 'backoffice Vite 생성'],
+    ['server Supabase 초기화', 'server Supabase Edge Function 생성', 'backoffice Vite 생성'],
   )
   assert.deepEqual(plan[0]?.args, ['dlx', 'supabase', 'init'])
   assert.deepEqual(plan[1]?.args, [
+    'dlx',
+    'supabase',
+    'functions',
+    'new',
+    'api',
+    '--workdir',
+    '.',
+    '--yes',
+  ])
+  assert.deepEqual(plan[2]?.args, [
     'dlx',
     'create-vite',
     'backoffice',

@@ -61,6 +61,7 @@ test('buildCreateExecutionOrder runs server scaffold before backoffice scaffold'
     'frontend ait 초기화',
     'frontend TDS 설치',
     'server Supabase 초기화',
+    'server Supabase Edge Function 생성',
     'backoffice Vite 생성',
   ])
 })

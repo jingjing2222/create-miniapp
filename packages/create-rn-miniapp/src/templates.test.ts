@@ -112,6 +112,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
     'utf8',
   )
+  const serverFunctionsDeployScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-deploy.mjs'),
+    'utf8',
+  )
 
   assert.equal(packageJson.packageManager, 'yarn@4.13.0')
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
@@ -143,6 +147,14 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.equal(serverPackageJson.scripts?.build, 'yarn typecheck')
   assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
   assert.equal(
+    serverPackageJson.scripts?.['functions:serve'],
+    'yarn dlx supabase functions serve --env-file ./.env.local --workdir .',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.['functions:deploy'],
+    'node ./scripts/supabase-functions-deploy.mjs',
+  )
+  assert.equal(
     serverPackageJson.scripts?.['db:apply:local'],
     'yarn dlx supabase db push --local --workdir .',
   )
@@ -153,6 +165,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(serverDbApplyScript, /SUPABASE_DB_PASSWORD/)
   assert.match(serverDbApplyScript, /supabase', 'db', 'push'/)
   assert.match(serverDbApplyScript, /yarn/)
+  assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
+  assert.match(serverFunctionsDeployScript, /'supabase',\n\s+'functions',\n\s+'deploy'/)
+  assert.match(serverFunctionsDeployScript, /--project-ref/)
+  assert.match(serverFunctionsDeployScript, /yarn/)
 })
 
 test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with package-manager aware scripts', async (t) => {

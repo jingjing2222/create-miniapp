@@ -10,7 +10,7 @@ import {
 import type { CliPrompter } from './cli.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from './server-project.js'
-import { pathExists } from './templates.js'
+import { pathExists, SUPABASE_DEFAULT_FUNCTION_NAME } from './templates.js'
 
 type SupabaseProject = {
   id: string
@@ -72,7 +72,7 @@ function createSupabaseEnvValues(projectRef: string, publishableKey: string) {
 
 function createSupabaseServerEnvValues(projectRef: string, dbPassword = '') {
   return [
-    '# Used by server/package.json db:apply for remote Supabase pushes.',
+    '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
     `SUPABASE_PROJECT_REF=${projectRef}`,
     `SUPABASE_DB_PASSWORD=${dbPassword}`,
     '',
@@ -186,7 +186,7 @@ export function formatSupabaseManualSetupNote(options: {
     path.join(options.targetRoot, 'server', '.env.local'),
     createSupabaseServerEnvValues(options.projectRef, '<프로젝트 DB password>').trimEnd(),
     '',
-    'server/package.json 의 db:apply 는 server/.env.local 의 SUPABASE_DB_PASSWORD 를 사용합니다.',
+    'server/package.json 의 db:apply 와 functions:deploy 는 server/.env.local 값을 사용합니다.',
   )
 
   if (!options.hasDbPassword) {
@@ -194,6 +194,10 @@ export function formatSupabaseManualSetupNote(options: {
       'server/.env.local 의 SUPABASE_DB_PASSWORD 는 비어 있으니, 프로젝트 생성 시 사용한 DB password를 직접 채워 넣으세요.',
     )
   }
+
+  lines.push(
+    `기본 Edge Function은 \`supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts\`에 생성되어 있고, \`${path.join(options.targetRoot, 'server', 'package.json')}\`의 \`functions:deploy\`로 다시 배포할 수 있습니다.`,
+  )
 
   return {
     title: 'Supabase 환경 변수 안내',
@@ -235,7 +239,9 @@ export async function writeSupabaseServerLocalEnvFile(options: {
   const nextLines =
     lines.length > 0
       ? [...lines]
-      : ['# Used by server/package.json db:apply for remote Supabase pushes.']
+      : [
+          '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
+        ]
   let hasProjectRef = false
   let hasPassword = false
   let hasNonEmptyPassword = false
@@ -402,6 +408,25 @@ async function pushSupabaseDatabase(packageManager: PackageManager, serverRoot: 
   )
 }
 
+async function deploySupabaseFunctions(
+  packageManager: PackageManager,
+  serverRoot: string,
+  projectRef: string,
+) {
+  log.step('server Supabase Edge Functions 배포')
+  await runCommand(
+    buildSupabaseCommand(packageManager, serverRoot, 'server Supabase Edge Functions 배포', [
+      'functions',
+      'deploy',
+      '--project-ref',
+      projectRef,
+      '--workdir',
+      '.',
+      '--yes',
+    ]),
+  )
+}
+
 export async function provisionSupabaseProject(
   options: ProvisionSupabaseProjectOptions,
 ): Promise<ProvisionedSupabaseProject | null> {
@@ -460,6 +485,7 @@ export async function provisionSupabaseProject(
 
   await linkSupabaseProject(options.packageManager, serverRoot, selectedProjectId)
   await pushSupabaseDatabase(options.packageManager, serverRoot)
+  await deploySupabaseFunctions(options.packageManager, serverRoot, selectedProjectId)
 
   return {
     projectRef: selectedProjectId,
@@ -502,15 +528,16 @@ export async function finalizeSupabaseProvisioning(options: {
           hasBackoffice
             ? 'frontend/.env.local 과 backoffice/.env.local 에 Supabase 연결 값을 작성했습니다.'
             : 'frontend/.env.local 에 Supabase 연결 값을 작성했습니다.',
-          'server/.env.local 에 Supabase 원격 db push 설정을 작성했습니다.',
+          'server/.env.local 에 Supabase 원격 db push / Edge Functions deploy 설정을 작성했습니다.',
           serverEnv.hasDbPassword
-            ? 'server/package.json 의 db:apply 로 원격 SQL push를 계속 진행할 수 있습니다.'
+            ? 'server/package.json 의 db:apply 와 functions:deploy 로 원격 SQL push와 Edge Function 배포를 계속 진행할 수 있습니다.'
             : 'server/.env.local 의 SUPABASE_DB_PASSWORD 는 비어 있으니, 프로젝트 생성 시 사용한 DB password를 직접 채워 넣으세요.',
           ...(!serverEnv.hasDbPassword
             ? [
-                'SUPABASE_DB_PASSWORD 를 채운 뒤 server/package.json 의 db:apply 로 원격 SQL push를 계속 진행할 수 있습니다.',
+                'SUPABASE_DB_PASSWORD 를 채운 뒤 server/package.json 의 db:apply 와 functions:deploy 로 원격 SQL push와 Edge Function 배포를 계속 진행할 수 있습니다.',
               ]
             : []),
+          `기본 Edge Function은 \`supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts\`에 생성되어 있습니다.`,
           '',
           '키를 다시 확인해야 하면 아래 URL을 보세요.',
           getSupabaseApiSettingsUrl(options.provisionedProject.projectRef),

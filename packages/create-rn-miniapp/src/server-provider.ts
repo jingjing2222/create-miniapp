@@ -14,6 +14,7 @@ import {
 import {
   applyFirebaseServerWorkspaceTemplate,
   pathExists,
+  SUPABASE_DEFAULT_FUNCTION_NAME,
   type TemplateTokens,
 } from './templates.js'
 
@@ -56,6 +57,18 @@ function buildSupabasePlan(options: ProviderPlanOptions): ServerProviderCommandS
       cwd: serverRoot,
       ...packageManager.dlx('supabase', ['init']),
       label: 'server Supabase 초기화',
+    },
+    {
+      cwd: serverRoot,
+      ...packageManager.dlx('supabase', [
+        'functions',
+        'new',
+        SUPABASE_DEFAULT_FUNCTION_NAME,
+        '--workdir',
+        '.',
+        '--yes',
+      ]),
+      label: 'server Supabase Edge Function 생성',
     },
   ]
 }
