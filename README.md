@@ -84,6 +84,9 @@ pnpm version-packages
 pnpm release
 ```
 
+`pnpm version-packages`는 `changeset version` 뒤에 루트 `pnpm format`까지 같이 실행해서
+release PR에서 Biome 포맷 차이로 CI가 깨지지 않게 유지합니다.
+
 GitHub Actions:
 - PR / `main` / `codex/**` push: `Verify` 워크플로에서 `pnpm verify`
 - `main` push: `Release` 워크플로에서 Changesets가 릴리스 PR 생성 또는 npm publish 수행
