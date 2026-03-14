@@ -1,0 +1,94 @@
+## 2026-03-14 — 하네스 문서 템플릿 이관
+- 상태
+  - `bookMiniApp`에서 전자책 도메인 내용만 제외하고, MiniApp 공통 하네스 문서를 템플릿으로 이관했다.
+  - 생성 결과물의 `AGENTS.md`가 Granite, `@apps-in-toss/framework`, TDS, TDD 기준을 직접 가리키도록 정리 중이다.
+- 반영한 변경
+  - `packages/scaffold-templates/base/AGENTS.md`
+    - Granite, `@apps-in-toss/framework`, TDS, TDD 원칙 추가
+    - `docs/engineering/*` 참조 링크 확장
+  - `packages/scaffold-templates/base/docs/index.md`
+    - engineering 문서군 링크 정리
+  - `packages/scaffold-templates/base/docs/engineering/*`
+    - `appsintoss-granite-api-index.md`
+    - `appsintoss-granite-full-api-index.md`
+    - `tds-react-native-index.md`
+    - `에이전트전략.md`
+    - `하네스-실행가이드.md`
+    - `granite-ssot.md`
+    - `granite-rules.yml`
+    - `native-modules-policy.md`
+- 검증
+  - `pnpm format` ✅
+  - `pnpm verify` ✅
+  - `git diff --check` ✅
+
+## 2026-03-14 — CLI orchestration 동작 확인
+- 상태
+  - `create-miniapp` CLI가 실제 temp directory에서 공식 CLI들을 순서대로 실행한다.
+  - `frontend only`와 `frontend + server + backoffice` 두 조합 모두 생성 직후 루트 `pnpm verify`를 통과한다.
+- 반영한 변경
+  - `packages/create-miniapp/src/commands.ts`
+    - `ait init --template react-native --skip-input`
+    - `create-vite --no-interactive`
+    - TDS 설치 순서 조정
+  - `packages/create-miniapp/src/scaffold.ts`
+    - root `pnpm install`
+    - root `biome check --write --unsafe`
+  - `packages/create-miniapp/src/patch.ts`
+    - Granite `displayName`, `icon` patch
+    - nested `node_modules`, `pnpm-lock.yaml` 제거
+    - backoffice `tsconfig*.json` 정규화
+    - backoffice `main.tsx`, `App.tsx` lint patch
+  - `README.md`
+    - 실제 사용법과 생성 순서 반영
+- 검증
+  - `pnpm --filter create-miniapp test` ✅
+  - `pnpm --filter create-miniapp typecheck` ✅
+  - `frontend only` smoke + generated root `pnpm verify` ✅
+  - `frontend + server + backoffice` smoke + generated root `pnpm verify` ✅
+
+## 2026-03-14 — 단일 제품 모노레포 뼈대 생성
+- 상태
+  - 새 저장소는 `packages/create-miniapp`, `packages/scaffold-templates`, `docs/` 중심의 도구 저장소로 정리했다.
+  - 실제 `frontend`, `backoffice`, `server`는 이 저장소 안에 source template로 두지 않고, CLI 실행 결과로 생성하는 방향으로 바로잡았다.
+- 반영한 변경
+  - 루트
+    - `package.json`
+    - `pnpm-workspace.yaml`
+    - `nx.json`
+    - `biome.json`
+    - `tsconfig.base.json`
+    - `.gitignore`
+    - `AGENTS.md`
+    - `README.md`
+  - CLI package
+    - `packages/create-miniapp`
+    - `yargs`, `@clack/prompts` 기반 CLI entry placeholder 추가
+    - generated workspace layout test 추가
+    - `project.json` 추가로 root `nx` orchestration 연결
+  - template package
+    - `packages/scaffold-templates`
+    - generic `AGENTS.md`, `docs/ai/*`, `docs/product/기능명세서.md`, Granite/TDS index placeholder 추가
+    - source scaffold template가 아니라 문서/하네스 overlay 전용이라는 원칙 반영
+    - generated repo 루트용 `package.json`, `pnpm-workspace.yaml`, `nx.json`, `biome.json`, `tsconfig.base.json`, `*.project.json` 템플릿 추가
+  - 기준선 고정
+    - MiniApp frontend는 AppInToss React Native 튜토리얼 기준으로 생성
+    - `pnpm create granite-app -> pnpm install -> pnpm install @apps-in-toss/framework -> pnpm ait init -> TDS 설치` 순서를 source of truth로 명시
+    - 생성 결과물의 루트 툴체인은 `pnpm + nx + biome`로 고정
+    - 내부 워크스페이스는 lint/format를 별도로 들지 않는 방향으로 patch
+- 검증
+  - `pnpm install` ✅
+  - `pnpm verify` ✅
+  - `git diff --check` ✅
+
+## 2026-03-14 — 저장소 분리 / 초기 계획 이관
+- 상태
+  - 스캐폴더 작업은 기존 `bookMiniApp` 워크스페이스에서 분리하고, 새 저장소 `create-miniapp`에서 진행하기로 결정했다.
+  - 원격 저장소는 현재 빈 저장소다.
+- 반영한 변경
+  - `/Users/kimhyeongjeong/Desktop/code/miniapp/create-miniapp` 에 새 저장소 클론
+  - `docs/ai/Plan.md` 생성
+  - `docs/ai/Status.md` 생성
+- 다음 단계
+  - 새 monorepo 뼈대 생성
+  - template 패키지와 CLI 패키지 구조 확정

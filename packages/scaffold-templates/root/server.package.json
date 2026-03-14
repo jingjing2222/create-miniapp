@@ -1,0 +1,14 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm dlx supabase start --workdir .",
+    "build": "pnpm run typecheck",
+    "typecheck": "node -e \"console.log('server typecheck placeholder')\"",
+    "test": "node -e \"console.log('server test placeholder')\"",
+    "db:reset": "pnpm dlx supabase db reset --local --workdir .",
+    "db:apply": "pnpm dlx supabase db push --local --workdir ."
+  }
+}

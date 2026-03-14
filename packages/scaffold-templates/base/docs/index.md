@@ -1,0 +1,58 @@
+# docs index
+
+문서 루트는 `index.md`만 유지하고, 상세 내용은 하위 디렉터리에 둡니다.
+
+## 구조
+- `product/`: 제품 요구사항과 기능 명세
+- `engineering/`: Granite, `@apps-in-toss/framework`, TDS, 에이전트 전략, 구현 규칙
+- `ai/`: Prompt, Plan, Implement, Status, Decisions
+
+## 현재 기준선
+- 루트는 `pnpm + nx + biome`
+- `frontend`: AppInToss + Granite + `@apps-in-toss/framework` + TDS 기반 MiniApp
+- `backoffice`: optional Vite 기반 workspace
+- `server`: optional Supabase workspace
+- 공식 CLI가 만든 결과물 위에 문서와 루트 설정을 overlay 한다
+
+## 주요 문서
+- 제품 명세: `product/기능명세서.md`
+- 에이전트 전략: `engineering/에이전트전략.md`
+- 하네스 실행: `engineering/하네스-실행가이드.md`
+- AppsInToss + Granite full index: `engineering/appsintoss-granite-full-api-index.md`
+- AppsInToss + Granite quick index: `engineering/appsintoss-granite-api-index.md`
+- TDS RN index: `engineering/tds-react-native-index.md`
+- Granite SSoT: `engineering/granite-ssot.md`
+- Granite rules: `engineering/granite-rules.yml`
+- Native modules policy: `engineering/native-modules-policy.md`
+- AI harness stack
+  1. `ai/Plan.md`
+  2. `ai/Status.md`
+  3. `ai/Implement.md`
+  4. `ai/Decisions.md`
+  5. `ai/Prompt.md`
+
+## format and lint
+- Biome는 루트 단일 진입점만 사용한다.
+- 아래 명령은 반드시 저장소 루트에서 실행한다.
+  - `pnpm format`
+  - `pnpm format:check`
+  - `pnpm lint`
+  - `pnpm verify`
+
+## Nx 실행 가이드
+- 그래프 생성: `pnpm nx graph --file=tmp/nx-graph.html`
+- 전체 검증: `pnpm nx run-many -t typecheck,test --all`
+- 프로젝트별 예시
+  - `pnpm nx run frontend:typecheck`
+  - `pnpm nx run backoffice:build`
+  - `pnpm nx run server:test`
+
+## 테스트 규칙
+- 테스트는 가능한 한 인접 배치를 우선한다.
+- 로직 변경은 TDD를 우선한다.
+- 재현이 가능한 버그는 실패 테스트 또는 명시적 재현 절차부터 남긴다.
+
+## 운영 규칙
+1. 새 문서 생성 전 기존 문서에 섹션 추가가 가능한지 먼저 검토한다.
+2. 루트 `docs/`에는 `index.md` 외 파일을 두지 않는다.
+3. 문서 변경 시 `AGENTS.md`와 `docs/index.md` 링크를 같이 점검한다.

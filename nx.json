@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "workspaceLayout": {
+    "appsDir": ".",
+    "libsDir": "packages"
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": ["default", "!{projectRoot}/**/*.test.*", "!{projectRoot}/**/*.spec.*"],
+    "sharedGlobals": ["{workspaceRoot}/biome.json", "{workspaceRoot}/tsconfig.base.json"]
+  },
+  "targetDefaults": {
+    "build": {
+      "inputs": ["production"]
+    },
+    "typecheck": {
+      "inputs": ["default"]
+    },
+    "test": {
+      "inputs": ["default"]
+    }
+  }
+}

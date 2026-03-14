@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.nx
+.DS_Store
+.env
+.env.local
+.env.*.local
+frontend/.granite
+server/.temp
+server/.supabase
+server/supabase/.branches
+server/supabase/.temp
