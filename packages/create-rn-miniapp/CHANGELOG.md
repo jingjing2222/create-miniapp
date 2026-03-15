@@ -1,5 +1,13 @@
 # create-rn-miniapp
 
+## 0.0.11
+
+### Patch Changes
+
+- 610de24: Normalize generated `vitest` test scripts to `vitest run` so workspace tests finish in non-interactive Nx runs.
+- Updated dependencies [610de24]
+  - @create-rn-miniapp/scaffold-templates@0.0.11
+
 ## 0.0.10
 
 ### Patch Changes
