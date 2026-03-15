@@ -1,6 +1,26 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: README Cloudflare 설명을 Worker + D1 + R2 기준으로 정리
+1. 문제
+   - 현재 README의 Cloudflare 섹션 첫 문장이 `Worker only + TypeScript scaffold`로 남아 있어서, 지금 구현된 D1 / R2 provisioning 범위가 바로 드러나지 않는다.
+   - 본문 아래쪽 bullet에는 D1 / R2가 적혀 있어도 첫 인상이 현재 기능보다 축소돼 보인다.
+2. 방향
+   - Cloudflare 소개 문장을 `Worker + D1 + R2`까지 포함하는 표현으로 바꾼다.
+   - provider 섹션 전체 톤은 그대로 두고, 실제 생성/연결 범위와 맞지 않는 표현만 걷어낸다.
+3. 완료 기준
+   - README만 읽어도 Cloudflare provider가 Worker-only가 아니라 Worker + D1 + R2까지 연결해준다는 점이 바로 보인다.
+
+## 다음 작업: README provider 섹션에 generated `.env.local` 명시
+1. 문제
+   - 현재 README provider 섹션은 `frontend` / `backoffice`에 어떤 파일이 생기는지 설명하지만, 실제로 같이 써주는 `.env.local`이 목록에서 빠져 있다.
+   - 그래서 provider를 고르면 어느 workspace에 env 파일이 같이 생기는지 한눈에 안 들어온다.
+2. 방향
+   - Supabase, Cloudflare, Firebase 각 섹션의 `frontend` / `backoffice` 목록에 generated `.env.local`을 명시한다.
+   - 필요하면 `server` 쪽 `.env.local`과 톤도 같이 맞춘다.
+3. 완료 기준
+   - README만 봐도 provider별로 어떤 workspace에 `.env.local`이 만들어지는지 바로 알 수 있다.
+
 ## 다음 작업: 루트 git 기본 브랜치를 main으로 강제
 1. 문제
    - 현재 create 흐름은 루트에서 `git init`만 실행한다.
