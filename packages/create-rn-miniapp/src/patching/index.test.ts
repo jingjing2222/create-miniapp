@@ -900,12 +900,16 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
     }
   }
   const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
+  const deployScript = await readFile(
+    path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
+    'utf8',
+  )
 
   assert.equal(packageJson.name, 'server')
   assert.equal(packageJson.scripts?.dev, 'wrangler dev')
   assert.equal(packageJson.scripts?.build, 'wrangler deploy --dry-run')
   assert.equal(packageJson.scripts?.typecheck, 'wrangler types && tsc --noEmit')
-  assert.equal(packageJson.scripts?.deploy, 'wrangler deploy')
+  assert.equal(packageJson.scripts?.deploy, 'node ./scripts/cloudflare-deploy.mjs')
   assert.equal(packageJson.scripts?.['deploy:remote'], undefined)
   assert.equal(packageJson.scripts?.test, 'vitest run')
   assert.equal(wranglerConfig.$schema, 'https://unpkg.com/wrangler@4.73.0/config-schema.json')
@@ -920,6 +924,8 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   ])
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Cloudflare Worker/)
+  assert.match(readme, /D1/)
+  assert.match(readme, /R2/)
   assert.match(readme, /wrangler\.jsonc/)
   assert.match(readme, /worker-configuration\.d\.ts/)
   assert.match(readme, /cd server && pnpm deploy/)
@@ -927,11 +933,12 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.match(readme, /MINIAPP_API_BASE_URL/)
   assert.match(readme, /backoffice\/\.env\.local/)
   assert.match(readme, /VITE_API_BASE_URL/)
+  assert.match(deployScript, /CLOUDFLARE_API_TOKEN/)
+  assert.match(deployScript, /CLOUDFLARE_ACCOUNT_ID/)
   assert.equal(await pathExists(path.join(serverRoot, '.gitignore')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.prettierrc')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.editorconfig')), false)
   assert.equal(await pathExists(path.join(serverRoot, 'AGENTS.md')), false)
-  assert.equal(await pathExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.vscode', 'settings.json')), false)
 })
 

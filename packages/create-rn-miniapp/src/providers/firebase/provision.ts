@@ -343,12 +343,14 @@ function parseGoogleCloudProjectIamPolicyPayload(output: Pick<CommandOutput, 'st
 function createFirebaseServerEnvValues(
   projectId: string,
   functionRegion: string,
+  token = '',
   credentials = '',
 ) {
   return [
     '# Firebase project metadata for this workspace.',
     `FIREBASE_PROJECT_ID=${projectId}`,
     `FIREBASE_FUNCTION_REGION=${functionRegion}`,
+    `FIREBASE_TOKEN=${token}`,
     `GOOGLE_APPLICATION_CREDENTIALS=${credentials}`,
     '',
   ].join('\n')
@@ -1328,6 +1330,8 @@ export async function writeFirebaseServerLocalEnvFile(options: {
     lines.length > 0 ? [...lines] : ['# Firebase project metadata for this workspace.']
   let hasProjectId = false
   let hasFunctionRegion = false
+  let hasToken = false
+  let hasConfiguredToken = false
   let hasCredentials = false
   let hasConfiguredCredentials = false
 
@@ -1346,6 +1350,12 @@ export async function writeFirebaseServerLocalEnvFile(options: {
       continue
     }
 
+    if (trimmed.startsWith('FIREBASE_TOKEN=')) {
+      hasToken = true
+      hasConfiguredToken = trimmed.slice('FIREBASE_TOKEN='.length).trim().length > 0
+      continue
+    }
+
     if (trimmed.startsWith('GOOGLE_APPLICATION_CREDENTIALS=')) {
       hasCredentials = true
       hasConfiguredCredentials =
@@ -1361,6 +1371,10 @@ export async function writeFirebaseServerLocalEnvFile(options: {
     nextLines.push(`FIREBASE_FUNCTION_REGION=${options.functionRegion}`)
   }
 
+  if (!hasToken) {
+    nextLines.push('FIREBASE_TOKEN=')
+  }
+
   if (!hasCredentials) {
     nextLines.push('GOOGLE_APPLICATION_CREDENTIALS=')
   }
@@ -1373,6 +1387,7 @@ export async function writeFirebaseServerLocalEnvFile(options: {
   )
 
   return {
+    hasConfiguredToken,
     hasConfiguredCredentials,
   }
 }
@@ -1382,6 +1397,7 @@ export function formatFirebaseManualSetupNote(options: {
   hasBackoffice: boolean
   projectId: string
   functionRegion: string
+  hasConfiguredToken: boolean
   hasConfiguredCredentials: boolean
 }) {
   const env = createFirebaseEnvValues({
@@ -1416,11 +1432,16 @@ export function formatFirebaseManualSetupNote(options: {
     createFirebaseServerEnvValues(
       options.projectId,
       options.functionRegion,
+      options.hasConfiguredToken ? '<기존 값 유지>' : '',
       options.hasConfiguredCredentials ? '<기존 값 유지>' : '',
     ).trimEnd(),
     '',
     `server/functions/src/index.ts 의 기본 HTTP 함수 이름은 ${FIREBASE_DEFAULT_FUNCTION_NAME} 입니다.`,
   )
+
+  if (!options.hasConfiguredToken) {
+    lines.push('FIREBASE_TOKEN 은 CI나 비대화형 Firebase CLI 배포가 필요할 때만 채우면 됩니다.')
+  }
 
   if (!options.hasConfiguredCredentials) {
     lines.push('GOOGLE_APPLICATION_CREDENTIALS 는 CI나 비대화형 배포가 필요할 때만 채우면 됩니다.')
@@ -1586,6 +1607,9 @@ export async function finalizeFirebaseProvisioning(options: {
             : 'frontend/.env.local 에 Firebase Web SDK 연결 값을 작성했습니다.',
           'server/.env.local 에 Firebase project 메타데이터를 작성했습니다.',
           'server/package.json 의 deploy 로 Firebase Functions를 다시 배포할 수 있습니다.',
+          serverEnv.hasConfiguredToken
+            ? 'server/.env.local 의 FIREBASE_TOKEN 은 기존 값을 유지했습니다.'
+            : 'server/.env.local 의 FIREBASE_TOKEN 은 비어 있으니, CI나 비대화형 배포가 필요할 때만 채워 넣으세요.',
           serverEnv.hasConfiguredCredentials
             ? 'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 기존 값을 유지했습니다.'
             : 'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 비어 있으니, CI나 비대화형 배포가 필요할 때만 채워 넣으세요.',
@@ -1603,6 +1627,7 @@ export async function finalizeFirebaseProvisioning(options: {
       hasBackoffice,
       projectId: options.provisionedProject.projectId,
       functionRegion: options.provisionedProject.functionRegion,
+      hasConfiguredToken: serverEnv.hasConfiguredToken,
       hasConfiguredCredentials: serverEnv.hasConfiguredCredentials,
     }),
   ]

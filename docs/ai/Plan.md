@@ -1,6 +1,26 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: Cloudflare D1/R2 IaC와 Cloudflare/Firebase 재배포 토큰 경로 정리
+1. 문제
+   - 현재 `cloudflare` provider는 Worker deploy와 API URL 작성까지만 하고, D1 database나 R2 bucket은 선택/생성하지 않는다.
+   - 현재 `cloudflare` / `firebase` `server/package.json`의 `deploy`는 plain CLI 호출이라 `server/.env.local`에 적힌 token/credentials를 자동으로 읽지 않는다.
+   - 그래서 provider별로 “IaC 이후 `.env.local`만 채우면 한 명령으로 재배포” 경험이 일관되지 않는다.
+2. 방향
+   - Cloudflare provider에 D1 / R2 목록 조회, 기존 리소스 선택 또는 새 리소스 생성, `wrangler.jsonc` bindings 자동 반영을 추가한다.
+   - Cloudflare는 `server/.env.local`에 Worker / D1 / R2 메타데이터와 `CLOUDFLARE_API_TOKEN`을 기록하고, `deploy`는 이 파일을 읽어 `wrangler deploy`를 실행하는 wrapper로 바꾼다.
+   - Firebase는 `server/.env.local`의 `GOOGLE_APPLICATION_CREDENTIALS`와 project metadata를 읽어 `firebase deploy --only functions`를 실행하는 wrapper로 바꾼다.
+   - Firebase 쪽은 자동 권한 보정이 가능한 부분만 CLI로 처리하고, 불가한 권한/정책 제약은 raw 에러 대신 명확한 복구 안내를 유지한다.
+3. 테스트
+   - Cloudflare provision/finalize 테스트에 D1 / R2 metadata 기록과 note 문구를 추가한다.
+   - `wrangler.jsonc` patch 테스트에 D1 / R2 bindings와 schema/name 보존을 추가한다.
+   - Cloudflare/Firebase server package template / patch 테스트에 deploy wrapper 생성과 `server/.env.local` 로딩을 검증한다.
+4. 완료 기준
+   - `cloudflare` provider가 Worker + D1 + R2를 함께 연결한다.
+   - `cloudflare` / `firebase`는 `server/.env.local` 기반 one-command redeploy 경로를 가진다.
+   - 관련 README / engineering 문서가 새 동작을 설명한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: README 상단 소개와 빠른 시작 축약
 1. 문제
    - 현재 README 상단은 같은 의미를 반복해서 설명하고, package manager별 문장을 길게 늘어놓고 있다.

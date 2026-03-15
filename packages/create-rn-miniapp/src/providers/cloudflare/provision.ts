@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { log } from '@clack/prompts'
+import { parse } from 'jsonc-parser'
 import { patchWranglerConfigSource } from '../../patching/jsonc.js'
 import { runCommand, runCommandWithOutput, type CommandSpec } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
@@ -25,6 +26,27 @@ type CloudflareWorkerScript = {
   tag?: string
 }
 
+type CloudflareD1Database = {
+  uuid?: string
+  id?: string
+  name?: string
+}
+
+type CloudflareR2Bucket = {
+  name?: string
+}
+
+type WranglerD1Binding = {
+  binding?: string
+  database_id?: string
+  database_name?: string
+}
+
+type WranglerR2Binding = {
+  binding?: string
+  bucket_name?: string
+}
+
 type CloudflareSubdomainResult = {
   enabled?: boolean
   previews_enabled?: boolean
@@ -35,6 +57,9 @@ export type ProvisionedCloudflareWorker = {
   accountId: string
   workerName: string
   apiBaseUrl: string | null
+  d1DatabaseId: string
+  d1DatabaseName: string
+  r2BucketName: string
   mode: ServerProjectMode
 }
 
@@ -47,8 +72,12 @@ type ProvisionCloudflareWorkerOptions = {
 }
 
 const CREATE_CLOUDFLARE_WORKER_SENTINEL = '__create_cloudflare_worker__'
+const CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL = '__create_cloudflare_d1_database__'
+const CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL = '__create_cloudflare_r2_bucket__'
 const CLOUDFLARE_VERIFY_EMAIL_URL =
   'https://developers.cloudflare.com/fundamentals/setup/account/verify-email-address/'
+const CLOUDFLARE_D1_BINDING_NAME = 'DB'
+const CLOUDFLARE_R2_BINDING_NAME = 'STORAGE'
 
 type CloudflareApiEnvelope<T> = {
   success: boolean
@@ -59,6 +88,10 @@ type CloudflareApiEnvelope<T> = {
 }
 
 const CLOUDFLARE_API_BASE_URL = 'https://api.cloudflare.com/client/v4'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 function buildWranglerCommand(
   packageManager: PackageManager,
@@ -86,6 +119,9 @@ function createCloudflareServerEnvValues(options: {
   accountId: string
   workerName: string
   apiBaseUrl: string | null
+  d1DatabaseId: string
+  d1DatabaseName: string
+  r2BucketName: string
   apiToken?: string
 }) {
   return [
@@ -93,6 +129,9 @@ function createCloudflareServerEnvValues(options: {
     `CLOUDFLARE_ACCOUNT_ID=${options.accountId}`,
     `CLOUDFLARE_WORKER_NAME=${options.workerName}`,
     `CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`,
+    `CLOUDFLARE_D1_DATABASE_ID=${options.d1DatabaseId}`,
+    `CLOUDFLARE_D1_DATABASE_NAME=${options.d1DatabaseName}`,
+    `CLOUDFLARE_R2_BUCKET_NAME=${options.r2BucketName}`,
     `CLOUDFLARE_API_TOKEN=${options.apiToken ?? ''}`,
     '',
   ].join('\n')
@@ -227,6 +266,43 @@ async function listCloudflareWorkers(authToken: string, accountId: string) {
     .filter((scriptName): scriptName is string => Boolean(scriptName))
 }
 
+async function listCloudflareD1Databases(authToken: string, accountId: string) {
+  const result = await requestCloudflareApi<
+    CloudflareD1Database[] | { databases?: CloudflareD1Database[] }
+  >(authToken, `/accounts/${accountId}/d1/database`)
+
+  const databases = Array.isArray(result)
+    ? result
+    : Array.isArray(result.databases)
+      ? result.databases
+      : []
+
+  return databases
+    .map((database) => ({
+      id: database.uuid ?? database.id ?? null,
+      name: database.name?.trim() ?? null,
+    }))
+    .filter((database): database is { id: string; name: string } =>
+      Boolean(database.id && database.name),
+    )
+}
+
+async function listCloudflareR2Buckets(authToken: string, accountId: string) {
+  const result = await requestCloudflareApi<
+    CloudflareR2Bucket[] | { buckets?: CloudflareR2Bucket[] }
+  >(authToken, `/accounts/${accountId}/r2/buckets`)
+
+  const buckets = Array.isArray(result)
+    ? result
+    : Array.isArray(result.buckets)
+      ? result.buckets
+      : []
+
+  return buckets
+    .map((bucket) => bucket.name?.trim() ?? null)
+    .filter((bucketName): bucketName is string => Boolean(bucketName))
+}
+
 async function getAccountSubdomain(authToken: string, accountId: string) {
   return await requestCloudflareApi<CloudflareSubdomainResult>(
     authToken,
@@ -342,7 +418,119 @@ async function selectCloudflareWorker(
   })
 }
 
-async function patchWranglerWorkerName(serverRoot: string, workerName: string) {
+async function selectCloudflareD1Database(
+  prompt: CliPrompter,
+  databases: Array<{ id: string; name: string }>,
+  options?: {
+    includeCreateOption?: boolean
+    message?: string
+  },
+) {
+  if (databases.length === 0 && !options?.includeCreateOption) {
+    throw new Error('사용 가능한 Cloudflare D1 database가 없습니다. 새 database를 먼저 생성하세요.')
+  }
+
+  const databaseOptions = databases.map((database) => ({
+    value: database.id,
+    label: `${database.name} (${database.id})`,
+  }))
+  const selectOptions = options?.includeCreateOption
+    ? [
+        ...databaseOptions,
+        {
+          value: CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL,
+          label: '+ 새 Cloudflare D1 database 생성',
+        },
+      ]
+    : databaseOptions
+  const initialValue =
+    selectOptions.find((option) => option.value !== CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL)
+      ?.value ?? CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL
+
+  return await prompt.select({
+    message: options?.message ?? '사용할 Cloudflare D1 database를 선택하세요.',
+    options: selectOptions,
+    initialValue,
+  })
+}
+
+async function selectCloudflareR2Bucket(
+  prompt: CliPrompter,
+  bucketNames: string[],
+  options?: {
+    includeCreateOption?: boolean
+    message?: string
+  },
+) {
+  if (bucketNames.length === 0 && !options?.includeCreateOption) {
+    throw new Error('사용 가능한 Cloudflare R2 bucket이 없습니다. 새 bucket을 먼저 생성하세요.')
+  }
+
+  const bucketOptions = bucketNames.map((bucketName) => ({
+    value: bucketName,
+    label: bucketName,
+  }))
+  const selectOptions = options?.includeCreateOption
+    ? [
+        ...bucketOptions,
+        {
+          value: CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL,
+          label: '+ 새 Cloudflare R2 bucket 생성',
+        },
+      ]
+    : bucketOptions
+  const initialValue =
+    selectOptions.find((option) => option.value !== CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL)?.value ??
+    CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL
+
+  return await prompt.select({
+    message: options?.message ?? '사용할 Cloudflare R2 bucket을 선택하세요.',
+    options: selectOptions,
+    initialValue,
+  })
+}
+
+async function readWranglerConfig(serverRoot: string) {
+  const wranglerConfigPath = path.join(serverRoot, 'wrangler.jsonc')
+
+  if (!(await pathExists(wranglerConfigPath))) {
+    return null
+  }
+
+  const source = await readFile(wranglerConfigPath, 'utf8')
+  const parsed = parse(source, [], { allowTrailingComma: true })
+
+  return isRecord(parsed) ? parsed : null
+}
+
+function findWranglerD1Binding(config: Record<string, unknown>, binding: string) {
+  const databases = Array.isArray(config.d1_databases)
+    ? config.d1_databases.filter((entry): entry is WranglerD1Binding => isRecord(entry))
+    : []
+
+  return databases.find((database) => database.binding === binding) ?? null
+}
+
+function findWranglerR2Binding(config: Record<string, unknown>, binding: string) {
+  const buckets = Array.isArray(config.r2_buckets)
+    ? config.r2_buckets.filter((entry): entry is WranglerR2Binding => isRecord(entry))
+    : []
+
+  return buckets.find((bucket) => bucket.binding === binding) ?? null
+}
+
+async function patchWranglerCloudflareBindings(
+  serverRoot: string,
+  patch: {
+    workerName?: string
+    accountId?: string
+    d1Database?: {
+      id: string
+      name: string
+    }
+    r2BucketName?: string
+  },
+) {
   const wranglerConfigPath = path.join(serverRoot, 'wrangler.jsonc')
 
   if (!(await pathExists(wranglerConfigPath))) {
@@ -351,10 +539,90 @@ async function patchWranglerWorkerName(serverRoot: string, workerName: string) {
 
   const source = await readFile(wranglerConfigPath, 'utf8')
   const next = patchWranglerConfigSource(source, {
-    name: workerName,
+    ...(patch.workerName ? { name: patch.workerName } : {}),
+    ...(patch.accountId ? { accountId: patch.accountId } : {}),
+    ...(patch.d1Database
+      ? {
+          d1Database: {
+            binding: CLOUDFLARE_D1_BINDING_NAME,
+            databaseId: patch.d1Database.id,
+            databaseName: patch.d1Database.name,
+            remote: true,
+          },
+        }
+      : {}),
+    ...(patch.r2BucketName
+      ? {
+          r2Bucket: {
+            binding: CLOUDFLARE_R2_BINDING_NAME,
+            bucketName: patch.r2BucketName,
+            remote: true,
+          },
+        }
+      : {}),
   })
 
   await writeFile(wranglerConfigPath, next, 'utf8')
+}
+
+async function createCloudflareD1Database(
+  packageManager: PackageManager,
+  serverRoot: string,
+  databaseName: string,
+) {
+  log.step('Cloudflare D1 database 생성')
+  await runCommand(
+    buildWranglerCommand(packageManager, serverRoot, 'Cloudflare D1 database 생성', [
+      'd1',
+      'create',
+      databaseName,
+      '--binding',
+      CLOUDFLARE_D1_BINDING_NAME,
+      '--update-config',
+      '--use-remote',
+    ]),
+  )
+
+  const config = await readWranglerConfig(serverRoot)
+  const binding = config ? findWranglerD1Binding(config, CLOUDFLARE_D1_BINDING_NAME) : null
+
+  if (!binding?.database_id || !binding.database_name) {
+    throw new Error('Cloudflare D1 binding을 wrangler.jsonc 에서 확인하지 못했습니다.')
+  }
+
+  return {
+    id: binding.database_id,
+    name: binding.database_name,
+  }
+}
+
+async function createCloudflareR2Bucket(
+  packageManager: PackageManager,
+  serverRoot: string,
+  bucketName: string,
+) {
+  log.step('Cloudflare R2 bucket 생성')
+  await runCommand(
+    buildWranglerCommand(packageManager, serverRoot, 'Cloudflare R2 bucket 생성', [
+      'r2',
+      'bucket',
+      'create',
+      bucketName,
+      '--binding',
+      CLOUDFLARE_R2_BINDING_NAME,
+      '--update-config',
+      '--use-remote',
+    ]),
+  )
+
+  const config = await readWranglerConfig(serverRoot)
+  const binding = config ? findWranglerR2Binding(config, CLOUDFLARE_R2_BINDING_NAME) : null
+
+  if (!binding?.bucket_name) {
+    throw new Error('Cloudflare R2 binding을 wrangler.jsonc 에서 확인하지 못했습니다.')
+  }
+
+  return binding.bucket_name
 }
 
 async function deployCloudflareWorker(
@@ -450,6 +718,9 @@ export function formatCloudflareManualSetupNote(options: {
   hasBackoffice: boolean
   accountId: string
   workerName: string
+  d1DatabaseId: string
+  d1DatabaseName: string
+  r2BucketName: string
 }): ProvisioningNote {
   const lines = [
     `Cloudflare Worker \`${options.workerName}\`의 배포 URL을 확인한 뒤 아래 파일에 직접 넣어주세요.`,
@@ -473,11 +744,14 @@ export function formatCloudflareManualSetupNote(options: {
       accountId: options.accountId,
       workerName: options.workerName,
       apiBaseUrl: null,
+      d1DatabaseId: options.d1DatabaseId,
+      d1DatabaseName: options.d1DatabaseName,
+      r2BucketName: options.r2BucketName,
       apiToken: '<optional api token>',
     }).trimEnd(),
     '',
-    'server/.env.local 은 현재 Cloudflare Worker 메타데이터를 기록합니다.',
-    'server/package.json 의 deploy 는 wrangler.jsonc 기준으로 원격 Worker를 다시 배포합니다.',
+    'server/.env.local 은 Cloudflare Worker, D1, R2 메타데이터를 기록합니다.',
+    'server/package.json 의 deploy 는 server/.env.local 의 auth 값을 읽고 wrangler.jsonc 기준으로 원격 Worker를 다시 배포합니다.',
     'server/.env.local 의 CLOUDFLARE_API_TOKEN 은 비어 있으니, 필요하면 직접 채워 넣으세요.',
   )
 
@@ -510,6 +784,9 @@ export async function writeCloudflareServerLocalEnvFile(options: {
   accountId: string
   workerName: string
   apiBaseUrl: string | null
+  d1DatabaseId: string
+  d1DatabaseName: string
+  r2BucketName: string
 }) {
   const serverEnvPath = path.join(options.targetRoot, 'server', '.env.local')
   let existingSource = ''
@@ -525,6 +802,9 @@ export async function writeCloudflareServerLocalEnvFile(options: {
   let hasAccountId = false
   let hasWorkerName = false
   let hasApiBaseUrl = false
+  let hasD1DatabaseId = false
+  let hasD1DatabaseName = false
+  let hasR2BucketName = false
   let hasApiToken = false
 
   for (let index = 0; index < nextLines.length; index += 1) {
@@ -548,6 +828,24 @@ export async function writeCloudflareServerLocalEnvFile(options: {
       continue
     }
 
+    if (trimmed.startsWith('CLOUDFLARE_D1_DATABASE_ID=')) {
+      nextLines[index] = `CLOUDFLARE_D1_DATABASE_ID=${options.d1DatabaseId}`
+      hasD1DatabaseId = true
+      continue
+    }
+
+    if (trimmed.startsWith('CLOUDFLARE_D1_DATABASE_NAME=')) {
+      nextLines[index] = `CLOUDFLARE_D1_DATABASE_NAME=${options.d1DatabaseName}`
+      hasD1DatabaseName = true
+      continue
+    }
+
+    if (trimmed.startsWith('CLOUDFLARE_R2_BUCKET_NAME=')) {
+      nextLines[index] = `CLOUDFLARE_R2_BUCKET_NAME=${options.r2BucketName}`
+      hasR2BucketName = true
+      continue
+    }
+
     if (trimmed.startsWith('CLOUDFLARE_API_TOKEN=')) {
       hasApiToken = true
     }
@@ -563,6 +861,18 @@ export async function writeCloudflareServerLocalEnvFile(options: {
 
   if (!hasApiBaseUrl) {
     nextLines.push(`CLOUDFLARE_API_BASE_URL=${options.apiBaseUrl ?? ''}`)
+  }
+
+  if (!hasD1DatabaseId) {
+    nextLines.push(`CLOUDFLARE_D1_DATABASE_ID=${options.d1DatabaseId}`)
+  }
+
+  if (!hasD1DatabaseName) {
+    nextLines.push(`CLOUDFLARE_D1_DATABASE_NAME=${options.d1DatabaseName}`)
+  }
+
+  if (!hasR2BucketName) {
+    nextLines.push(`CLOUDFLARE_R2_BUCKET_NAME=${options.r2BucketName}`)
   }
 
   if (!hasApiToken) {
@@ -629,7 +939,68 @@ export async function provisionCloudflareWorker(
     throw new Error('연결할 Cloudflare Worker를 결정하지 못했습니다.')
   }
 
-  await patchWranglerWorkerName(serverRoot, workerName)
+  const existingD1Databases = await listCloudflareD1Databases(auth.oauthToken, accountId)
+  const selectedD1Database = await selectCloudflareD1Database(options.prompt, existingD1Databases, {
+    includeCreateOption: true,
+    message: '사용할 Cloudflare D1 database를 선택하세요. 새 database 생성도 바로 할 수 있습니다.',
+  })
+  const d1Database =
+    selectedD1Database === CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL
+      ? await createCloudflareD1Database(
+          options.packageManager,
+          serverRoot,
+          (
+            await options.prompt.text({
+              message: '생성할 Cloudflare D1 database 이름을 입력하세요.',
+              initialValue: `${options.appName}-db`,
+              validate(value) {
+                return value.trim().length === 0
+                  ? 'Cloudflare D1 database 이름을 입력하세요.'
+                  : undefined
+              },
+            })
+          ).trim(),
+        )
+      : (existingD1Databases.find((database) => database.id === selectedD1Database) ?? null)
+
+  if (!d1Database) {
+    throw new Error('연결할 Cloudflare D1 database를 결정하지 못했습니다.')
+  }
+
+  const existingR2Buckets = await listCloudflareR2Buckets(auth.oauthToken, accountId)
+  const selectedR2Bucket = await selectCloudflareR2Bucket(options.prompt, existingR2Buckets, {
+    includeCreateOption: true,
+    message: '사용할 Cloudflare R2 bucket을 선택하세요. 새 bucket 생성도 바로 할 수 있습니다.',
+  })
+  const r2BucketName =
+    selectedR2Bucket === CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL
+      ? await createCloudflareR2Bucket(
+          options.packageManager,
+          serverRoot,
+          (
+            await options.prompt.text({
+              message: '생성할 Cloudflare R2 bucket 이름을 입력하세요.',
+              initialValue: `${options.appName}-storage`,
+              validate(value) {
+                return value.trim().length === 0
+                  ? 'Cloudflare R2 bucket 이름을 입력하세요.'
+                  : undefined
+              },
+            })
+          ).trim(),
+        )
+      : selectedR2Bucket
+
+  if (!r2BucketName) {
+    throw new Error('연결할 Cloudflare R2 bucket을 결정하지 못했습니다.')
+  }
+
+  await patchWranglerCloudflareBindings(serverRoot, {
+    workerName,
+    accountId,
+    d1Database,
+    r2BucketName,
+  })
 
   const executionOrder = buildCloudflareProvisionExecutionOrder(resolvedProjectMode)
   let accountSubdomain: string | null = null
@@ -683,6 +1054,9 @@ export async function provisionCloudflareWorker(
         accountId,
         workerName,
         apiBaseUrl: null,
+        d1DatabaseId: d1Database.id,
+        d1DatabaseName: d1Database.name,
+        r2BucketName,
         mode: resolvedProjectMode,
       }
     }
@@ -694,6 +1068,9 @@ export async function provisionCloudflareWorker(
     apiBaseUrl: accountSubdomain
       ? buildCloudflareWorkersDevUrl(workerName, accountSubdomain)
       : null,
+    d1DatabaseId: d1Database.id,
+    d1DatabaseName: d1Database.name,
+    r2BucketName,
     mode: resolvedProjectMode,
   }
 }
@@ -717,6 +1094,9 @@ export async function finalizeCloudflareProvisioning(options: {
     accountId: options.provisionedWorker.accountId,
     workerName: options.provisionedWorker.workerName,
     apiBaseUrl: options.provisionedWorker.apiBaseUrl,
+    d1DatabaseId: options.provisionedWorker.d1DatabaseId,
+    d1DatabaseName: options.provisionedWorker.d1DatabaseName,
+    r2BucketName: options.provisionedWorker.r2BucketName,
   })
   const serverEnvSource = await readFile(
     path.join(options.targetRoot, 'server', '.env.local'),
@@ -738,8 +1118,9 @@ export async function finalizeCloudflareProvisioning(options: {
           hasBackoffice
             ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 작성했습니다.'
             : 'frontend/.env.local 에 Cloudflare API URL을 작성했습니다.',
-          'server/.env.local 에 Cloudflare Worker 메타데이터를 작성했습니다.',
+          'server/.env.local 에 Cloudflare Worker, D1, R2 메타데이터를 작성했습니다.',
           'server/package.json 의 deploy 로 원격 Worker를 다시 배포할 수 있습니다.',
+          `Cloudflare D1 binding은 ${CLOUDFLARE_D1_BINDING_NAME}, R2 binding은 ${CLOUDFLARE_R2_BINDING_NAME} 을 사용합니다.`,
           ...(!hasApiToken
             ? [
                 'server/.env.local 의 CLOUDFLARE_API_TOKEN 은 비어 있으니, 필요하면 직접 채워 넣으세요.',
@@ -756,6 +1137,9 @@ export async function finalizeCloudflareProvisioning(options: {
       hasBackoffice,
       accountId: options.provisionedWorker.accountId,
       workerName: options.provisionedWorker.workerName,
+      d1DatabaseId: options.provisionedWorker.d1DatabaseId,
+      d1DatabaseName: options.provisionedWorker.d1DatabaseName,
+      r2BucketName: options.provisionedWorker.r2BucketName,
     }),
   ]
 }

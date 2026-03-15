@@ -5,6 +5,7 @@
 
 ## server가 맡는 역할
 - Cloudflare account와 Worker 연결
+- D1 database와 R2 bucket 연결
 - Worker 로컬 실행, build, typecheck, deploy
 - frontend, backoffice가 호출할 API base URL 관리
 
@@ -30,7 +31,9 @@
 Worker URL이 바뀌면 `.env.local`과 배포 경로를 같이 확인해야 해요.
 
 ## 작업할 때 먼저 확인할 것
-- `server/.env.local`에 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_WORKER_NAME`이 있는가
+- `server/.env.local`에 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_WORKER_NAME`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_R2_BUCKET_NAME`이 있는가
+- `server/.env.local`에 `CLOUDFLARE_API_TOKEN`이 필요하면 채워져 있는가
+- `wrangler.jsonc`에 `DB`, `STORAGE` binding이 현재 리소스를 가리키는가
 - API URL이 바뀌었으면 frontend/backoffice env도 같이 맞췄는가
 - `wrangler.jsonc`와 실제 배포 대상이 일치하는가
 

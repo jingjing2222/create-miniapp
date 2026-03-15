@@ -494,6 +494,7 @@ test('formatFirebaseManualSetupNote includes frontend, backoffice, and server gu
     hasBackoffice: true,
     projectId: 'ebook-firebase',
     functionRegion: 'asia-northeast3',
+    hasConfiguredToken: false,
     hasConfiguredCredentials: false,
   })
 
@@ -580,6 +581,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
         '# Firebase project metadata for this workspace.',
         'FIREBASE_PROJECT_ID=ebook-firebase',
         'FIREBASE_FUNCTION_REGION=asia-northeast3',
+        'FIREBASE_TOKEN=',
         'GOOGLE_APPLICATION_CREDENTIALS=',
         '',
       ].join('\n'),
@@ -591,6 +593,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
         '# Firebase project metadata for this workspace.',
         'FIREBASE_PROJECT_ID=old-project',
         'FIREBASE_FUNCTION_REGION=us-central1',
+        'FIREBASE_TOKEN=firebase-token',
         'GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase.json',
         'EXTRA=value',
         '',
@@ -608,6 +611,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
 
     assert.match(updatedServerEnv, /^FIREBASE_PROJECT_ID=next-project$/m)
     assert.match(updatedServerEnv, /^FIREBASE_FUNCTION_REGION=europe-west1$/m)
+    assert.match(updatedServerEnv, /^FIREBASE_TOKEN=firebase-token$/m)
     assert.match(updatedServerEnv, /^GOOGLE_APPLICATION_CREDENTIALS=\/tmp\/firebase\.json$/m)
     assert.match(updatedServerEnv, /^EXTRA=value$/m)
   } finally {
@@ -643,8 +647,10 @@ test('finalizeFirebaseProvisioning writes env files when sdk config is available
     assert.match(frontendEnv, /^MINIAPP_FIREBASE_PROJECT_ID=ebook-firebase$/m)
     assert.match(serverEnv, /^FIREBASE_PROJECT_ID=ebook-firebase$/m)
     assert.match(serverEnv, /^FIREBASE_FUNCTION_REGION=asia-northeast3$/m)
+    assert.match(serverEnv, /^FIREBASE_TOKEN=$/m)
     assert.equal(notes[0]?.title, 'Firebase 환경 변수 작성 완료')
     assert.match(notes[0]?.body ?? '', /server\/package\.json 의 deploy/)
+    assert.match(notes[0]?.body ?? '', /FIREBASE_TOKEN/)
     assert.match(notes[0]?.body ?? '', /GOOGLE_APPLICATION_CREDENTIALS 는 비어 있으니/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
@@ -684,7 +690,9 @@ test('finalizeFirebaseProvisioning falls back to manual setup guidance when sdk 
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.doesNotMatch(notes[0]?.body ?? '', /CI나 비대화형 배포가 필요할 때만 채우면 됩니다/)
     assert.match(serverEnv, /^FIREBASE_PROJECT_ID=ebook-firebase$/m)
+    assert.match(serverEnv, /^FIREBASE_TOKEN=$/m)
     assert.match(serverEnv, /^GOOGLE_APPLICATION_CREDENTIALS=\/tmp\/firebase\.json$/m)
+    assert.match(notes[0]?.body ?? '', /FIREBASE_TOKEN/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
