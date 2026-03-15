@@ -834,6 +834,14 @@ async function patchWranglerConfigSchema(serverRoot: string, packageJson: Packag
   await writeFile(wranglerConfigPath, next, 'utf8')
 }
 
+function normalizeVitestTestScript(script: string) {
+  if (script === 'vitest') {
+    return 'vitest run'
+  }
+
+  return script
+}
+
 async function ensureFrontendPackageJsonForWorkspace(
   frontendRoot: string,
   packageJson: PackageJson,
@@ -849,6 +857,8 @@ async function ensureFrontendPackageJsonForWorkspace(
 
   if (!packageJson.scripts?.test) {
     scripts.test = `node -e "console.log('frontend test placeholder')"`
+  } else if (packageJson.scripts.test === 'vitest') {
+    scripts.test = normalizeVitestTestScript(packageJson.scripts.test)
   }
 
   if (!packageJson.devDependencies?.['@types/node']) {
@@ -911,6 +921,8 @@ async function ensureBackofficePackageJsonForWorkspace(
 
   if (!packageJson.scripts?.test) {
     scripts.test = `node -e "console.log('backoffice test placeholder')"`
+  } else if (packageJson.scripts.test === 'vitest') {
+    scripts.test = normalizeVitestTestScript(packageJson.scripts.test)
   }
 
   if (serverProvider === 'supabase') {
@@ -1185,6 +1197,11 @@ export async function patchCloudflareServerWorkspace(
         deploy: 'wrangler deploy',
         build: 'wrangler deploy --dry-run',
         typecheck: 'wrangler types && tsc --noEmit',
+        ...(packageJson.scripts?.test === 'vitest'
+          ? {
+              test: normalizeVitestTestScript(packageJson.scripts.test),
+            }
+          : {}),
       },
     },
     removeFromSections: {

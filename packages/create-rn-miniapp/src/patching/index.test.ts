@@ -470,6 +470,7 @@ test('patchBackofficeWorkspace adds supabase bootstrap when supabase server prov
     scripts: {
       dev: 'vite',
       build: 'tsc -b && vite build',
+      test: 'vitest',
     },
     dependencies: {
       react: '^19.2.4',
@@ -584,6 +585,7 @@ test('patchBackofficeWorkspace adds supabase bootstrap when supabase server prov
   assert.equal(packageJson.scripts?.dev, 'vite')
   assert.equal(packageJson.scripts?.build, 'tsc -b && vite build')
   assert.equal(packageJson.scripts?.typecheck, 'tsc -b --pretty false')
+  assert.equal(packageJson.scripts?.test, 'vitest run')
   assert.equal(packageJson.dependencies?.['@supabase/supabase-js'], '^2.57.4')
   assert.equal(await pathExists(path.join(backofficeRoot, '.env.local.example')), false)
   assert.match(envTypes, /readonly VITE_SUPABASE_URL: string/)
@@ -905,7 +907,7 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.equal(packageJson.scripts?.typecheck, 'wrangler types && tsc --noEmit')
   assert.equal(packageJson.scripts?.deploy, 'wrangler deploy')
   assert.equal(packageJson.scripts?.['deploy:remote'], undefined)
-  assert.equal(packageJson.scripts?.test, 'vitest')
+  assert.equal(packageJson.scripts?.test, 'vitest run')
   assert.equal(wranglerConfig.$schema, 'https://unpkg.com/wrangler@4.73.0/config-schema.json')
   assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
   assert.equal(projectJson.targets?.typecheck?.command, 'pnpm --dir server typecheck')
