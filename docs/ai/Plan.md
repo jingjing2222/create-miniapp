@@ -1,6 +1,21 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: 루트 git 기본 브랜치를 main으로 강제
+1. 문제
+   - 현재 create 흐름은 루트에서 `git init`만 실행한다.
+   - 사용 환경에 따라 기본 브랜치가 `master`로 잡힐 수 있어서, 생성 직후 branch naming이 일관되지 않다.
+2. 방향
+   - 루트 git 초기화는 `git init` 뒤에 `HEAD`를 `main`으로 맞추는 후속 명령까지 함께 실행한다.
+   - 아직 첫 커밋 전이라 실제 `master` ref가 생기지 않은 상태에서 `HEAD`만 `main`으로 옮기면, 결과적으로 `master` 없이 `main`으로 시작할 수 있다.
+   - 실행 순서와 테스트에도 이 후속 단계를 드러낸다.
+3. 테스트
+   - 루트 git setup plan이 `git init`과 `HEAD -> main` 명령을 순서대로 가지는지 검증한다.
+   - create lifecycle label에도 `main` 브랜치 설정 단계가 포함되는지 검증한다.
+4. 완료 기준
+   - 새 스캐폴드 루트 git repo는 생성 직후 기본 브랜치가 항상 `main`이다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: changeset과 PR 설명을 최신 범위로 정리
 1. 문제
    - 현재 PR은 처음 추가한 Cloudflare D1/R2, deploy auth 범위 위주로 설명돼 있고, 이후에 들어간 Cloudflare token 안내 보강, Firebase build service account 재시도, TUI 톤 정리가 충분히 반영되지 않았다.

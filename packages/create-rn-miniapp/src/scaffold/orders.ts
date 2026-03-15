@@ -32,6 +32,23 @@ export function buildRootFinalizePlan(options: {
   return plan
 }
 
+export function buildRootGitSetupPlan(options: { targetRoot: string }) {
+  return [
+    {
+      cwd: options.targetRoot,
+      command: 'git',
+      args: ['init'],
+      label: '루트 git 저장소 만들기',
+    },
+    {
+      cwd: options.targetRoot,
+      command: 'git',
+      args: ['symbolic-ref', 'HEAD', 'refs/heads/main'],
+      label: '루트 기본 브랜치를 main으로 맞추기',
+    },
+  ] satisfies CommandSpec[]
+}
+
 type CreateOrderOptions = {
   appName: string
   targetRoot: string
@@ -75,7 +92,7 @@ export function buildCreateLifecycleOrder(options: CreateOrderOptions) {
   }
 
   if (!options.noGit) {
-    labels.push('루트 git 저장소 만들기')
+    labels.push('루트 git 저장소 만들기', '루트 기본 브랜치를 main으로 맞추기')
   }
 
   return labels

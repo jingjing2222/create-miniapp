@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   buildCreateExecutionOrder,
   buildCreateLifecycleOrder,
+  buildRootGitSetupPlan,
   buildRootFinalizePlan,
 } from './index.js'
 
@@ -121,7 +122,30 @@ test('buildCreateLifecycleOrder applies root templates and server patch before f
     'backoffice Vite 만들기',
     '루트 workspace manifest 맞추기',
     '루트 git 저장소 만들기',
+    '루트 기본 브랜치를 main으로 맞추기',
   ])
+})
+
+test('buildRootGitSetupPlan initializes git and switches HEAD to main', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const plan = buildRootGitSetupPlan({ targetRoot })
+
+  assert.deepEqual(
+    plan.map((step) => step.label),
+    ['루트 git 저장소 만들기', '루트 기본 브랜치를 main으로 맞추기'],
+  )
+  assert.deepEqual(plan[0], {
+    cwd: targetRoot,
+    command: 'git',
+    args: ['init'],
+    label: '루트 git 저장소 만들기',
+  })
+  assert.deepEqual(plan[1], {
+    cwd: targetRoot,
+    command: 'git',
+    args: ['symbolic-ref', 'HEAD', 'refs/heads/main'],
+    label: '루트 기본 브랜치를 main으로 맞추기',
+  })
 })
 
 test('buildCreateLifecycleOrder omits root git init when no-git is enabled', () => {
