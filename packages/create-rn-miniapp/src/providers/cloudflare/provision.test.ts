@@ -10,9 +10,11 @@ import {
   canRecoverCloudflareDeployFailure,
   finalizeCloudflareProvisioning,
   formatCloudflareDeployFailureMessage,
+  formatCloudflareR2EnableMessage,
   formatCloudflareManualSetupNote,
   getWranglerConfigCandidates,
   isCloudflareAuthenticationErrorMessage,
+  isCloudflareR2DisabledErrorMessage,
   writeCloudflareServerLocalEnvFile,
   writeCloudflareLocalEnvFiles,
 } from './provision.js'
@@ -51,6 +53,22 @@ test('isCloudflareAuthenticationErrorMessage detects Cloudflare auth failures', 
     true,
   )
   assert.equal(isCloudflareAuthenticationErrorMessage('workers.dev onboarding required'), false)
+})
+
+test('isCloudflareR2DisabledErrorMessage detects R2 dashboard enablement failures', () => {
+  assert.equal(
+    isCloudflareR2DisabledErrorMessage('Please enable R2 through the Cloudflare Dashboard.'),
+    true,
+  )
+  assert.equal(isCloudflareR2DisabledErrorMessage('Cloudflare API authentication error'), false)
+})
+
+test('formatCloudflareR2EnableMessage includes the dashboard URL and retry guidance', () => {
+  const message = formatCloudflareR2EnableMessage('account-123')
+
+  assert.match(message, /R2를 먼저 활성화/)
+  assert.match(message, /https:\/\/dash\.cloudflare\.com\/account-123\/r2\/overview/)
+  assert.match(message, /다시 확인/)
 })
 
 test('buildCloudflareProvisionExecutionOrder ensures workers.dev onboarding before deploy', () => {

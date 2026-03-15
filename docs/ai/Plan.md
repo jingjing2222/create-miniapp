@@ -9,6 +9,7 @@
 2. 방향
    - Wrangler 로그인은 더 이상 `--scopes`를 강제하지 않고, Cloudflare 기본 full scope 발급 경로를 사용한다.
    - Cloudflare REST API 호출이 `Authentication error`류 응답으로 실패하면 scope가 부족한 토큰으로 보고 `wrangler login`을 한 번 더 실행한 뒤 같은 호출을 재시도한다.
+   - R2가 계정에서 아직 활성화되지 않은 경우에는 대시보드 R2 Overview URL을 안내하고, 같은 실행 안에서 `다시 확인` 루프를 돌려 복구한다.
    - 관련 helper를 테스트 가능한 함수로 분리해서 login args와 auth retry 분기를 고정한다.
 3. 테스트
    - Wrangler login args가 더 이상 `--scopes`를 포함하지 않는지 검증

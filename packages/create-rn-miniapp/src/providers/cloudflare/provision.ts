@@ -74,6 +74,8 @@ type ProvisionCloudflareWorkerOptions = {
 const CREATE_CLOUDFLARE_WORKER_SENTINEL = '__create_cloudflare_worker__'
 const CREATE_CLOUDFLARE_D1_DATABASE_SENTINEL = '__create_cloudflare_d1_database__'
 const CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL = '__create_cloudflare_r2_bucket__'
+const CLOUDFLARE_R2_RETRY_SENTINEL = '__retry_cloudflare_r2_enable__'
+const CLOUDFLARE_R2_CANCEL_SENTINEL = '__cancel_cloudflare_r2_enable__'
 const CLOUDFLARE_VERIFY_EMAIL_URL =
   'https://developers.cloudflare.com/fundamentals/setup/account/verify-email-address/'
 const CLOUDFLARE_D1_BINDING_NAME = 'DB'
@@ -120,6 +122,22 @@ export function isCloudflareAuthenticationErrorMessage(message: string) {
     normalized.includes('not authorized') ||
     normalized.includes('unauthorized')
   )
+}
+
+export function isCloudflareR2DisabledErrorMessage(message: string) {
+  return message.includes('Please enable R2 through the Cloudflare Dashboard.')
+}
+
+function buildCloudflareR2OverviewUrl(accountId: string) {
+  return `https://dash.cloudflare.com/${accountId}/r2/overview`
+}
+
+export function formatCloudflareR2EnableMessage(accountId: string) {
+  return [
+    'Cloudflare account에서 R2를 먼저 활성화해야 이 흐름을 계속할 수 있습니다.',
+    '아래 URL에서 R2를 켠 뒤 같은 화면에서 다시 확인하세요.',
+    buildCloudflareR2OverviewUrl(accountId),
+  ].join('\n')
 }
 
 function createCloudflareEnvValues(apiBaseUrl: string) {
@@ -641,6 +659,41 @@ async function createCloudflareR2Bucket(
   return binding.bucket_name
 }
 
+async function withCloudflareR2EnableRetry<T>(
+  prompt: CliPrompter,
+  accountId: string,
+  operation: () => Promise<T>,
+) {
+  while (true) {
+    try {
+      return await operation()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      if (!isCloudflareR2DisabledErrorMessage(message)) {
+        throw error
+      }
+
+      log.message(formatCloudflareR2EnableMessage(accountId))
+
+      const nextStep = await prompt.select({
+        message: 'Cloudflare R2를 활성화한 뒤 다시 확인할까요?',
+        options: [
+          { label: '네, 다시 확인', value: CLOUDFLARE_R2_RETRY_SENTINEL },
+          { label: '아니오, 중단', value: CLOUDFLARE_R2_CANCEL_SENTINEL },
+        ],
+        initialValue: CLOUDFLARE_R2_RETRY_SENTINEL,
+      })
+
+      if (nextStep === CLOUDFLARE_R2_RETRY_SENTINEL) {
+        continue
+      }
+
+      throw new Error(formatCloudflareR2EnableMessage(accountId))
+    }
+  }
+}
+
 async function deployCloudflareWorker(
   packageManager: PackageManager,
   serverRoot: string,
@@ -1002,8 +1055,8 @@ export async function provisionCloudflareWorker(
     throw new Error('연결할 Cloudflare D1 database를 결정하지 못했습니다.')
   }
 
-  const existingR2Buckets = await withAuthRetry((authToken) =>
-    listCloudflareR2Buckets(authToken, accountId),
+  const existingR2Buckets = await withCloudflareR2EnableRetry(options.prompt, accountId, () =>
+    withAuthRetry((authToken) => listCloudflareR2Buckets(authToken, accountId)),
   )
   const selectedR2Bucket = await selectCloudflareR2Bucket(options.prompt, existingR2Buckets, {
     includeCreateOption: true,
@@ -1011,20 +1064,25 @@ export async function provisionCloudflareWorker(
   })
   const r2BucketName =
     selectedR2Bucket === CREATE_CLOUDFLARE_R2_BUCKET_SENTINEL
-      ? await createCloudflareR2Bucket(
-          options.packageManager,
-          serverRoot,
-          (
-            await options.prompt.text({
-              message: '생성할 Cloudflare R2 bucket 이름을 입력하세요.',
-              initialValue: `${options.appName}-storage`,
-              validate(value) {
-                return value.trim().length === 0
-                  ? 'Cloudflare R2 bucket 이름을 입력하세요.'
-                  : undefined
-              },
-            })
-          ).trim(),
+      ? await withCloudflareR2EnableRetry(
+          options.prompt,
+          accountId,
+          async () =>
+            await createCloudflareR2Bucket(
+              options.packageManager,
+              serverRoot,
+              (
+                await options.prompt.text({
+                  message: '생성할 Cloudflare R2 bucket 이름을 입력하세요.',
+                  initialValue: `${options.appName}-storage`,
+                  validate(value) {
+                    return value.trim().length === 0
+                      ? 'Cloudflare R2 bucket 이름을 입력하세요.'
+                      : undefined
+                  },
+                })
+              ).trim(),
+            ),
         )
       : selectedR2Bucket
 
