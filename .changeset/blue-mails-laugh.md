@@ -7,4 +7,8 @@ Cloudflare server provisioning now guides users through selecting or creating a 
 
 Cloudflare and Firebase server workspaces now include deploy scripts that can read auth and project metadata from `server/.env.local`, making repeat deploys easier after initial provisioning.
 
-Engineering docs and README copy were updated to explain the new Cloudflare D1/R2 flow and the token-based deploy behavior for Cloudflare and Firebase.
+Cloudflare provisioning notes now explain exactly where to create an API token, which template to start from, and where to paste the secret into `server/.env.local`.
+
+Firebase provisioning now retries Cloud Build default service account checks for up to five attempts with visible TUI progress after Blaze billing or Cloud Build setup, so newly created projects do not fail too early on eventual-consistency delays.
+
+Engineering docs, README copy, and user-facing TUI notes were updated together so the provisioning flow reads in the same softer `~요` tone across Cloudflare and Firebase.

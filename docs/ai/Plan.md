@@ -1,6 +1,18 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: changeset과 PR 설명을 최신 범위로 정리
+1. 문제
+   - 현재 PR은 처음 추가한 Cloudflare D1/R2, deploy auth 범위 위주로 설명돼 있고, 이후에 들어간 Cloudflare token 안내 보강, Firebase build service account 재시도, TUI 톤 정리가 충분히 반영되지 않았다.
+   - changeset도 패키지 버전 범위는 맞지만, 릴리스 노트 설명은 최신 작업까지 한 번에 읽히도록 더 구체적으로 정리하는 편이 좋다.
+2. 방향
+   - changeset은 `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 `patch`를 유지한다.
+   - 본문에는 Cloudflare D1/R2 IaC, Cloudflare/Firebase `.env.local` 기반 deploy, Cloudflare token 발급 안내, Firebase build service account 재시도와 TUI 톤 정리를 함께 반영한다.
+   - PR summary와 testing도 지금 상태 기준으로 다시 쓴다.
+3. 완료 기준
+   - changeset만 읽어도 이번 릴리스에서 바뀐 provider 경험을 이해할 수 있다.
+   - PR 본문이 실제 diff 범위를 빠짐없이 설명한다.
+
 ## 다음 작업: Firebase build service account 확인 타이밍 재시도
 1. 문제
    - Firebase에서 Blaze 플랜을 올리거나 Cloud Build API를 켠 직후에는 기본 build service account가 아직 보이지 않을 때가 있다.
