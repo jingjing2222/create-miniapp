@@ -82,6 +82,8 @@ const CREATE_FIREBASE_PROJECT_SENTINEL = '__create_firebase_project__'
 const CREATE_FIREBASE_APP_SENTINEL = '__create_firebase_app__'
 const FIREBASE_CONSOLE_SETTINGS_URL = (projectId: string) =>
   `https://console.firebase.google.com/project/${projectId}/settings/general/`
+const FIREBASE_CLI_DOC_URL = 'https://firebase.google.com/docs/cli'
+const FIREBASE_ADMIN_SETUP_URL = 'https://firebase.google.com/docs/admin/setup'
 const FIREBASE_EXISTING_GCP_PROJECTS_DOC_URL =
   'https://firebase.google.com/docs/projects/use-firebase-with-existing-cloud-project'
 const FIREBASE_PRICING_URL = 'https://firebase.google.com/pricing'
@@ -99,9 +101,13 @@ const FIREBASE_REQUIRED_BUILD_SERVICE_ACCOUNT_ROLES = [
   'roles/run.builder',
 ] as const
 const CLOUD_BUILD_API_SERVICE = 'cloudbuild.googleapis.com'
+const FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_ATTEMPTS = 5
+const FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_DELAY_MS = 750
 
 const GOOGLE_CLOUD_PROJECT_BILLING_URL = (projectId: string) =>
   `https://console.cloud.google.com/billing/linkedaccount?project=${projectId}`
+const GOOGLE_CLOUD_SERVICE_ACCOUNTS_URL = (projectId: string) =>
+  `https://console.cloud.google.com/iam-admin/serviceaccounts?project=${projectId}`
 
 const LOCAL_GOOGLE_CLOUD_CLI_ROOT = path.join(
   os.homedir(),
@@ -343,12 +349,14 @@ function parseGoogleCloudProjectIamPolicyPayload(output: Pick<CommandOutput, 'st
 function createFirebaseServerEnvValues(
   projectId: string,
   functionRegion: string,
+  token = '',
   credentials = '',
 ) {
   return [
     '# Firebase project metadata for this workspace.',
     `FIREBASE_PROJECT_ID=${projectId}`,
     `FIREBASE_FUNCTION_REGION=${functionRegion}`,
+    `FIREBASE_TOKEN=${token}`,
     `GOOGLE_APPLICATION_CREDENTIALS=${credentials}`,
     '',
   ].join('\n')
@@ -816,11 +824,19 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
     member: string,
     role: string,
   ) => Promise<void>
+  logMessage?: (message: string) => void
+  wait?: (ms: number) => Promise<void>
 }) {
   const gcloudCommand = await (options.ensureGcloudInstalled ?? ensureGcloudCliInstalled)(
     options.cwd,
   )
   const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
+  const logMessage = options.logMessage ?? ((message: string) => log.message(message))
+  const wait =
+    options.wait ??
+    (async (ms: number) => {
+      await new Promise((resolve) => setTimeout(resolve, ms))
+    })
   const getDefaultBuildServiceAccount =
     options.getDefaultBuildServiceAccount ??
     (async (cwd: string, projectId: string) =>
@@ -848,23 +864,43 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
       await addGoogleCloudProjectIamBinding(cwd, projectId, member, role, gcloudCommand))
 
   while (true) {
-    let buildServiceAccountEmail: string
-    let policy: GoogleCloudIamPolicy
+    let buildServiceAccountEmail: string | null = null
+    let policy: GoogleCloudIamPolicy | null = null
 
     try {
-      buildServiceAccountEmail = await getDefaultBuildServiceAccount(options.cwd, options.projectId)
+      for (
+        let attempt = 1;
+        attempt <= FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_ATTEMPTS;
+        attempt += 1
+      ) {
+        logMessage(
+          `Cloud Build 기본 service account를 확인하는 중이에요. (${attempt}/${FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_ATTEMPTS})`,
+        )
+        buildServiceAccountEmail = await getDefaultBuildServiceAccount(
+          options.cwd,
+          options.projectId,
+        )
 
-      const buildServiceAccountExists = await ensureBuildServiceAccountExists(
-        options.cwd,
-        options.projectId,
-        buildServiceAccountEmail,
-      )
+        const buildServiceAccountExists = await ensureBuildServiceAccountExists(
+          options.cwd,
+          options.projectId,
+          buildServiceAccountEmail,
+        )
 
-      if (!buildServiceAccountExists) {
+        if (buildServiceAccountExists) {
+          break
+        }
+
+        if (attempt < FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_ATTEMPTS) {
+          await wait(FIREBASE_BUILD_SERVICE_ACCOUNT_CHECK_RETRY_DELAY_MS)
+          continue
+        }
+
         throw new Error(
           [
             `Cloud Build 기본 service account \`${buildServiceAccountEmail}\` 가 존재하지 않습니다.`,
-            '이 계정이 삭제된 상태면 복구하거나, Cloud Build 기본 service account 설정을 다시 확인해야 합니다.',
+            '이 계정이 막 만들어지는 중이면 잠깐 뒤에 다시 확인해 보는 게 좋아요.',
+            '계속 보이지 않으면 이 계정이 삭제된 상태일 수 있어서 복구하거나 Cloud Build 기본 service account 설정을 다시 확인해야 해요.',
             '참고 문서: https://cloud.google.com/build/docs/cloud-build-service-account-updates',
           ].join('\n'),
         )
@@ -885,6 +921,10 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
 
       await ensureAuth(options.cwd, gcloudCommand)
       continue
+    }
+
+    if (!buildServiceAccountEmail || !policy) {
+      throw new Error('Cloud Build 기본 service account 확인 결과를 정리하지 못했어요.')
     }
 
     const buildServiceAccountMember = `serviceAccount:${buildServiceAccountEmail}`
@@ -925,15 +965,15 @@ export function formatFirebaseAddFirebaseFailureMessage(options: {
     isFirebaseAddFirebasePermissionDeniedError(options.debugLogContent)
   ) {
     return [
-      'Firebase 리소스 연결 단계가 실패했습니다.',
+      'Firebase 리소스를 붙이는 중에 실패했어요.',
       '',
       `Google Cloud 프로젝트 \`${options.projectId}\` 는 생성됐지만 Firebase를 붙이는 API가 \`403 PERMISSION_DENIED\` 로 거절됐습니다.`,
-      '보통은 현재 로그인한 계정에 해당 프로젝트에서 Firebase를 활성화할 권한이 없거나, Firebase Terms of Service를 아직 수락하지 않은 경우입니다.',
+      '보통은 지금 로그인한 계정에 해당 프로젝트에서 Firebase를 활성화할 권한이 없거나, Firebase Terms of Service를 아직 수락하지 않은 경우예요.',
       '',
-      '확인할 것',
-      '- https://console.firebase.google.com/ 에 로그인해 Firebase Terms of Service를 먼저 수락',
-      `- 프로젝트 \`${options.projectId}\` 의 IAM에서 현재 계정에 Owner 또는 Editor 권한이 있는지 확인`,
-      `- 권한 정리 후 \`yarn dlx firebase-tools projects:addfirebase ${options.projectId}\` 로 다시 시도`,
+      '이렇게 확인해 주세요',
+      '- https://console.firebase.google.com/ 에 로그인해서 Firebase Terms of Service를 먼저 수락해 주세요.',
+      `- 프로젝트 \`${options.projectId}\` 의 IAM에서 지금 계정에 Owner 또는 Editor 권한이 있는지 확인해 주세요.`,
+      `- 권한 정리 뒤에 \`yarn dlx firebase-tools projects:addfirebase ${options.projectId}\` 로 다시 시도해 주세요.`,
       `- 자세한 원본 로그: ${debugLogPath}`,
       `- 참고 문서: ${FIREBASE_EXISTING_GCP_PROJECTS_DOC_URL}`,
     ].join('\n')
@@ -959,18 +999,18 @@ export function formatFirebaseFunctionsDeployFailureMessage(options: {
     const cloudBuildLogUrl = extractCloudBuildLogUrl(combinedMessage)
 
     return [
-      'Firebase Functions 배포 단계가 실패했습니다.',
+      'Firebase Functions를 배포하는 중에 실패했어요.',
       '',
       `프로젝트 \`${options.projectId}\` 의 함수 소스 업로드와 사전 build는 끝났지만, 원격 Cloud Build에서 build service account 권한 부족으로 이미지 빌드가 중단됐습니다.`,
-      '이건 로컬 Yarn/PnP 문제가 아니라 Google Cloud IAM 또는 조직 정책 문제입니다.',
+      '이건 로컬 Yarn/PnP 문제가 아니라 Google Cloud IAM 또는 조직 정책 문제예요.',
       '',
-      '다음 조치',
-      '- custom build service account를 쓰거나, default Compute Engine service account에 `roles/cloudbuild.builds.builder` 를 부여하세요.',
+      '이렇게 진행해 주세요',
+      '- custom build service account를 쓰거나, default Compute Engine service account에 `roles/cloudbuild.builds.builder` 를 부여해 주세요.',
       `- Cloud Functions 문제 해결 가이드: ${FIREBASE_FUNCTIONS_BUILD_SERVICE_ACCOUNT_DOC_URL}`,
       `- Cloud Build service account 권한 가이드: ${CLOUD_BUILD_SERVICE_ACCOUNT_ACCESS_DOC_URL}`,
       ...(cloudBuildLogUrl ? [`- Cloud Build 로그: ${cloudBuildLogUrl}`] : []),
       `- 자세한 원본 로그: ${debugLogPath}`,
-      '- 권한 정리 후 server/package.json의 deploy 스크립트로 다시 시도하세요.',
+      '- 권한을 정리한 뒤 server/package.json의 deploy 스크립트로 다시 시도해 주세요.',
       ...(rawOutputSnippet ? ['', '원본 CLI 출력', rawOutputSnippet] : []),
       ...(debugLogSnippet ? ['', 'firebase-debug.log tail', debugLogSnippet] : []),
     ].join('\n')
@@ -998,8 +1038,8 @@ async function ensureFirebaseProjects(packageManager: PackageManager, cwd: strin
   try {
     return await listFirebaseProjects(packageManager, cwd)
   } catch {
-    log.step('Firebase 로그인')
-    await runCommand(buildFirebaseCommand(packageManager, cwd, 'Firebase 로그인', ['login']))
+    log.step('Firebase에 로그인할게요')
+    await runCommand(buildFirebaseCommand(packageManager, cwd, 'Firebase 로그인하기', ['login']))
     return await listFirebaseProjects(packageManager, cwd)
   }
 }
@@ -1009,7 +1049,7 @@ async function addFirebaseToExistingGoogleCloudProject(
   cwd: string,
   projectId: string,
 ) {
-  log.step('기존 Google Cloud 프로젝트에 Firebase 리소스 연결')
+  log.step('기존 Google Cloud 프로젝트에 Firebase를 연결할게요')
 
   try {
     await runCommandWithOutput(
@@ -1042,7 +1082,9 @@ async function selectFirebaseProject(
   },
 ) {
   if (projects.length === 0 && !options?.includeCreateOption) {
-    throw new Error('사용 가능한 Firebase 프로젝트가 없습니다. 새 프로젝트를 먼저 만들어주세요.')
+    throw new Error(
+      '지금 바로 쓸 수 있는 Firebase 프로젝트가 없어요. 새 프로젝트를 먼저 만들어 주세요.',
+    )
   }
 
   const projectOptions = projects.map((project) => ({
@@ -1054,13 +1096,13 @@ async function selectFirebaseProject(
         ...projectOptions,
         {
           value: CREATE_FIREBASE_PROJECT_SENTINEL,
-          label: '+ 새 Firebase 프로젝트 생성',
+          label: '+ 새 Firebase 프로젝트 만들기',
         },
       ]
     : projectOptions
 
   return await prompt.select({
-    message: options?.message ?? '사용할 Firebase 프로젝트를 선택하세요.',
+    message: options?.message ?? '사용할 Firebase 프로젝트를 골라 주세요.',
     options: selectOptions,
     initialValue: selectOptions[0]?.value,
   })
@@ -1078,13 +1120,13 @@ async function createFirebaseProject(
   while (true) {
     const projectId = (
       await prompt.text({
-        message: '새 Firebase 프로젝트 ID를 입력하세요.',
+        message: '새 Firebase 프로젝트 ID를 입력해 주세요.',
         initialValue,
         validate: validateFirebaseProjectId,
       })
     ).trim()
 
-    log.step('Firebase 새 프로젝트 생성')
+    log.step('Firebase 프로젝트를 새로 만들게요')
 
     try {
       await runCommandWithOutput(
@@ -1102,7 +1144,7 @@ async function createFirebaseProject(
 
       if (isFirebaseProjectAddFirebaseRecoveryError(message)) {
         log.message(
-          'Google Cloud 프로젝트는 생성됐고 Firebase 리소스 연결 단계만 실패했습니다. 기존 프로젝트에 Firebase를 다시 연결합니다.',
+          'Google Cloud 프로젝트는 만들어졌고 Firebase 리소스 연결만 실패했어요. 기존 프로젝트에 Firebase를 다시 연결해 볼게요.',
         )
         await addFirebaseToExistingGoogleCloudProject(packageManager, cwd, projectId)
         return projectId
@@ -1121,7 +1163,7 @@ async function createFirebaseProject(
 
       if (!isAlreadyFirebaseProject) {
         log.message(
-          '같은 projectId의 Google Cloud 프로젝트가 이미 있으므로 Firebase 리소스 연결 복구를 시도합니다.',
+          '같은 projectId의 Google Cloud 프로젝트가 이미 있어서 Firebase 리소스 연결 복구를 시도할게요.',
         )
 
         try {
@@ -1132,8 +1174,8 @@ async function createFirebaseProject(
         }
       }
 
-      log.message(`이미 존재하는 Firebase 프로젝트 ID입니다: ${projectId}`)
-      log.message('다른 projectId를 입력하세요.')
+      log.message(`이미 있는 Firebase 프로젝트 ID예요: ${projectId}`)
+      log.message('다른 projectId를 입력해 주세요.')
       initialValue = `${projectId}-app`
     }
   }
@@ -1162,7 +1204,9 @@ async function selectFirebaseWebApp(
   },
 ) {
   if (apps.length === 0 && !options?.includeCreateOption) {
-    throw new Error('사용 가능한 Firebase Web App이 없습니다. 새 Web App을 먼저 만들어주세요.')
+    throw new Error(
+      '지금 바로 쓸 수 있는 Firebase Web App이 없어요. 새 Web App을 먼저 만들어 주세요.',
+    )
   }
 
   const appOptions = apps.map((app) => ({
@@ -1174,13 +1218,13 @@ async function selectFirebaseWebApp(
         ...appOptions,
         {
           value: CREATE_FIREBASE_APP_SENTINEL,
-          label: '+ 새 Firebase Web App 생성',
+          label: '+ 새 Firebase Web App 만들기',
         },
       ]
     : appOptions
 
   return await prompt.select({
-    message: options?.message ?? '사용할 Firebase Web App을 선택하세요.',
+    message: options?.message ?? '사용할 Firebase Web App을 골라 주세요.',
     options: selectOptions,
     initialValue: selectOptions[0]?.value,
   })
@@ -1192,7 +1236,7 @@ async function createFirebaseWebApp(
   projectId: string,
   displayName: string,
 ) {
-  log.step('Firebase Web App 생성')
+  log.step('Firebase Web App을 만들게요')
   await runCommand(
     buildFirebaseCommand(packageManager, cwd, 'Firebase Web App 생성', [
       'apps:create',
@@ -1232,7 +1276,7 @@ async function getFirebaseWebSdkConfig(
 
 async function selectFirebaseFunctionRegion(prompt: CliPrompter) {
   return await prompt.select({
-    message: '배포할 Firebase Functions region을 선택하세요.',
+    message: '배포할 Firebase Functions region을 골라 주세요.',
     options: [
       {
         value: FIREBASE_DEFAULT_FUNCTION_REGION,
@@ -1252,11 +1296,11 @@ async function installFirebaseFunctionsDependencies(
 ) {
   const adapter = getPackageManagerAdapter(packageManager)
 
-  log.step('server/functions 의존성 설치')
+  log.step('server/functions 의존성을 설치할게요')
   await runCommand({
     cwd: functionsRoot,
     ...adapter.install(),
-    label: 'server/functions 의존성 설치',
+    label: 'server/functions 의존성 설치하기',
   })
 }
 
@@ -1265,7 +1309,7 @@ async function deployFirebaseFunctions(
   serverRoot: string,
   projectId: string,
 ) {
-  log.step('Firebase Functions 배포')
+  log.step('Firebase Functions를 배포할게요')
   try {
     await runCommand(
       buildFirebaseCommand(packageManager, serverRoot, 'Firebase Functions 배포', [
@@ -1328,6 +1372,8 @@ export async function writeFirebaseServerLocalEnvFile(options: {
     lines.length > 0 ? [...lines] : ['# Firebase project metadata for this workspace.']
   let hasProjectId = false
   let hasFunctionRegion = false
+  let hasToken = false
+  let hasConfiguredToken = false
   let hasCredentials = false
   let hasConfiguredCredentials = false
 
@@ -1346,6 +1392,12 @@ export async function writeFirebaseServerLocalEnvFile(options: {
       continue
     }
 
+    if (trimmed.startsWith('FIREBASE_TOKEN=')) {
+      hasToken = true
+      hasConfiguredToken = trimmed.slice('FIREBASE_TOKEN='.length).trim().length > 0
+      continue
+    }
+
     if (trimmed.startsWith('GOOGLE_APPLICATION_CREDENTIALS=')) {
       hasCredentials = true
       hasConfiguredCredentials =
@@ -1361,6 +1413,10 @@ export async function writeFirebaseServerLocalEnvFile(options: {
     nextLines.push(`FIREBASE_FUNCTION_REGION=${options.functionRegion}`)
   }
 
+  if (!hasToken) {
+    nextLines.push('FIREBASE_TOKEN=')
+  }
+
   if (!hasCredentials) {
     nextLines.push('GOOGLE_APPLICATION_CREDENTIALS=')
   }
@@ -1373,6 +1429,7 @@ export async function writeFirebaseServerLocalEnvFile(options: {
   )
 
   return {
+    hasConfiguredToken,
     hasConfiguredCredentials,
   }
 }
@@ -1382,6 +1439,7 @@ export function formatFirebaseManualSetupNote(options: {
   hasBackoffice: boolean
   projectId: string
   functionRegion: string
+  hasConfiguredToken: boolean
   hasConfiguredCredentials: boolean
 }) {
   const env = createFirebaseEnvValues({
@@ -1394,7 +1452,7 @@ export function formatFirebaseManualSetupNote(options: {
   })
 
   const lines = [
-    'Firebase Web SDK 설정을 자동으로 가져오지 못했습니다. 아래 URL에서 앱 설정을 확인한 뒤 직접 넣어주세요.',
+    'Firebase Web SDK 설정을 자동으로 가져오지 못했어요. 아래 URL에서 앱 설정을 확인한 뒤 직접 넣어 주세요.',
     '',
     FIREBASE_CONSOLE_SETTINGS_URL(options.projectId),
     '',
@@ -1416,18 +1474,32 @@ export function formatFirebaseManualSetupNote(options: {
     createFirebaseServerEnvValues(
       options.projectId,
       options.functionRegion,
+      options.hasConfiguredToken ? '<기존 값 유지>' : '',
       options.hasConfiguredCredentials ? '<기존 값 유지>' : '',
     ).trimEnd(),
     '',
     `server/functions/src/index.ts 의 기본 HTTP 함수 이름은 ${FIREBASE_DEFAULT_FUNCTION_NAME} 입니다.`,
   )
 
+  if (!options.hasConfiguredToken) {
+    lines.push(
+      'FIREBASE_TOKEN 은 CI나 비대화형 Firebase CLI 배포가 필요할 때만 채우면 돼요.',
+      '`firebase login:ci`로 토큰을 발급받아 server/.env.local 의 FIREBASE_TOKEN 에 넣어 주세요.',
+      FIREBASE_CLI_DOC_URL,
+    )
+  }
+
   if (!options.hasConfiguredCredentials) {
-    lines.push('GOOGLE_APPLICATION_CREDENTIALS 는 CI나 비대화형 배포가 필요할 때만 채우면 됩니다.')
+    lines.push(
+      'GOOGLE_APPLICATION_CREDENTIALS 는 CI나 비대화형 배포가 필요할 때만 채우면 돼요.',
+      'Google Cloud Service Accounts 페이지에서 서비스 계정 JSON 키를 발급받아 파일 경로를 server/.env.local 에 넣어 주세요.',
+      GOOGLE_CLOUD_SERVICE_ACCOUNTS_URL(options.projectId),
+      FIREBASE_ADMIN_SETUP_URL,
+    )
   }
 
   return {
-    title: 'Firebase 환경 변수 안내',
+    title: 'Firebase 연결 값을 이렇게 넣어 주세요',
     body: lines.join('\n'),
   } satisfies ProvisioningNote
 }
@@ -1445,7 +1517,7 @@ export async function provisionFirebaseProject(
   if (resolvedProjectMode === null) {
     const selectedProject = await selectFirebaseProject(options.prompt, projects, {
       includeCreateOption: true,
-      message: '사용할 Firebase 프로젝트를 선택하세요. 새 프로젝트 생성도 바로 할 수 있습니다.',
+      message: '사용할 Firebase 프로젝트를 골라 주세요. 새 프로젝트도 바로 만들 수 있어요.',
     })
 
     if (selectedProject === CREATE_FIREBASE_PROJECT_SENTINEL) {
@@ -1469,7 +1541,7 @@ export async function provisionFirebaseProject(
   }
 
   if (!selectedProjectId || !resolvedProjectMode) {
-    throw new Error('연결할 Firebase 프로젝트를 결정하지 못했습니다.')
+    throw new Error('연결할 Firebase 프로젝트를 정하지 못했어요.')
   }
 
   await ensureFirebaseProjectIsOnBlazePlan({
@@ -1490,7 +1562,7 @@ export async function provisionFirebaseProject(
   let selectedAppId: string | null = null
   const selectedApp = await selectFirebaseWebApp(options.prompt, existingApps, {
     includeCreateOption: true,
-    message: '사용할 Firebase Web App을 선택하세요. 새 Web App 생성도 바로 할 수 있습니다.',
+    message: '사용할 Firebase Web App을 골라 주세요. 새 Web App도 바로 만들 수 있어요.',
   })
 
   if (selectedApp === CREATE_FIREBASE_APP_SENTINEL) {
@@ -1518,7 +1590,7 @@ export async function provisionFirebaseProject(
   }
 
   if (!selectedAppId) {
-    throw new Error('연결할 Firebase Web App을 결정하지 못했습니다.')
+    throw new Error('연결할 Firebase Web App을 정하지 못했어요.')
   }
 
   const functionRegion = await selectFirebaseFunctionRegion(options.prompt)
@@ -1557,8 +1629,8 @@ export async function finalizeFirebaseProvisioning(options: {
   if (!options.provisionedProject) {
     return [
       {
-        title: 'Firebase 프로젝트 연결 건너뜀',
-        body: '현재 실행에서는 원격 Firebase 프로젝트 연결을 건너뛰었습니다. 필요하면 `--server-project-mode`를 지정하거나 인터랙티브 모드에서 기존/새 프로젝트를 선택하세요.',
+        title: 'Firebase 프로젝트 연결은 이번엔 건너뛸게요',
+        body: '이번 실행에서는 원격 Firebase 프로젝트 연결을 건너뛰었어요. 필요하면 `--server-project-mode`를 주거나 인터랙티브 모드에서 기존 프로젝트나 새 프로젝트를 골라 주세요.',
       },
     ] satisfies ProvisioningNote[]
   }
@@ -1579,18 +1651,30 @@ export async function finalizeFirebaseProvisioning(options: {
 
     return [
       {
-        title: 'Firebase 환경 변수 작성 완료',
+        title: 'Firebase 연결 값을 적어뒀어요',
         body: [
           hasBackoffice
-            ? 'frontend/.env.local 과 backoffice/.env.local 에 Firebase Web SDK 연결 값을 작성했습니다.'
-            : 'frontend/.env.local 에 Firebase Web SDK 연결 값을 작성했습니다.',
-          'server/.env.local 에 Firebase project 메타데이터를 작성했습니다.',
-          'server/package.json 의 deploy 로 Firebase Functions를 다시 배포할 수 있습니다.',
+            ? 'frontend/.env.local 과 backoffice/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.'
+            : 'frontend/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.',
+          'server/.env.local 에는 Firebase project 메타데이터를 적어뒀어요.',
+          'server/package.json 의 deploy 로 Firebase Functions를 다시 배포할 수 있어요.',
+          serverEnv.hasConfiguredToken
+            ? 'server/.env.local 의 FIREBASE_TOKEN 은 기존 값을 그대로 둘게요.'
+            : [
+                'server/.env.local 의 FIREBASE_TOKEN 은 비어 있어요.',
+                '`firebase login:ci`로 토큰을 발급받아 필요할 때만 채워 넣어 주세요.',
+                FIREBASE_CLI_DOC_URL,
+              ].join('\n'),
           serverEnv.hasConfiguredCredentials
-            ? 'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 기존 값을 유지했습니다.'
-            : 'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 비어 있으니, CI나 비대화형 배포가 필요할 때만 채워 넣으세요.',
+            ? 'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 기존 값을 그대로 둘게요.'
+            : [
+                'server/.env.local 의 GOOGLE_APPLICATION_CREDENTIALS 는 비어 있어요.',
+                'Google Cloud Service Accounts 페이지에서 서비스 계정 JSON 키를 발급받아 파일 경로를 채워 넣어 주세요.',
+                GOOGLE_CLOUD_SERVICE_ACCOUNTS_URL(options.provisionedProject.projectId),
+                FIREBASE_ADMIN_SETUP_URL,
+              ].join('\n'),
           '',
-          'Firebase 설정을 다시 확인해야 하면 아래 URL을 보세요.',
+          'Firebase 설정을 다시 확인해야 하면 아래 URL을 보면 돼요.',
           FIREBASE_CONSOLE_SETTINGS_URL(options.provisionedProject.projectId),
         ].join('\n'),
       },
@@ -1603,6 +1687,7 @@ export async function finalizeFirebaseProvisioning(options: {
       hasBackoffice,
       projectId: options.provisionedProject.projectId,
       functionRegion: options.provisionedProject.functionRegion,
+      hasConfiguredToken: serverEnv.hasConfiguredToken,
       hasConfiguredCredentials: serverEnv.hasConfiguredCredentials,
     }),
   ]

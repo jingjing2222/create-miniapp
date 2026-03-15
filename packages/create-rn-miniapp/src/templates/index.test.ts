@@ -431,6 +431,10 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
     path.join(targetRoot, 'server', 'functions', 'src', 'index.ts'),
     'utf8',
   )
+  const deployScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'firebase-functions-deploy.mjs'),
+    'utf8',
+  )
 
   assert.equal(firebaserc.projects?.default, 'ebook-firebase')
   assert.equal(
@@ -443,7 +447,7 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
   )
   assert.equal(
     serverPackageJson.scripts?.deploy,
-    'pnpm --dir ./functions install --ignore-workspace && pnpm dlx firebase-tools deploy --only functions --config firebase.json',
+    'pnpm --dir ./functions install --ignore-workspace && node ./scripts/firebase-functions-deploy.mjs',
   )
   assert.equal(
     firebaseJson.functions?.[0]?.predeploy?.[0],
@@ -456,6 +460,10 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
   assert.equal(functionsPackageJson.devDependencies?.typescript, '^5.7.3')
   assert.match(functionEntry, /region: 'us-central1'/)
   assert.doesNotMatch(functionEntry, new RegExp(FIREBASE_DEFAULT_FUNCTION_REGION))
+  assert.match(deployScript, /FIREBASE_PROJECT_ID/)
+  assert.match(deployScript, /FIREBASE_TOKEN/)
+  assert.match(deployScript, /GOOGLE_APPLICATION_CREDENTIALS/)
+  assert.match(deployScript, /firebase-tools/)
 })
 
 test('applyFirebaseServerWorkspaceTemplate emits bun-compatible predeploy commands', async (t) => {

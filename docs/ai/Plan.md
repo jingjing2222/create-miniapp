@@ -1,6 +1,118 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: 루트 git 기본 브랜치를 main으로 강제
+1. 문제
+   - 현재 create 흐름은 루트에서 `git init`만 실행한다.
+   - 사용 환경에 따라 기본 브랜치가 `master`로 잡힐 수 있어서, 생성 직후 branch naming이 일관되지 않다.
+2. 방향
+   - 루트 git 초기화는 `git init` 뒤에 `HEAD`를 `main`으로 맞추는 후속 명령까지 함께 실행한다.
+   - 아직 첫 커밋 전이라 실제 `master` ref가 생기지 않은 상태에서 `HEAD`만 `main`으로 옮기면, 결과적으로 `master` 없이 `main`으로 시작할 수 있다.
+   - 실행 순서와 테스트에도 이 후속 단계를 드러낸다.
+3. 테스트
+   - 루트 git setup plan이 `git init`과 `HEAD -> main` 명령을 순서대로 가지는지 검증한다.
+   - create lifecycle label에도 `main` 브랜치 설정 단계가 포함되는지 검증한다.
+4. 완료 기준
+   - 새 스캐폴드 루트 git repo는 생성 직후 기본 브랜치가 항상 `main`이다.
+   - `pnpm verify` 통과
+
+## 다음 작업: changeset과 PR 설명을 최신 범위로 정리
+1. 문제
+   - 현재 PR은 처음 추가한 Cloudflare D1/R2, deploy auth 범위 위주로 설명돼 있고, 이후에 들어간 Cloudflare token 안내 보강, Firebase build service account 재시도, TUI 톤 정리가 충분히 반영되지 않았다.
+   - changeset도 패키지 버전 범위는 맞지만, 릴리스 노트 설명은 최신 작업까지 한 번에 읽히도록 더 구체적으로 정리하는 편이 좋다.
+2. 방향
+   - changeset은 `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 `patch`를 유지한다.
+   - 본문에는 Cloudflare D1/R2 IaC, Cloudflare/Firebase `.env.local` 기반 deploy, Cloudflare token 발급 안내, Firebase build service account 재시도와 TUI 톤 정리를 함께 반영한다.
+   - PR summary와 testing도 지금 상태 기준으로 다시 쓴다.
+3. 완료 기준
+   - changeset만 읽어도 이번 릴리스에서 바뀐 provider 경험을 이해할 수 있다.
+   - PR 본문이 실제 diff 범위를 빠짐없이 설명한다.
+
+## 다음 작업: Firebase build service account 확인 타이밍 재시도
+1. 문제
+   - Firebase에서 Blaze 플랜을 올리거나 Cloud Build API를 켠 직후에는 기본 build service account가 아직 보이지 않을 때가 있다.
+   - 지금은 그 순간 바로 권한 보정으로 들어가서, 계정이 아직 생기기 전 상태를 곧바로 실패로 처리할 수 있다.
+2. 방향
+   - Firebase build service account 확인 단계는 최소 5번까지 재시도한다.
+   - 각 시도 사이에는 750ms씩 기다려서 총 대기 시간이 최소 3초가 되게 한다.
+   - TUI에는 `Cloud Build 기본 service account를 확인하는 중이에요. (1/5)`처럼 현재 시도 횟수를 보여준다.
+   - build service account가 실제로 보일 때만 IAM 권한 보정으로 넘어간다.
+3. 테스트
+   - build service account가 몇 번 뒤에 생기는 경우 재시도 후 성공하는지 검증한다.
+   - 5번 모두 준비되지 않으면 최종적으로 기존 에러를 내는지 검증한다.
+   - 시도 로그와 wait 횟수를 함께 검증한다.
+4. 완료 기준
+   - Blaze/Cloud Build 설정 직후의 eventual consistency 때문에 바로 실패하지 않는다.
+   - 사용자는 TUI에서 현재 몇 번째 재시도인지 볼 수 있다.
+   - `pnpm verify` 통과
+
+## 다음 작업: TUI 말투를 README 톤으로 정리
+1. 문제
+   - 현재 CLI/TUI 문구는 기능은 맞지만, 전체적으로 딱딱하고 설명조 표현이 많다.
+   - 같은 흐름 안에서도 prompt, step label, 완료 note, 수동 안내 note의 말투가 제각각이라 사용자 경험이 조금 거칠다.
+2. 방향
+   - runtime에서 보이는 prompt, step label, 완료/수동 note를 README의 `~요` 톤으로 맞춘다.
+   - 단순히 존댓말만 바꾸지 않고, "안내", "작성 완료" 같은 딱딱한 제목도 "이렇게 넣어 주세요", "적어뒀어요"처럼 더 자연스럽게 바꾼다.
+   - provider별 note 제목과 주요 입력 프롬프트를 우선 정리하고, 테스트 기대값도 같이 갱신한다.
+3. 테스트
+   - provider별 provisioning note 테스트에 바뀐 제목을 반영한다.
+   - CLI prompt 테스트에 바뀐 문구를 반영한다.
+4. 완료 기준
+   - 사용자가 생성 중에 보게 되는 주요 TUI 문구가 README와 같은 톤으로 읽힌다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Firebase deploy auth 안내에 발급 경로 추가
+1. 문제
+   - 현재 Firebase provisioning 완료 note는 `FIREBASE_TOKEN` 과 `GOOGLE_APPLICATION_CREDENTIALS`가 비어 있으니 필요할 때 채우라고만 안내한다.
+   - 하지만 어디서 발급받는지와 어떤 명령이나 콘솔 페이지를 써야 하는지 빠져 있어서, 처음 보는 사용자는 바로 막힌다.
+2. 방향
+   - `FIREBASE_TOKEN` 안내에는 `firebase login:ci`와 Firebase CLI 공식 문서 URL을 포함한다.
+   - `GOOGLE_APPLICATION_CREDENTIALS` 안내에는 Firebase/Google 공식 문서와 Google Cloud Service Accounts 콘솔 URL을 포함한다.
+   - 자동 작성 완료 note와 수동 안내 note 모두 같은 수준으로 친절하게 맞춘다.
+3. 테스트
+   - Firebase finalize/manual note 테스트에 `firebase login:ci`와 Service Accounts URL이 포함되는지 검증한다.
+4. 완료 기준
+   - Firebase deploy auth 관련 note만 읽어도 발급 위치와 다음 행동을 바로 알 수 있다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Cloudflare OAuth scope 축소로 인한 D1/R2 인증 오류 복구
+1. 문제
+   - 현재 Cloudflare provider는 `wrangler login --scopes ...`로 OAuth scope를 좁혀서 발급받는다.
+   - 예전 scope로 남아 있는 Wrangler 로그인 토큰은 Worker 관련 API는 통과해도 D1 / R2 조회 단계에서 `Authentication error`로 실패할 수 있다.
+   - 사용자는 Worker 이름까지 입력한 뒤 D1 / R2 단계에서 원인 설명 없이 중단되는 흐름을 겪게 된다.
+2. 방향
+   - Wrangler 로그인은 더 이상 `--scopes`를 강제하지 않고, Cloudflare 기본 full scope 발급 경로를 사용한다.
+   - Cloudflare REST API 호출이 `Authentication error`류 응답으로 실패하면 scope가 부족한 토큰으로 보고 `wrangler login`을 한 번 더 실행한 뒤 같은 호출을 재시도한다.
+   - R2가 계정에서 아직 활성화되지 않은 경우에는 대시보드 R2 Overview URL을 안내하고, 같은 실행 안에서 `다시 확인` 루프를 돌려 복구한다.
+   - 관련 helper를 테스트 가능한 함수로 분리해서 login args와 auth retry 분기를 고정한다.
+3. 테스트
+   - Wrangler login args가 더 이상 `--scopes`를 포함하지 않는지 검증
+   - `Authentication error` 메시지를 auth retry 대상으로 인식하는지 검증
+4. 완료 기준
+   - 새 Cloudflare 로그인은 scope 축소 없이 발급된다.
+   - 기존 제한된 Wrangler 토큰으로 시작해도 D1 / R2 단계에서 자동 재로그인 후 복구할 수 있다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Cloudflare D1/R2 IaC와 Cloudflare/Firebase 재배포 토큰 경로 정리
+1. 문제
+   - 현재 `cloudflare` provider는 Worker deploy와 API URL 작성까지만 하고, D1 database나 R2 bucket은 선택/생성하지 않는다.
+   - 현재 `cloudflare` / `firebase` `server/package.json`의 `deploy`는 plain CLI 호출이라 `server/.env.local`에 적힌 token/credentials를 자동으로 읽지 않는다.
+   - 그래서 provider별로 “IaC 이후 `.env.local`만 채우면 한 명령으로 재배포” 경험이 일관되지 않는다.
+2. 방향
+   - Cloudflare provider에 D1 / R2 목록 조회, 기존 리소스 선택 또는 새 리소스 생성, `wrangler.jsonc` bindings 자동 반영을 추가한다.
+   - Cloudflare는 `server/.env.local`에 Worker / D1 / R2 메타데이터와 `CLOUDFLARE_API_TOKEN`을 기록하고, `deploy`는 이 파일을 읽어 `wrangler deploy`를 실행하는 wrapper로 바꾼다.
+   - Firebase는 `server/.env.local`의 `GOOGLE_APPLICATION_CREDENTIALS`와 project metadata를 읽어 `firebase deploy --only functions`를 실행하는 wrapper로 바꾼다.
+   - Firebase 쪽은 자동 권한 보정이 가능한 부분만 CLI로 처리하고, 불가한 권한/정책 제약은 raw 에러 대신 명확한 복구 안내를 유지한다.
+3. 테스트
+   - Cloudflare provision/finalize 테스트에 D1 / R2 metadata 기록과 note 문구를 추가한다.
+   - `wrangler.jsonc` patch 테스트에 D1 / R2 bindings와 schema/name 보존을 추가한다.
+   - Cloudflare/Firebase server package template / patch 테스트에 deploy wrapper 생성과 `server/.env.local` 로딩을 검증한다.
+4. 완료 기준
+   - `cloudflare` provider가 Worker + D1 + R2를 함께 연결한다.
+   - `cloudflare` / `firebase`는 `server/.env.local` 기반 one-command redeploy 경로를 가진다.
+   - 관련 README / engineering 문서가 새 동작을 설명한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: README 상단 소개와 빠른 시작 축약
 1. 문제
    - 현재 README 상단은 같은 의미를 반복해서 설명하고, package manager별 문장을 길게 늘어놓고 있다.

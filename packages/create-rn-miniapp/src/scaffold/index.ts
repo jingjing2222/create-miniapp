@@ -17,6 +17,7 @@ import {
   buildRootFinalizePlan,
   buildCreateExecutionOrder,
   buildCreateLifecycleOrder,
+  buildRootGitSetupPlan,
 } from './orders.js'
 import {
   maybeFinalizeCloudflareProvisioning,
@@ -40,6 +41,7 @@ export {
   buildRootFinalizePlan,
   buildCreateExecutionOrder,
   buildCreateLifecycleOrder,
+  buildRootGitSetupPlan,
 } from './orders.js'
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
@@ -183,13 +185,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   )
 
   if (!options.noGit) {
-    log.step('루트 git init')
-    await runCommand({
-      cwd: targetRoot,
-      command: 'git',
-      args: ['init'],
-      label: '루트 git init',
-    })
+    for (const command of buildRootGitSetupPlan({ targetRoot })) {
+      log.step(command.label)
+      await runCommand(command)
+    }
   }
 
   if (!options.skipInstall) {

@@ -4,13 +4,17 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
+  buildWranglerLoginArgs,
   buildCloudflareWorkersDevUrl,
   buildCloudflareProvisionExecutionOrder,
   canRecoverCloudflareDeployFailure,
   finalizeCloudflareProvisioning,
   formatCloudflareDeployFailureMessage,
+  formatCloudflareR2EnableMessage,
   formatCloudflareManualSetupNote,
   getWranglerConfigCandidates,
+  isCloudflareAuthenticationErrorMessage,
+  isCloudflareR2DisabledErrorMessage,
   writeCloudflareServerLocalEnvFile,
   writeCloudflareLocalEnvFiles,
 } from './provision.js'
@@ -34,6 +38,37 @@ test('getWranglerConfigCandidates includes the macOS preferences path', () => {
     '/Users/tester/Library/Application Support/.wrangler/config/default.toml',
     '/Users/tester/Library/Preferences/.wrangler/config/default.toml',
   ])
+})
+
+test('buildWranglerLoginArgs requests the default Wrangler scope set', () => {
+  assert.deepEqual(buildWranglerLoginArgs(), ['login'])
+})
+
+test('isCloudflareAuthenticationErrorMessage detects Cloudflare auth failures', () => {
+  assert.equal(isCloudflareAuthenticationErrorMessage('Authentication error'), true)
+  assert.equal(
+    isCloudflareAuthenticationErrorMessage(
+      'failed: Invalid access token while requesting Cloudflare API',
+    ),
+    true,
+  )
+  assert.equal(isCloudflareAuthenticationErrorMessage('workers.dev onboarding required'), false)
+})
+
+test('isCloudflareR2DisabledErrorMessage detects R2 dashboard enablement failures', () => {
+  assert.equal(
+    isCloudflareR2DisabledErrorMessage('Please enable R2 through the Cloudflare Dashboard.'),
+    true,
+  )
+  assert.equal(isCloudflareR2DisabledErrorMessage('Cloudflare API authentication error'), false)
+})
+
+test('formatCloudflareR2EnableMessage includes the dashboard URL and retry guidance', () => {
+  const message = formatCloudflareR2EnableMessage('account-123')
+
+  assert.match(message, /R2를 먼저 활성화/)
+  assert.match(message, /https:\/\/dash\.cloudflare\.com\/account-123\/r2\/overview/)
+  assert.match(message, /다시 확인/)
 })
 
 test('buildCloudflareProvisionExecutionOrder ensures workers.dev onboarding before deploy', () => {
@@ -123,16 +158,27 @@ test('formatCloudflareManualSetupNote includes frontend and backoffice env guida
     hasBackoffice: true,
     accountId: 'account-123',
     workerName: 'ebook-miniapp',
+    d1DatabaseId: 'database-123',
+    d1DatabaseName: 'ebook-db',
+    r2BucketName: 'ebook-storage',
   })
 
-  assert.equal(note.title, 'Cloudflare API URL 안내')
+  assert.equal(note.title, 'Cloudflare API URL을 이렇게 넣어 주세요')
   assert.match(note.body, /frontend\/\.env\.local/)
   assert.match(note.body, /backoffice\/\.env\.local/)
   assert.match(note.body, /server\/\.env\.local/)
+  assert.match(note.body, /CLOUDFLARE_D1_DATABASE_ID=database-123/)
+  assert.match(note.body, /CLOUDFLARE_R2_BUCKET_NAME=ebook-storage/)
   assert.match(note.body, /MINIAPP_API_BASE_URL=<배포된 Worker URL>/)
   assert.match(note.body, /VITE_API_BASE_URL=<배포된 Worker URL>/)
   assert.match(note.body, /CLOUDFLARE_API_TOKEN/)
-  assert.match(note.body, /직접 채워/)
+  assert.match(note.body, /Edit Cloudflare Workers/)
+  assert.match(note.body, /dash\.cloudflare\.com\/profile\/api-tokens/)
+  assert.match(
+    note.body,
+    /developers\.cloudflare\.com\/fundamentals\/api\/get-started\/create-token/,
+  )
+  assert.match(note.body, /CLOUDFLARE_API_TOKEN=.*뒤에 붙여 넣으면 돼요/)
 })
 
 test('writeCloudflareLocalEnvFiles writes frontend and backoffice .env.local files', async () => {
@@ -170,6 +216,9 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
       accountId: 'account-123',
       workerName: 'ebook-miniapp',
       apiBaseUrl: 'https://ebook-miniapp.team-ebook.workers.dev',
+      d1DatabaseId: 'database-123',
+      d1DatabaseName: 'ebook-db',
+      r2BucketName: 'ebook-storage',
     })
 
     const initialServerEnv = await readFile(path.join(targetRoot, 'server', '.env.local'), 'utf8')
@@ -181,6 +230,9 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
         'CLOUDFLARE_ACCOUNT_ID=account-123',
         'CLOUDFLARE_WORKER_NAME=ebook-miniapp',
         'CLOUDFLARE_API_BASE_URL=https://ebook-miniapp.team-ebook.workers.dev',
+        'CLOUDFLARE_D1_DATABASE_ID=database-123',
+        'CLOUDFLARE_D1_DATABASE_NAME=ebook-db',
+        'CLOUDFLARE_R2_BUCKET_NAME=ebook-storage',
         'CLOUDFLARE_API_TOKEN=',
         '',
       ].join('\n'),
@@ -193,6 +245,9 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
         'CLOUDFLARE_ACCOUNT_ID=old-account',
         'CLOUDFLARE_WORKER_NAME=old-worker',
         'CLOUDFLARE_API_BASE_URL=https://old-worker.old-subdomain.workers.dev',
+        'CLOUDFLARE_D1_DATABASE_ID=old-db-id',
+        'CLOUDFLARE_D1_DATABASE_NAME=old-db',
+        'CLOUDFLARE_R2_BUCKET_NAME=old-storage',
         'CLOUDFLARE_API_TOKEN=secret-token',
         'EXTRA=value',
         '',
@@ -205,6 +260,9 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
       accountId: 'next-account',
       workerName: 'next-worker',
       apiBaseUrl: 'https://next-worker.next-subdomain.workers.dev',
+      d1DatabaseId: 'next-db-id',
+      d1DatabaseName: 'next-db',
+      r2BucketName: 'next-storage',
     })
 
     const updatedServerEnv = await readFile(path.join(targetRoot, 'server', '.env.local'), 'utf8')
@@ -215,6 +273,9 @@ test('writeCloudflareServerLocalEnvFile creates server env file and preserves an
       updatedServerEnv,
       /^CLOUDFLARE_API_BASE_URL=https:\/\/next-worker\.next-subdomain\.workers\.dev$/m,
     )
+    assert.match(updatedServerEnv, /^CLOUDFLARE_D1_DATABASE_ID=next-db-id$/m)
+    assert.match(updatedServerEnv, /^CLOUDFLARE_D1_DATABASE_NAME=next-db$/m)
+    assert.match(updatedServerEnv, /^CLOUDFLARE_R2_BUCKET_NAME=next-storage$/m)
     assert.match(updatedServerEnv, /^CLOUDFLARE_API_TOKEN=secret-token$/m)
     assert.match(updatedServerEnv, /^EXTRA=value$/m)
   } finally {
@@ -232,6 +293,9 @@ test('finalizeCloudflareProvisioning writes env files when api base url is avail
         accountId: 'account-123',
         workerName: 'ebook-miniapp',
         apiBaseUrl: 'https://ebook-miniapp.team-ebook.workers.dev',
+        d1DatabaseId: 'database-123',
+        d1DatabaseName: 'ebook-db',
+        r2BucketName: 'ebook-storage',
         mode: 'existing',
       },
     })
@@ -245,11 +309,20 @@ test('finalizeCloudflareProvisioning writes env files when api base url is avail
     )
     assert.match(serverEnv, /^CLOUDFLARE_ACCOUNT_ID=account-123$/m)
     assert.match(serverEnv, /^CLOUDFLARE_WORKER_NAME=ebook-miniapp$/m)
-    assert.equal(notes[0]?.title, 'Cloudflare API URL 작성 완료')
+    assert.match(serverEnv, /^CLOUDFLARE_D1_DATABASE_ID=database-123$/m)
+    assert.match(serverEnv, /^CLOUDFLARE_R2_BUCKET_NAME=ebook-storage$/m)
+    assert.equal(notes[0]?.title, 'Cloudflare API URL을 적어뒀어요')
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /deploy/)
+    assert.match(notes[0]?.body ?? '', /D1/)
+    assert.match(notes[0]?.body ?? '', /R2/)
     assert.match(notes[0]?.body ?? '', /CLOUDFLARE_API_TOKEN/)
-    assert.match(notes[0]?.body ?? '', /직접 채워/)
+    assert.match(notes[0]?.body ?? '', /Edit Cloudflare Workers/)
+    assert.match(notes[0]?.body ?? '', /dash\.cloudflare\.com\/profile\/api-tokens/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /developers\.cloudflare\.com\/workers\/wrangler\/migration\/v1-to-v2\/wrangler-legacy\/authentication/,
+    )
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -264,6 +337,9 @@ test('finalizeCloudflareProvisioning skips token guidance when server api token 
       path.join(targetRoot, 'server', '.env.local'),
       [
         '# Cloudflare Worker metadata for this workspace.',
+        'CLOUDFLARE_D1_DATABASE_ID=database-123',
+        'CLOUDFLARE_D1_DATABASE_NAME=ebook-db',
+        'CLOUDFLARE_R2_BUCKET_NAME=ebook-storage',
         'CLOUDFLARE_API_TOKEN=already-set-token',
         '',
       ].join('\n'),
@@ -276,11 +352,14 @@ test('finalizeCloudflareProvisioning skips token guidance when server api token 
         accountId: 'account-123',
         workerName: 'ebook-miniapp',
         apiBaseUrl: 'https://ebook-miniapp.team-ebook.workers.dev',
+        d1DatabaseId: 'database-123',
+        d1DatabaseName: 'ebook-db',
+        r2BucketName: 'ebook-storage',
         mode: 'existing',
       },
     })
 
-    assert.doesNotMatch(notes[0]?.body ?? '', /직접 채워/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /Edit Cloudflare Workers/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -296,17 +375,21 @@ test('finalizeCloudflareProvisioning falls back to manual setup guidance when ap
         accountId: 'account-123',
         workerName: 'ebook-miniapp',
         apiBaseUrl: null,
+        d1DatabaseId: 'database-123',
+        d1DatabaseName: 'ebook-db',
+        r2BucketName: 'ebook-storage',
         mode: 'existing',
       },
     })
 
     const serverEnv = await readFile(path.join(targetRoot, 'server', '.env.local'), 'utf8')
 
-    assert.equal(notes[0]?.title, 'Cloudflare API URL 안내')
+    assert.equal(notes[0]?.title, 'Cloudflare API URL을 이렇게 넣어 주세요')
     assert.match(notes[0]?.body ?? '', /ebook-miniapp/)
     assert.match(notes[0]?.body ?? '', /frontend\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.match(serverEnv, /^CLOUDFLARE_ACCOUNT_ID=account-123$/m)
+    assert.match(serverEnv, /^CLOUDFLARE_D1_DATABASE_ID=database-123$/m)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }

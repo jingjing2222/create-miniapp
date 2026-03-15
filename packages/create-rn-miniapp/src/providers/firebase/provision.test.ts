@@ -143,7 +143,7 @@ test('formatFirebaseAddFirebaseFailureMessage explains permission-denied failure
     ].join('\n'),
   })
 
-  assert.match(message, /Firebase 리소스 연결 단계가 실패했습니다/)
+  assert.match(message, /Firebase 리소스를 붙이는 중에 실패했어요/)
   assert.match(message, /PERMISSION_DENIED/)
   assert.match(message, /Firebase Terms of Service/)
   assert.match(message, /Owner 또는 Editor/)
@@ -448,6 +448,94 @@ test('ensureFirebaseBuildServiceAccountPermissions stops with a clear error when
   )
 })
 
+test('ensureFirebaseBuildServiceAccountPermissions retries build service account checks and shows attempt progress before succeeding', async () => {
+  const attempts: string[] = []
+  const waits: number[] = []
+  let serviceAccountExistsAttempt = 0
+
+  await ensureFirebaseBuildServiceAccountPermissions({
+    cwd: '/tmp/ebook',
+    projectId: 'miniapp-8000b',
+    ensureGcloudInstalled: async () => '/tmp/google-cloud-sdk/bin/gcloud',
+    getDefaultBuildServiceAccount: async () => '563134134914@cloudbuild.gserviceaccount.com',
+    ensureBuildServiceAccountExists: async () => {
+      serviceAccountExistsAttempt += 1
+      return serviceAccountExistsAttempt >= 3
+    },
+    getProjectIamPolicy: async () => ({
+      bindings: [
+        {
+          role: 'roles/cloudbuild.builds.builder',
+          members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
+        },
+        {
+          role: 'roles/run.builder',
+          members: ['serviceAccount:563134134914@cloudbuild.gserviceaccount.com'],
+        },
+      ],
+    }),
+    addProjectIamBinding: async () => {
+      throw new Error('addProjectIamBinding should not be called')
+    },
+    logMessage: (message) => {
+      attempts.push(message)
+    },
+    wait: async (ms) => {
+      waits.push(ms)
+    },
+  })
+
+  assert.equal(serviceAccountExistsAttempt, 3)
+  assert.deepEqual(waits, [750, 750])
+  assert.deepEqual(attempts, [
+    'Cloud Build 기본 service account를 확인하는 중이에요. (1/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (2/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (3/5)',
+  ])
+})
+
+test('ensureFirebaseBuildServiceAccountPermissions retries build service account checks five times before failing', async () => {
+  const attempts: string[] = []
+  const waits: number[] = []
+  let serviceAccountExistsAttempt = 0
+
+  await assert.rejects(
+    ensureFirebaseBuildServiceAccountPermissions({
+      cwd: '/tmp/ebook',
+      projectId: 'miniapp-8000b',
+      ensureGcloudInstalled: async () => '/tmp/google-cloud-sdk/bin/gcloud',
+      getDefaultBuildServiceAccount: async () => '563134134914@cloudbuild.gserviceaccount.com',
+      ensureBuildServiceAccountExists: async () => {
+        serviceAccountExistsAttempt += 1
+        return false
+      },
+      getProjectIamPolicy: async () => {
+        throw new Error('getProjectIamPolicy should not be called')
+      },
+      addProjectIamBinding: async () => {
+        throw new Error('addProjectIamBinding should not be called')
+      },
+      logMessage: (message) => {
+        attempts.push(message)
+      },
+      wait: async (ms) => {
+        waits.push(ms)
+      },
+    }),
+    /Cloud Build 기본 service account .* 존재하지 않습니다/,
+  )
+
+  assert.equal(serviceAccountExistsAttempt, 5)
+  assert.deepEqual(waits, [750, 750, 750, 750])
+  assert.deepEqual(attempts, [
+    'Cloud Build 기본 service account를 확인하는 중이에요. (1/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (2/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (3/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (4/5)',
+    'Cloud Build 기본 service account를 확인하는 중이에요. (5/5)',
+  ])
+})
+
 test('isFirebaseFunctionsBuildServiceAccountPermissionError detects Cloud Build IAM failures', () => {
   assert.equal(
     isFirebaseFunctionsBuildServiceAccountPermissionError(
@@ -494,10 +582,11 @@ test('formatFirebaseManualSetupNote includes frontend, backoffice, and server gu
     hasBackoffice: true,
     projectId: 'ebook-firebase',
     functionRegion: 'asia-northeast3',
+    hasConfiguredToken: false,
     hasConfiguredCredentials: false,
   })
 
-  assert.equal(note.title, 'Firebase 환경 변수 안내')
+  assert.equal(note.title, 'Firebase 연결 값을 이렇게 넣어 주세요')
   assert.match(
     note.body,
     /console\.firebase\.google\.com\/project\/ebook-firebase\/settings\/general/,
@@ -580,6 +669,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
         '# Firebase project metadata for this workspace.',
         'FIREBASE_PROJECT_ID=ebook-firebase',
         'FIREBASE_FUNCTION_REGION=asia-northeast3',
+        'FIREBASE_TOKEN=',
         'GOOGLE_APPLICATION_CREDENTIALS=',
         '',
       ].join('\n'),
@@ -591,6 +681,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
         '# Firebase project metadata for this workspace.',
         'FIREBASE_PROJECT_ID=old-project',
         'FIREBASE_FUNCTION_REGION=us-central1',
+        'FIREBASE_TOKEN=firebase-token',
         'GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase.json',
         'EXTRA=value',
         '',
@@ -608,6 +699,7 @@ test('writeFirebaseServerLocalEnvFile creates server env file and preserves cred
 
     assert.match(updatedServerEnv, /^FIREBASE_PROJECT_ID=next-project$/m)
     assert.match(updatedServerEnv, /^FIREBASE_FUNCTION_REGION=europe-west1$/m)
+    assert.match(updatedServerEnv, /^FIREBASE_TOKEN=firebase-token$/m)
     assert.match(updatedServerEnv, /^GOOGLE_APPLICATION_CREDENTIALS=\/tmp\/firebase\.json$/m)
     assert.match(updatedServerEnv, /^EXTRA=value$/m)
   } finally {
@@ -643,9 +735,14 @@ test('finalizeFirebaseProvisioning writes env files when sdk config is available
     assert.match(frontendEnv, /^MINIAPP_FIREBASE_PROJECT_ID=ebook-firebase$/m)
     assert.match(serverEnv, /^FIREBASE_PROJECT_ID=ebook-firebase$/m)
     assert.match(serverEnv, /^FIREBASE_FUNCTION_REGION=asia-northeast3$/m)
-    assert.equal(notes[0]?.title, 'Firebase 환경 변수 작성 완료')
+    assert.match(serverEnv, /^FIREBASE_TOKEN=$/m)
+    assert.equal(notes[0]?.title, 'Firebase 연결 값을 적어뒀어요')
     assert.match(notes[0]?.body ?? '', /server\/package\.json 의 deploy/)
-    assert.match(notes[0]?.body ?? '', /GOOGLE_APPLICATION_CREDENTIALS 는 비어 있으니/)
+    assert.match(notes[0]?.body ?? '', /FIREBASE_TOKEN/)
+    assert.match(notes[0]?.body ?? '', /firebase login:ci/)
+    assert.match(notes[0]?.body ?? '', /firebase\.google\.com\/docs\/cli/)
+    assert.match(notes[0]?.body ?? '', /GOOGLE_APPLICATION_CREDENTIALS 는 비어 있어요/)
+    assert.match(notes[0]?.body ?? '', /iam-admin\/serviceaccounts\?project=ebook-firebase/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -679,12 +776,16 @@ test('finalizeFirebaseProvisioning falls back to manual setup guidance when sdk 
 
     const serverEnv = await readFile(path.join(targetRoot, 'server', '.env.local'), 'utf8')
 
-    assert.equal(notes[0]?.title, 'Firebase 환경 변수 안내')
+    assert.equal(notes[0]?.title, 'Firebase 연결 값을 이렇게 넣어 주세요')
     assert.match(notes[0]?.body ?? '', /frontend\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.doesNotMatch(notes[0]?.body ?? '', /CI나 비대화형 배포가 필요할 때만 채우면 됩니다/)
     assert.match(serverEnv, /^FIREBASE_PROJECT_ID=ebook-firebase$/m)
+    assert.match(serverEnv, /^FIREBASE_TOKEN=$/m)
     assert.match(serverEnv, /^GOOGLE_APPLICATION_CREDENTIALS=\/tmp\/firebase\.json$/m)
+    assert.match(notes[0]?.body ?? '', /FIREBASE_TOKEN/)
+    assert.match(notes[0]?.body ?? '', /firebase login:ci/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /iam-admin\/serviceaccounts\?project=ebook-firebase/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }

@@ -65,6 +65,8 @@ const FALLBACK_GRANITE_PLUGIN_VERSION = '1.0.7'
 const WRANGLER_PACKAGE_NAME = 'wrangler'
 const CLOUDFLARE_ROOT_GITIGNORE_ENTRY = 'server/worker-configuration.d.ts'
 const CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY = '**/server/worker-configuration.d.ts'
+const CLOUDFLARE_D1_BINDING_NAME = 'DB'
+const CLOUDFLARE_R2_BINDING_NAME = 'STORAGE'
 const FIREBASE_ROOT_GITIGNORE_ENTRY = 'server/functions/lib/'
 const FIREBASE_ROOT_BIOME_IGNORE_ENTRY = '**/server/functions/lib/**'
 const FIREBASE_YARN_PACKAGE_EXTENSION_KEY = '"@apphosting/build@*"'
@@ -421,6 +423,95 @@ async function writeTextFile(filePath: string, contents: string) {
   await writeFile(filePath, contents, 'utf8')
 }
 
+function renderCloudflareDeployScript(tokens: TemplateTokens) {
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const command = packageManager.dlx('wrangler', ['deploy'])
+
+  return [
+    "import { spawnSync } from 'node:child_process'",
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    "const envPath = path.join(serverRoot, '.env.local')",
+    '',
+    'function stripWrappingQuotes(value) {',
+    `  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {`,
+    '    return value.slice(1, -1)',
+    '  }',
+    '',
+    '  return value',
+    '}',
+    '',
+    'function loadLocalEnv(filePath) {',
+    '  if (!existsSync(filePath)) {',
+    '    return',
+    '  }',
+    '',
+    "  const source = readFileSync(filePath, 'utf8')",
+    '',
+    '  for (const line of source.split(/\\r?\\n/)) {',
+    '    const trimmed = line.trim()',
+    '',
+    "    if (!trimmed || trimmed.startsWith('#')) {",
+    '      continue',
+    '    }',
+    '',
+    "    const separatorIndex = trimmed.indexOf('=')",
+    '    if (separatorIndex <= 0) {',
+    '      continue',
+    '    }',
+    '',
+    '    const key = trimmed.slice(0, separatorIndex).trim()',
+    '    const value = stripWrappingQuotes(trimmed.slice(separatorIndex + 1).trim())',
+    '',
+    '    if (process.env[key] === undefined) {',
+    '      process.env[key] = value',
+    '    }',
+    '  }',
+    '}',
+    '',
+    'loadLocalEnv(envPath)',
+    '',
+    "const apiToken = process.env.CLOUDFLARE_API_TOKEN?.trim() ?? ''",
+    "const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? ''",
+    '',
+    'const commandEnv = { ...process.env }',
+    '',
+    'if (apiToken) {',
+    '  commandEnv.CLOUDFLARE_API_TOKEN = apiToken',
+    '} else {',
+    '  delete commandEnv.CLOUDFLARE_API_TOKEN',
+    '}',
+    '',
+    'if (accountId) {',
+    '  commandEnv.CLOUDFLARE_ACCOUNT_ID = accountId',
+    '} else {',
+    '  delete commandEnv.CLOUDFLARE_ACCOUNT_ID',
+    '}',
+    '',
+    `const packageManagerCommand = process.platform === 'win32' ? '${command.command}.cmd' : '${command.command}'`,
+    `const result = spawnSync(packageManagerCommand, ${JSON.stringify(command.args)}, {`,
+    '  cwd: serverRoot,',
+    "  stdio: 'inherit',",
+    '  env: commandEnv,',
+    '})',
+    '',
+    "if (typeof result.status === 'number') {",
+    '  process.exit(result.status)',
+    '}',
+    '',
+    'if (result.error) {',
+    '  throw result.error',
+    '}',
+    '',
+    'process.exit(1)',
+    '',
+  ].join('\n')
+}
+
 function renderSupabaseServerReadme(tokens: TemplateTokens) {
   return [
     '# server',
@@ -492,7 +583,7 @@ function renderCloudflareServerReadme(tokens: TemplateTokens) {
     `- \`cd server && ${tokens.packageManagerRunCommand} dev\`: 로컬 Worker 개발 서버를 실행해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} build\`: \`wrangler deploy --dry-run\`으로 번들을 검증해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`wrangler types\`와 TypeScript 검사를 함께 실행해요.`,
-    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: \`wrangler.jsonc\` 기준으로 원격 Worker를 배포해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: \`server/.env.local\`의 auth 값을 읽고 \`wrangler.jsonc\` 기준으로 원격 Worker를 배포해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} test\`: placeholder 테스트를 실행해요.`,
     '',
     '## Miniapp / Backoffice 연결',
@@ -502,12 +593,13 @@ function renderCloudflareServerReadme(tokens: TemplateTokens) {
     '- backoffice가 있으면 `backoffice/src/lib/api.ts`에서 `VITE_API_BASE_URL` 기반 helper를 사용해요.',
     '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_API_BASE_URL`을 사용해요.',
     '- provisioning이 성공하면 frontend/backoffice `.env.local`에 Worker URL이 자동으로 기록돼요.',
+    `- Worker 코드는 \`${CLOUDFLARE_D1_BINDING_NAME}\` D1 binding과 \`${CLOUDFLARE_R2_BINDING_NAME}\` R2 binding을 사용할 수 있어요.`,
     '',
     '## 운영 메모',
     '',
     '- `worker-configuration.d.ts`는 `wrangler types`가 생성하는 파일이에요.',
-    '- `server/.env.local`은 Cloudflare account/worker 메타데이터를 기록해요.',
-    '- 후속 자동화가 필요하면 `server/.env.local`의 `CLOUDFLARE_API_TOKEN`을 직접 채워주세요.',
+    '- `server/.env.local`은 Cloudflare account/worker/D1/R2 메타데이터를 기록해요.',
+    '- 후속 자동화나 비대화형 재배포가 필요하면 `server/.env.local`의 `CLOUDFLARE_API_TOKEN`을 채워주세요.',
     '',
   ].join('\n')
 }
@@ -536,7 +628,7 @@ function renderFirebaseServerReadme(tokens: TemplateTokens) {
     '',
     `- \`cd server && ${tokens.packageManagerRunCommand} build\`: \`server/functions\`의 TypeScript를 빌드해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`server/functions\` 타입 검사를 실행해요.`,
-    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: Firebase Functions를 현재 project로 배포해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: \`server/.env.local\`의 auth 값을 읽고 Firebase Functions를 현재 project로 배포해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} logs\`: Firebase Functions 로그를 확인해요.`,
     '',
     '## Miniapp / Backoffice 연결',
@@ -550,7 +642,7 @@ function renderFirebaseServerReadme(tokens: TemplateTokens) {
     '## 운영 메모',
     '',
     '- `server/.env.local`의 `FIREBASE_PROJECT_ID`, `FIREBASE_FUNCTION_REGION`은 배포 기준 메타데이터예요.',
-    '- `server/.env.local`의 `GOOGLE_APPLICATION_CREDENTIALS`는 CI나 비대화형 배포가 필요할 때만 채우면 돼요.',
+    '- `server/.env.local`의 `FIREBASE_TOKEN` 또는 `GOOGLE_APPLICATION_CREDENTIALS`를 채우면 비대화형 deploy에 사용할 수 있어요.',
     '- `server/functions/src/index.ts`의 기본 HTTP 함수 이름은 `api`예요.',
     '',
   ].join('\n')
@@ -1194,7 +1286,7 @@ export async function patchCloudflareServerWorkspace(
     ],
     upsertSections: {
       scripts: {
-        deploy: 'wrangler deploy',
+        deploy: 'node ./scripts/cloudflare-deploy.mjs',
         build: 'wrangler deploy --dry-run',
         typecheck: 'wrangler types && tsc --noEmit',
         ...(packageJson.scripts?.test === 'vitest'
@@ -1210,12 +1302,15 @@ export async function patchCloudflareServerWorkspace(
   })
   await patchWranglerConfigSchema(serverRoot, packageJson)
   await writeTextFile(path.join(serverRoot, 'README.md'), renderCloudflareServerReadme(tokens))
+  await writeTextFile(
+    path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
+    renderCloudflareDeployScript(tokens),
+  )
   if (options.packageManager === 'npm') {
     await writeWorkspaceNpmrc(serverRoot)
   }
   await ensureRootGitignoreEntry(targetRoot, CLOUDFLARE_ROOT_GITIGNORE_ENTRY)
   await ensureRootBiomeIgnoreEntry(targetRoot, CLOUDFLARE_ROOT_BIOME_IGNORE_ENTRY)
-  await removePathIfExists(path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'))
 
   await Promise.all(
     CLOUDFLARE_SERVER_LOCAL_FILES.map((fileName) =>
