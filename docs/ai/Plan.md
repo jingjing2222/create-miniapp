@@ -1,6 +1,20 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: watch 모드 `vitest` 스크립트 정규화
+1. 문제
+   - 생성물 workspace가 `test: "vitest"`를 그대로 가지면 루트 `nx test`에서 watch 모드로 붙잡혀 종료되지 않는다.
+   - 특히 backoffice나 Cloudflare server처럼 외부 scaffold가 넣어준 기본 Vitest 스크립트가 그대로 남을 수 있다.
+2. 방향
+   - workspace patch 단계에서 plain `vitest` test script를 `vitest run`으로 정규화한다.
+   - placeholder test를 넣는 기존 규칙은 유지하고, 이미 `vitest run` 등 non-watch 스크립트인 경우는 건드리지 않는다.
+3. 테스트
+   - backoffice package patch가 `vitest`를 `vitest run`으로 바꾸는지 검증
+   - Cloudflare server patch가 `vitest`를 `vitest run`으로 바꾸는지 검증
+4. 완료 기준
+   - 루트 `nx test`가 watch 모드 때문에 멈추지 않는다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: `--with-server` 제거하고 `--server-provider`로 단일화
 1. 문제
    - 현재 CLI에는 `--with-server`와 `--server-provider`가 같이 있어서 `server` 생성 책임이 중복된다.
