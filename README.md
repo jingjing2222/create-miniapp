@@ -22,7 +22,7 @@
 - TDS, Granite, AppInToss API를 빠르게 탐색할 수 있게 engineering docs와 인덱스 문서를 넣어줘요.
 - 루트 monorepo에 `nx`, `biome`, workspace manifest, `project.json`을 맞춰서 검증 흐름을 통일해요.
 - provider를 선택하면 인증, 기존 리소스 선택 또는 신규 리소스 생성, local workspace 연결, `.env.local` 작성까지 이어지는 IaC 흐름을 제공해요.
-- tRPC를 같이 고르면 `packages/contracts`를 boundary schema SSOT로, `packages/app-router`를 route shape와 `AppRouter` SSOT로 만들고, `frontend`/`backoffice`는 상대 경로 대신 shared type만 가져오게 맞춰줘요.
+- tRPC를 같이 고르면 `packages/contracts`를 boundary schema SSOT로, `packages/app-router`를 route shape와 `AppRouter` SSOT로 만들고, `frontend`/`backoffice`는 상대 경로 대신 shared type만 가져오게 맞춰줘요. 이때 루트 `verify`에는 boundary type checker도 같이 들어가서, 같은 경계 타입을 다른 workspace에 중복 선언하면 바로 막아요.
 - `server` 워크스페이스별 `README.md`를 생성해서 디렉터리 구조, 주요 스크립트, `frontend`/`backoffice` 연결 방식을 설명해줘요.
 
 ## 빠른 시작

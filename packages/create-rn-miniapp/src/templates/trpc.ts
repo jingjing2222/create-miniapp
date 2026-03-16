@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { patchRootPackageJsonSource } from '../patching/package-json.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import type { PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
@@ -160,6 +161,7 @@ function renderContractsReadme() {
     '',
     '- 경계 타입이 바뀌면 먼저 여기 schema를 수정해요.',
     '- client와 server는 같은 schema를 runtime과 type 양쪽에서 공유해요.',
+    '- 루트 `verify`에는 boundary type checker가 같이 들어 있어서, 같은 경계 타입을 다른 workspace에서 다시 선언하면 바로 막아요.',
     '',
   ].join('\n')
 }
@@ -194,6 +196,7 @@ function renderAppRouterReadme(options: ApplyTrpcWorkspaceTemplateOptions) {
     '## 운영 메모',
     '',
     '- route shape를 바꾸고 싶으면 먼저 `packages/contracts`와 `packages/app-router`를 확인해요.',
+    '- 루트 `verify`는 `packages/contracts`의 boundary type 이름을 기준으로 중복 선언을 같이 검사해요.',
     '- provider-specific runtime adapter는 각 `server` workspace 안에 남겨요.',
     '',
   ].join('\n')
@@ -294,13 +297,168 @@ function renderAppRouterIndexSource() {
   ].join('\n')
 }
 
+function renderBoundaryTypesCheckScript() {
+  return [
+    "import { readdirSync, readFileSync, statSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    '',
+    'const rootDir = process.cwd()',
+    "const contractsRoot = path.join(rootDir, 'packages', 'contracts', 'src')",
+    'const scanRootCandidates = [',
+    "  path.join(rootDir, 'frontend'),",
+    "  path.join(rootDir, 'backoffice'),",
+    "  path.join(rootDir, 'server'),",
+    "  path.join(rootDir, 'packages', 'app-router'),",
+    ']',
+    "const allowedExtensions = new Set(['.ts', '.tsx', '.mts', '.cts'])",
+    "const ignoredDirectoryNames = new Set(['node_modules', 'dist', '.nx', '.turbo', 'coverage'])",
+    '',
+    'function walkTypescriptFiles(targetDir, collector = []) {',
+    '  let entries = []',
+    '',
+    '  try {',
+    '    entries = readdirSync(targetDir, { withFileTypes: true })',
+    '  } catch {',
+    '    return collector',
+    '  }',
+    '',
+    '  for (const entry of entries) {',
+    '    if (entry.isDirectory()) {',
+    '      if (ignoredDirectoryNames.has(entry.name)) {',
+    '        continue',
+    '      }',
+    '',
+    '      walkTypescriptFiles(path.join(targetDir, entry.name), collector)',
+    '      continue',
+    '    }',
+    '',
+    '    const extension = path.extname(entry.name)',
+    '    if (!allowedExtensions.has(extension)) {',
+    '      continue',
+    '    }',
+    '',
+    '    collector.push(path.join(targetDir, entry.name))',
+    '  }',
+    '',
+    '  return collector',
+    '}',
+    '',
+    'function toRepoPath(filePath) {',
+    "  return path.relative(rootDir, filePath).split(path.sep).join('/')",
+    '}',
+    '',
+    'function readFileOrThrow(filePath) {',
+    "  return readFileSync(filePath, 'utf8')",
+    '}',
+    '',
+    'function collectContractTypes() {',
+    '  const violations = []',
+    '  const boundaryTypeNames = new Set()',
+    '  const contractFiles = walkTypescriptFiles(contractsRoot)',
+    '',
+    '  for (const filePath of contractFiles) {',
+    '    const source = readFileOrThrow(filePath)',
+    '',
+    '    for (const match of source.matchAll(/\\bexport\\s+interface\\s+([A-Za-z0-9_]+)/g)) {',
+    '      violations.push({',
+    '        filePath: toRepoPath(filePath),',
+    '        name: match[1],',
+    "        reason: 'packages/contracts에서는 export interface를 쓰지 말고 Zod schema에서 z.infer로만 boundary type을 파생해야 해요.',",
+    '      })',
+    '    }',
+    '',
+    '    for (const match of source.matchAll(/\\bexport\\s+type\\s+([A-Za-z0-9_]+)\\s*=/g)) {',
+    '      const name = match[1]',
+    '      const snippet = source.slice(match.index, match.index + 400)',
+    '',
+    '      if (!/z\\.infer\\s*</.test(snippet)) {',
+    '        violations.push({',
+    '          filePath: toRepoPath(filePath),',
+    '          name,',
+    "          reason: 'packages/contracts의 export type은 z.infer<typeof ...Schema>로만 선언해야 해요.',",
+    '        })',
+    '        continue',
+    '      }',
+    '',
+    '      boundaryTypeNames.add(name)',
+    '    }',
+    '  }',
+    '',
+    '  return {',
+    '    boundaryTypeNames,',
+    '    violations,',
+    '  }',
+    '}',
+    '',
+    'function collectDuplicateBoundaryTypes(boundaryTypeNames) {',
+    '  const violations = []',
+    '  const scannedRoots = scanRootCandidates.filter((candidate) => {',
+    '    try {',
+    '      return statSync(candidate).isDirectory()',
+    '    } catch {',
+    '      return false',
+    '    }',
+    '  })',
+    '',
+    '  for (const scanRoot of scannedRoots) {',
+    '    const files = walkTypescriptFiles(scanRoot)',
+    '',
+    '    for (const filePath of files) {',
+    '      const source = readFileOrThrow(filePath)',
+    '      const repoPath = toRepoPath(filePath)',
+    '',
+    '      for (const boundaryTypeName of boundaryTypeNames) {',
+    '        const declarationPattern = new RegExp(',
+    '          `\\\\b(?:export\\\\s+)?(?:declare\\\\s+)?(?:type\\\\s+${boundaryTypeName}\\\\s*=|interface\\\\s+${boundaryTypeName}\\\\b)`,',
+    "          'm',",
+    '        )',
+    '',
+    '        if (!declarationPattern.test(source)) {',
+    '          continue',
+    '        }',
+    '',
+    '        violations.push({',
+    '          filePath: repoPath,',
+    '          name: boundaryTypeName,',
+    "          reason: '같은 boundary type을 다른 workspace에서 다시 선언하지 말고 packages/contracts의 schema와 z.infer 결과를 그대로 가져와야 해요.',",
+    '        })',
+    '      }',
+    '    }',
+    '  }',
+    '',
+    '  return violations',
+    '}',
+    '',
+    'const { boundaryTypeNames, violations } = collectContractTypes()',
+    'violations.push(...collectDuplicateBoundaryTypes(boundaryTypeNames))',
+    '',
+    'if (violations.length > 0) {',
+    "  console.error('Boundary types from schema only: client-server 경계 타입은 packages/contracts의 Zod schema에서 z.infer로만 파생해야 해요.')",
+    "  console.error('중복 선언이나 수동 DTO 정의를 정리하고 다시 verify를 실행해 주세요.\\n')",
+    '',
+    '  for (const violation of violations) {',
+    '    console.error(`- ${violation.name} (${violation.filePath})`)',
+    '    console.error(`  ${violation.reason}`)',
+    '  }',
+    '',
+    '  process.exit(1)',
+    '}',
+    '',
+    "console.log('[boundary-types] packages/contracts를 기준으로 경계 타입 중복 선언이 없는지 확인했어요.')",
+    '',
+  ].join('\n')
+}
+
 export async function applyTrpcWorkspaceTemplate(
   targetRoot: string,
   tokens: TemplateTokens,
   options: ApplyTrpcWorkspaceTemplateOptions,
 ) {
+  const adapter = getPackageManagerAdapter(tokens.packageManager)
   const contractsRoot = path.join(targetRoot, CONTRACTS_WORKSPACE_PATH)
   const appRouterRoot = path.join(targetRoot, APP_ROUTER_WORKSPACE_PATH)
+  const rootPackageJsonPath = path.join(targetRoot, 'package.json')
 
   await writeJsonFile(
     path.join(contractsRoot, 'package.json'),
@@ -341,4 +499,27 @@ export async function applyTrpcWorkspaceTemplate(
   )
   await writeTextFile(path.join(appRouterRoot, 'src', 'root.ts'), renderAppRouterRootSource())
   await writeTextFile(path.join(appRouterRoot, 'src', 'index.ts'), renderAppRouterIndexSource())
+  await writeTextFile(
+    path.join(targetRoot, 'scripts', 'verify-boundary-types.mjs'),
+    renderBoundaryTypesCheckScript(),
+  )
+
+  const rootPackageJsonSource = await readFile(rootPackageJsonPath, 'utf8')
+  const rootPackageJson = JSON.parse(rootPackageJsonSource) as {
+    scripts?: Record<string, string>
+    workspaces?: string[]
+  }
+  const rootVerifyScript = adapter.rootVerifyScript()
+  const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
+    packageManagerField: adapter.packageManagerField,
+    scripts: {
+      ...(rootPackageJson.scripts ?? {}),
+      'boundary-types:check': 'node ./scripts/verify-boundary-types.mjs',
+      verify: `${rootVerifyScript} && ${adapter.runScript('boundary-types:check')}`,
+    },
+    workspaces:
+      adapter.workspaceManifestFile === null ? (rootPackageJson.workspaces ?? null) : null,
+  })
+
+  await writeFile(rootPackageJsonPath, nextRootPackageJsonSource, 'utf8')
 }

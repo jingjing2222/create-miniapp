@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -166,6 +167,15 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     path.join(targetRoot, 'packages', 'app-router', 'src', 'root.ts'),
     'utf8',
   )
+  const rootPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const boundaryCheckScript = await readFile(
+    path.join(targetRoot, 'scripts', 'verify-boundary-types.mjs'),
+    'utf8',
+  )
 
   assert.equal(contractsPackageJson.name, '@workspace/contracts')
   assert.equal(contractsPackageJson.dependencies?.zod, '^4.3.6')
@@ -189,6 +199,83 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
   assert.match(contractsIndexSource, /ExampleEchoInputSchema/)
   assert.match(appRouterIndexSource, /export type \{ AppRouter \} from '\.\/root\.ts'/)
   assert.match(appRouterRootSource, /from '\.\/routers\/example\.ts'/)
+  assert.equal(
+    rootPackageJson.scripts?.['boundary-types:check'],
+    'node ./scripts/verify-boundary-types.mjs',
+  )
+  assert.equal(
+    rootPackageJson.scripts?.verify,
+    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm boundary-types:check',
+  )
+  assert.match(boundaryCheckScript, /packages\/contracts/)
+  assert.match(boundaryCheckScript, /z\.infer/)
+  assert.match(boundaryCheckScript, /Boundary types from schema only/)
+})
+
+test('generated tRPC boundary checker passes when boundary types stay in packages/contracts', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyRootTemplates(targetRoot, tokens, [
+    'frontend',
+    'server',
+    'packages/contracts',
+    'packages/app-router',
+  ])
+  await applyTrpcWorkspaceTemplate(targetRoot, tokens, { serverProvider: 'cloudflare' })
+  await mkdir(path.join(targetRoot, 'frontend', 'src', 'lib'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'frontend', 'src', 'lib', 'trpc.ts'),
+    [
+      "import type { AppRouter } from '@workspace/app-router'",
+      '',
+      'export type FrontendRouter = AppRouter',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  const result = spawnSync(process.execPath, ['./scripts/verify-boundary-types.mjs'], {
+    cwd: targetRoot,
+    encoding: 'utf8',
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('generated tRPC boundary checker rejects duplicate contract types outside packages/contracts', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyRootTemplates(targetRoot, tokens, [
+    'frontend',
+    'server',
+    'packages/contracts',
+    'packages/app-router',
+  ])
+  await applyTrpcWorkspaceTemplate(targetRoot, tokens, { serverProvider: 'cloudflare' })
+  await mkdir(path.join(targetRoot, 'frontend', 'src', 'lib'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'frontend', 'src', 'lib', 'duplicate-contract.ts'),
+    [
+      'export type ExampleEchoOutput = {',
+      '  message: string',
+      '  requestId: string | null',
+      '}',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  const result = spawnSync(process.execPath, ['./scripts/verify-boundary-types.mjs'], {
+    cwd: targetRoot,
+    encoding: 'utf8',
+  })
+
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /ExampleEchoOutput/)
+  assert.match(result.stderr, /packages\/contracts/)
+  assert.match(result.stderr, /duplicate-contract\.ts/)
 })
 
 test('applyDocsTemplates keeps optional workspace docs out of the base copy', async (t) => {

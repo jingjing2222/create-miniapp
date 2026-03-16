@@ -1,6 +1,22 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: tRPC boundary type 중복 선언을 verify 단계에서 차단
+1. 문제
+   - 지금은 AGENTS와 engineering docs에만 `schema -> z.infer` 규칙이 있어서, 컨텍스트를 놓치면 다른 workspace에 DTO를 다시 선언해도 CI에서 바로 막지 못한다.
+   - 특히 `packages/contracts`와 `packages/app-router`를 같이 쓰는 tRPC repo는 boundary type SSOT가 깨지면 drift가 빠르게 커진다.
+2. 방향
+   - tRPC를 생성한 repo에만 루트 `boundary-types:check` 스크립트를 같이 만든다.
+   - checker는 `packages/contracts`의 exported `z.infer` boundary type 이름을 기준으로, 다른 workspace에서 같은 이름의 `type`/`interface`를 다시 선언하면 실패하게 한다.
+   - `packages/contracts` 안에서도 `export interface`와 non-`z.infer` boundary type 선언을 막는다.
+   - 루트 `verify`에 이 checker를 자동으로 붙이고, tRPC engineering docs에도 이유를 같이 적는다.
+3. 테스트
+   - generated repo에 checker script와 root verify 연결이 생기는지 template test로 검증한다.
+   - generated repo에서 정상 구조면 통과하고, `frontend`에 duplicate boundary type을 만들면 실패하는지 실행 테스트를 추가한다.
+4. 완료 기준
+   - tRPC repo는 `pnpm verify`에서 boundary type 중복 선언까지 자동으로 차단한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: 누락된 Cloudflare env fix의 버전 PR 생성
 1. 문제
    - Cloudflare server env fix가 `main`에 changeset 없이 머지됐다.
