@@ -1,5 +1,18 @@
 # create-rn-miniapp
 
+## 0.0.16
+
+### Patch Changes
+
+- Fix Cloudflare server env scaffolding so the public Worker URL is no longer written to `server/.env.local`.
+
+  - Keep the public Worker URL in frontend and backoffice env files only
+  - Preserve Cloudflare deploy metadata in `server/.env.local` without `CLOUDFLARE_API_BASE_URL`
+  - Remove legacy `CLOUDFLARE_API_BASE_URL` entries on subsequent server env writes
+
+- Updated dependencies
+  - @create-rn-miniapp/scaffold-templates@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

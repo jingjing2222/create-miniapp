@@ -1,6 +1,21 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: 누락된 Cloudflare env fix의 버전 PR 생성
+1. 문제
+   - Cloudflare server env fix가 `main`에 changeset 없이 머지됐다.
+   - release 기준으로는 두 패키지 버전 반영 PR이 한 번 더 필요하다.
+2. 방향
+   - 최신 `origin/main`을 기준으로 새 브랜치를 딴다.
+   - 누락된 patch changeset을 추가한 뒤 `changeset version`을 실행한다.
+   - 버전 변경 결과와 changelog 갱신을 포함한 PR을 따로 올린다.
+3. 테스트
+   - `changeset version` 결과가 두 패키지에 반영되는지 확인한다.
+   - `pnpm verify`를 다시 통과시킨다.
+4. 완료 기준
+   - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 둘 다 patch 버전이 올라간 PR이 열린다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: Cloudflare server env에서 공개 Worker URL을 제거
 1. 문제
    - 지금 Cloudflare provisioning은 `server/.env.local`에 `CLOUDFLARE_API_BASE_URL=https://<worker>.workers.dev`를 기록한다.
