@@ -62,6 +62,7 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
     namedInputs?: {
       sharedGlobals?: string[]
     }
+    targetDefaults?: Record<string, { inputs?: string[]; dependsOn?: string[] }>
   }
   const gitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
   const biomeJson = await readFile(path.join(targetRoot, 'biome.json'), 'utf8')
@@ -88,6 +89,9 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.equal(packageJson.devDependencies?.['@biomejs/biome'], '^2.4.7')
   assert.equal(nxJson.$schema, NX_ROOT_SCHEMA_URL)
   assert.deepEqual(nxJson.namedInputs?.sharedGlobals, ['{workspaceRoot}/biome.json'])
+  assert.deepEqual(nxJson.targetDefaults?.build?.dependsOn, ['^build'])
+  assert.deepEqual(nxJson.targetDefaults?.typecheck?.dependsOn, ['^build'])
+  assert.deepEqual(nxJson.targetDefaults?.test?.dependsOn, ['^build'])
   assert.doesNotMatch(gitignore, /^\.yarn\/?$/m)
   assert.doesNotMatch(gitignore, /^\.pnp\.\*$/m)
   assert.doesNotMatch(gitignore, /^server\/worker-configuration\.d\.ts$/m)
@@ -142,14 +146,30 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     await readFile(path.join(targetRoot, 'packages', 'contracts', 'package.json'), 'utf8'),
   ) as {
     name?: string
+    files?: string[]
+    exports?: Record<
+      string,
+      { types?: string; import?: string; require?: string; default?: string }
+    >
+    types?: string
+    main?: string
     dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
     scripts?: Record<string, string>
   }
   const appRouterPackageJson = JSON.parse(
     await readFile(path.join(targetRoot, 'packages', 'app-router', 'package.json'), 'utf8'),
   ) as {
     name?: string
+    files?: string[]
+    exports?: Record<
+      string,
+      { types?: string; import?: string; require?: string; default?: string }
+    >
+    types?: string
+    main?: string
     dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
     scripts?: Record<string, string>
   }
   const appRouterTsconfig = JSON.parse(
@@ -189,11 +209,34 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     'utf8',
   )
   assert.equal(contractsPackageJson.name, '@workspace/contracts')
+  assert.deepEqual(contractsPackageJson.files, ['dist'])
+  assert.equal(contractsPackageJson.exports?.['.']?.types, './dist/index.d.mts')
+  assert.equal(contractsPackageJson.exports?.['.']?.import, './dist/index.mjs')
+  assert.equal(contractsPackageJson.exports?.['.']?.require, './dist/index.cjs')
+  assert.equal(contractsPackageJson.exports?.['.']?.default, './dist/index.mjs')
+  assert.equal(contractsPackageJson.types, './dist/index.d.mts')
+  assert.equal(contractsPackageJson.main, './dist/index.cjs')
   assert.equal(contractsPackageJson.dependencies?.zod, '^4.3.6')
+  assert.equal(contractsPackageJson.devDependencies?.tsdown, '^0.21.4')
   assert.equal(appRouterPackageJson.name, '@workspace/app-router')
+  assert.deepEqual(appRouterPackageJson.files, ['dist'])
+  assert.equal(appRouterPackageJson.exports?.['.']?.types, './dist/index.d.mts')
+  assert.equal(appRouterPackageJson.exports?.['.']?.import, './dist/index.mjs')
+  assert.equal(appRouterPackageJson.exports?.['.']?.require, './dist/index.cjs')
+  assert.equal(appRouterPackageJson.exports?.['.']?.default, './dist/index.mjs')
+  assert.equal(appRouterPackageJson.types, './dist/index.d.mts')
+  assert.equal(appRouterPackageJson.main, './dist/index.cjs')
   assert.equal(appRouterPackageJson.dependencies?.['@trpc/server'], '^11.13.4')
   assert.equal(appRouterPackageJson.dependencies?.['@workspace/contracts'], 'workspace:*')
-  assert.equal(appRouterPackageJson.scripts?.build, 'tsc -p tsconfig.json')
+  assert.equal(appRouterPackageJson.devDependencies?.tsdown, '^0.21.4')
+  assert.equal(
+    contractsPackageJson.scripts?.build,
+    'tsdown src/index.ts --format esm,cjs --dts --clean --out-dir dist',
+  )
+  assert.equal(
+    appRouterPackageJson.scripts?.build,
+    'pnpm --dir ../contracts build && tsdown src/index.ts --format esm,cjs --dts --clean --out-dir dist',
+  )
   assert.equal(appRouterTsconfig.compilerOptions?.composite, true)
   assert.equal(appRouterTsconfig.compilerOptions?.declaration, true)
   assert.equal(appRouterTsconfig.compilerOptions?.outDir, 'dist')

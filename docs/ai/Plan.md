@@ -1,3 +1,24 @@
+## 다음 작업: tRPC shared packages를 `tsdown` 빌드 산출물 기반으로 전환하기
+1. 문제
+   - 지금 `packages/contracts`, `packages/app-router`는 package root가 `src/index.ts`를 바로 export하는 source package 구조다.
+   - 이 구조는 type-only import는 가능하지만, 일부 에이전트와 툴이 package root의 named type export를 덜 신뢰하고 `import('@workspace/app-router').AppRouter`나 direct source path로 우회하게 만든다.
+   - Cloudflare runtime도 package root를 runtime import하는데, source export 상태라 “빌드된 패키지”처럼 보이지 않는다.
+2. 방향
+   - `packages/contracts`, `packages/app-router`에 `tsdown` 기반 `build` 스크립트를 넣고 `dist/index.mjs`, `dist/index.cjs`, `dist/index.d.mts`를 생성하게 한다.
+   - package root `exports`는 `import`/`require`/`types`를 모두 `dist` 기준으로 가리키게 바꾼다.
+   - generated root `nx.json`의 `build`, `typecheck`, `test` target defaults에 dependency build 순서를 추가해서, shared package가 필요한 workspace가 root orchestration에서 먼저 `dist`를 확보하게 한다.
+   - Cloudflare tRPC server scripts도 shared package build를 먼저 보장하는지 점검하고 필요하면 prefix를 붙인다.
+3. 테스트
+   - shared package template test를 먼저 깨서 `tsdown` build script, `dist` export, `files: ["dist"]`, `tsdown` config 생성을 기대하게 한다.
+   - generated `nx.json` test를 먼저 깨서 dependency build 순서를 기대하게 한다.
+   - 마지막에 `pnpm verify`를 다시 통과시킨다.
+4. 완료 기준
+   - generated `packages/contracts`, `packages/app-router`는 `tsdown`으로 빌드된다.
+   - generated consumers는 package root import 기준으로 `AppRouter`를 보는 구조가 더 자연스러워진다.
+   - root orchestration에서 shared package build 순서가 보장된다.
+   - generated package.json이 실제 `tsdown` 산출물인 `index.mjs`, `index.cjs`, `index.d.mts`와 정확히 맞는다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: starter Lottie asset을 `Marketing.json`으로 교체하고 README에 guardrail 의도를 추가하기
 1. 문제
    - starter Lottie asset이 아직 임시 `dots loading` JSON이라 기본 화면 인상이 약하다.

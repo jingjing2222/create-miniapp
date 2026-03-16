@@ -14,6 +14,7 @@ export const CONTRACTS_WORKSPACE_DEPENDENCY = 'workspace:*'
 export const TRPC_CLIENT_VERSION = '^11.13.4'
 export const TRPC_SERVER_VERSION = '^11.13.4'
 export const ZOD_VERSION = '^4.3.6'
+export const TSDOWN_VERSION = '^0.21.4'
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
 
@@ -62,27 +63,35 @@ function renderContractsPackageJson(packageManager: PackageManager) {
     version: '0.1.0',
     type: 'module',
     sideEffects: false,
+    files: ['dist'],
     packageManager: adapter.packageManagerField,
     exports: {
       '.': {
-        types: './src/index.ts',
-        default: './src/index.ts',
+        types: './dist/index.d.mts',
+        import: './dist/index.mjs',
+        require: './dist/index.cjs',
+        default: './dist/index.mjs',
       },
     },
-    types: './src/index.ts',
+    main: './dist/index.cjs',
+    types: './dist/index.d.mts',
     scripts: {
-      build: 'tsc -p tsconfig.json',
+      build: 'tsdown src/index.ts --format esm,cjs --dts --clean --out-dir dist',
       typecheck: 'tsc -p tsconfig.json --noEmit',
       test: `node -e "console.log('contracts workspace test placeholder')"`,
     },
     dependencies: {
       zod: ZOD_VERSION,
     },
+    devDependencies: {
+      tsdown: TSDOWN_VERSION,
+    },
   }
 }
 
 function renderAppRouterPackageJson(packageManager: PackageManager) {
   const adapter = getPackageManagerAdapter(packageManager)
+  const buildContractsCommand = adapter.runScriptInDirectoryCommand('../contracts', 'build')
 
   return {
     name: APP_ROUTER_PACKAGE_NAME,
@@ -90,22 +99,29 @@ function renderAppRouterPackageJson(packageManager: PackageManager) {
     version: '0.1.0',
     type: 'module',
     sideEffects: false,
+    files: ['dist'],
     packageManager: adapter.packageManagerField,
     exports: {
       '.': {
-        types: './src/index.ts',
-        default: './src/index.ts',
+        types: './dist/index.d.mts',
+        import: './dist/index.mjs',
+        require: './dist/index.cjs',
+        default: './dist/index.mjs',
       },
     },
-    types: './src/index.ts',
+    main: './dist/index.cjs',
+    types: './dist/index.d.mts',
     scripts: {
-      build: 'tsc -p tsconfig.json',
-      typecheck: 'tsc -p tsconfig.json --noEmit',
+      build: `${buildContractsCommand} && tsdown src/index.ts --format esm,cjs --dts --clean --out-dir dist`,
+      typecheck: `${buildContractsCommand} && tsc -p tsconfig.json --noEmit`,
       test: `node -e "console.log('app-router workspace test placeholder')"`,
     },
     dependencies: {
       '@trpc/server': TRPC_SERVER_VERSION,
       [CONTRACTS_PACKAGE_NAME]: CONTRACTS_WORKSPACE_DEPENDENCY,
+    },
+    devDependencies: {
+      tsdown: TSDOWN_VERSION,
     },
   }
 }
@@ -159,6 +175,7 @@ function renderContractsReadme() {
     '## 운영 메모',
     '',
     '- 경계 타입이 바뀌면 먼저 여기 schema를 수정해요.',
+    '- package root import는 `dist`를 보게 되고, build는 `tsdown`이 맡아요.',
     '- client와 server는 같은 schema를 runtime과 type 양쪽에서 공유해요.',
     '',
   ].join('\n')
@@ -194,6 +211,7 @@ function renderAppRouterReadme(options: ApplyTrpcWorkspaceTemplateOptions) {
     '## 운영 메모',
     '',
     '- route shape를 바꾸고 싶으면 먼저 `packages/contracts`와 `packages/app-router`를 확인해요.',
+    '- package root import는 `dist`를 보게 하니 `src` 상대 경로로 내려가지 말고 `@workspace/app-router`를 그대로 써요.',
     '- provider-specific runtime adapter는 각 `server` workspace 안에 남겨요.',
     '',
   ].join('\n')

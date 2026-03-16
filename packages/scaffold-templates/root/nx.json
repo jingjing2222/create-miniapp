@@ -11,13 +11,16 @@
   },
   "targetDefaults": {
     "build": {
-      "inputs": ["production"]
+      "inputs": ["production"],
+      "dependsOn": ["^build"]
     },
     "typecheck": {
-      "inputs": ["default"]
+      "inputs": ["default"],
+      "dependsOn": ["^build"]
     },
     "test": {
-      "inputs": ["default"]
+      "inputs": ["default"],
+      "dependsOn": ["^build"]
     }
   }
 }
