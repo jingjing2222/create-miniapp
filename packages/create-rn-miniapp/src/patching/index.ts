@@ -6,7 +6,11 @@ import {
   patchBackofficeMainSource,
   patchGraniteConfigSource,
 } from './ast/index.js'
-import { patchTsconfigModuleSource, patchWranglerConfigSource } from './jsonc.js'
+import {
+  createCloudflareVitestWranglerConfigSource,
+  patchTsconfigModuleSource,
+  patchWranglerConfigSource,
+} from './jsonc.js'
 import { patchPackageJsonSource } from './package-json.js'
 import {
   renderCloudflareServerIndexSource,
@@ -609,6 +613,23 @@ function renderCloudflareDeployScript(tokens: TemplateTokens) {
   ].join('\n')
 }
 
+function renderCloudflareVitestConfigSource() {
+  return [
+    "import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config'",
+    '',
+    'export default defineWorkersConfig({',
+    '  test: {',
+    '    poolOptions: {',
+    '      workers: {',
+    "        wrangler: { configPath: './wrangler.vitest.jsonc' },",
+    '      },',
+    '    },',
+    '  },',
+    '})',
+    '',
+  ].join('\n')
+}
+
 function renderSupabaseServerReadme(
   tokens: TemplateTokens,
   options?: {
@@ -735,6 +756,8 @@ function renderCloudflareServerReadme(
     '  src/index.ts',
     ...(trpcEnabled ? ['  src/trpc/context.ts'] : []),
     '  wrangler.jsonc',
+    '  wrangler.vitest.jsonc',
+    '  vitest.config.mts',
     '  worker-configuration.d.ts',
     '  .env.local',
     '  package.json',
@@ -746,7 +769,7 @@ function renderCloudflareServerReadme(
     `- \`cd server && ${tokens.packageManagerRunCommand} build\`: \`wrangler deploy --dry-run\`으로 번들을 검증해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`wrangler types\`와 TypeScript 검사를 함께 실행해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} deploy\`: \`server/.env.local\`의 auth 값을 읽고 \`wrangler.jsonc\` 기준으로 원격 Worker를 배포해요.`,
-    `- \`cd server && ${tokens.packageManagerRunCommand} test\`: placeholder 테스트를 실행해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} test\`: \`wrangler.vitest.jsonc\`의 local D1/R2 binding으로 Worker 테스트를 실행해요.`,
     '',
     '## Miniapp / Backoffice 연결',
     '',
@@ -778,6 +801,7 @@ function renderCloudflareServerReadme(
     '',
     '- `worker-configuration.d.ts`는 `wrangler types`가 생성하는 파일이에요.',
     '- `server/.env.local`은 Cloudflare account/worker/D1/R2 메타데이터를 기록해요.',
+    '- `wrangler.jsonc`는 원격 deploy 기준 설정이고, `wrangler.vitest.jsonc`는 local D1/R2 binding으로 테스트를 돌리기 위한 설정이에요.',
     ...(trpcEnabled
       ? [
           '- tRPC를 같이 썼다면 `packages/trpc`만 수정하고 `dev`, `build`, `deploy`를 다시 실행하면 같은 router가 바로 반영돼요.',
@@ -890,6 +914,7 @@ async function patchTsconfigModuleFile(
   filePath: string,
   options?: {
     includeNodeTypes?: boolean
+    allowImportingTsExtensions?: boolean
   },
 ) {
   if (!(await pathExists(filePath))) {
@@ -1055,12 +1080,34 @@ async function patchWorkspaceTsconfigModules(
   filePatches: Array<{
     fileName: string
     includeNodeTypes?: boolean
+    allowImportingTsExtensions?: boolean
   }>,
 ) {
   await Promise.all(
-    filePatches.map(({ fileName, includeNodeTypes }) =>
-      patchTsconfigModuleFile(path.join(workspaceRoot, fileName), { includeNodeTypes }),
+    filePatches.map(({ fileName, includeNodeTypes, allowImportingTsExtensions }) =>
+      patchTsconfigModuleFile(path.join(workspaceRoot, fileName), {
+        includeNodeTypes,
+        allowImportingTsExtensions,
+      }),
     ),
+  )
+}
+
+async function writeCloudflareVitestConfigFiles(serverRoot: string) {
+  const wranglerConfigPath = path.join(serverRoot, 'wrangler.jsonc')
+
+  if (!(await pathExists(wranglerConfigPath))) {
+    return
+  }
+
+  const wranglerSource = await readFile(wranglerConfigPath, 'utf8')
+  await writeTextFile(
+    path.join(serverRoot, 'wrangler.vitest.jsonc'),
+    createCloudflareVitestWranglerConfigSource(wranglerSource),
+  )
+  await writeTextFile(
+    path.join(serverRoot, 'vitest.config.mts'),
+    renderCloudflareVitestConfigSource(),
   )
 }
 
@@ -1509,6 +1556,9 @@ export async function patchFrontendWorkspace(
     {
       fileName: 'tsconfig.json',
       includeNodeTypes: true,
+      allowImportingTsExtensions:
+        options.trpc &&
+        (options.serverProvider === 'supabase' || options.serverProvider === 'cloudflare'),
     },
   ])
   if (options.packageManager === 'npm') {
@@ -1707,6 +1757,7 @@ export async function patchCloudflareServerWorkspace(
     },
   })
   await patchWranglerConfigSchema(serverRoot, packageJson)
+  await writeCloudflareVitestConfigFiles(serverRoot)
   await writeTextFile(
     path.join(serverRoot, 'README.md'),
     renderCloudflareServerReadme(tokens, {

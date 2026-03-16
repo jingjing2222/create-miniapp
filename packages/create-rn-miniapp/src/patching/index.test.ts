@@ -429,15 +429,98 @@ test('patchFrontendWorkspace adds cloudflare trpc client when trpc overlay is se
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
+  const tsconfig = JSON.parse(await readFile(path.join(frontendRoot, 'tsconfig.json'), 'utf8')) as {
+    compilerOptions?: {
+      allowImportingTsExtensions?: boolean
+    }
+  }
   const trpcClient = await readFile(path.join(frontendRoot, 'src', 'lib', 'trpc.ts'), 'utf8')
 
   assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
   assert.equal(packageJson.devDependencies?.['@workspace/trpc'], 'workspace:*')
+  assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
   assert.equal(await pathExists(path.join(frontendRoot, 'src', 'lib', 'api.ts')), false)
   assert.match(trpcClient, /createTRPCProxyClient/)
   assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/trpc'/)
   assert.match(trpcClient, /import\.meta\.env\.MINIAPP_API_BASE_URL/)
   assert.doesNotMatch(trpcClient, /from '\.\/api'/)
+})
+
+test('patchFrontendWorkspace adds supabase trpc client and ts extension support when trpc overlay is selected', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+  const frontendRoot = path.join(targetRoot, 'frontend')
+
+  await mkdir(path.join(frontendRoot, 'src'), { recursive: true })
+  await writeJson(path.join(frontendRoot, 'package.json'), {
+    name: 'ebook-miniapp',
+    private: true,
+    scripts: {
+      dev: 'granite dev',
+      build: 'ait build',
+    },
+    dependencies: {
+      '@apps-in-toss/framework': '^2.0.5',
+    },
+    devDependencies: {
+      '@granite-js/plugin-hermes': '1.0.7',
+      '@granite-js/plugin-router': '1.0.7',
+      typescript: '^5.8.3',
+    },
+  })
+  await writeFile(
+    path.join(frontendRoot, 'tsconfig.json'),
+    ['{', '  "compilerOptions": {', '    "module": "commonjs"', '  }', '}', ''].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(frontendRoot, 'granite.config.ts'),
+    [
+      "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+      "import { defineConfig } from '@granite-js/react-native/config'",
+      '',
+      'export default defineConfig({',
+      '  appName: "ebook-miniapp",',
+      '  plugins: [appsInToss({ brand: { displayName: "전자책 미니앱" } })],',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  await patchFrontendWorkspace(
+    targetRoot,
+    {
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      packageManager: 'pnpm',
+      packageManagerCommand: 'pnpm',
+      packageManagerRunCommand: 'pnpm',
+      packageManagerExecCommand: 'pnpm exec',
+      verifyCommand: 'pnpm verify',
+    },
+    { packageManager: 'pnpm', serverProvider: 'supabase', trpc: true },
+  )
+
+  const packageJson = JSON.parse(
+    await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
+  ) as {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+  }
+  const tsconfig = JSON.parse(await readFile(path.join(frontendRoot, 'tsconfig.json'), 'utf8')) as {
+    compilerOptions?: {
+      allowImportingTsExtensions?: boolean
+    }
+  }
+  const trpcClient = await readFile(path.join(frontendRoot, 'src', 'lib', 'trpc.ts'), 'utf8')
+
+  assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
+  assert.equal(packageJson.devDependencies?.['@workspace/trpc'], 'workspace:*')
+  assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
+  assert.match(trpcClient, /createTRPCProxyClient/)
+  assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/trpc'/)
+  assert.match(trpcClient, /functions\/v1\/api\/trpc/)
+  assert.match(trpcClient, /supabase\.auth\.getSession/)
 })
 
 test('patchFrontendWorkspace removes existing cloudflare api helper when trpc cleanup is requested', async (t) => {
@@ -1352,7 +1435,7 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.equal(await pathExists(path.join(serverRoot, '.vscode', 'settings.json')), false)
 })
 
-test('patchCloudflareServerWorkspace wires trpc sync and worker handler when trpc overlay is selected', async (t) => {
+test('patchCloudflareServerWorkspace wires local worker test config and handler when trpc overlay is selected', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const serverRoot = path.join(targetRoot, 'server')
 
@@ -1398,6 +1481,14 @@ test('patchCloudflareServerWorkspace wires trpc sync and worker handler when trp
   }
   const indexSource = await readFile(path.join(serverRoot, 'src', 'index.ts'), 'utf8')
   const contextSource = await readFile(path.join(serverRoot, 'src', 'trpc', 'context.ts'), 'utf8')
+  const vitestConfig = await readFile(path.join(serverRoot, 'vitest.config.mts'), 'utf8')
+  const wranglerVitestConfig = JSON.parse(
+    await readFile(path.join(serverRoot, 'wrangler.vitest.jsonc'), 'utf8'),
+  ) as {
+    name?: string
+    d1_databases?: Array<Record<string, unknown>>
+    r2_buckets?: Array<Record<string, unknown>>
+  }
   const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
 
   assert.equal(packageJson.dependencies?.['@trpc/server'], '^11.13.4')
@@ -1409,10 +1500,16 @@ test('patchCloudflareServerWorkspace wires trpc sync and worker handler when trp
   assert.match(indexSource, /fetchRequestHandler/)
   assert.match(indexSource, /from '@workspace\/trpc'/)
   assert.match(contextSource, /export type CloudflareTrpcContext/)
+  assert.match(vitestConfig, /configPath: '\.\/wrangler\.vitest\.jsonc'/)
+  assert.equal(wranglerVitestConfig.name, 'server')
+  assert.deepEqual(wranglerVitestConfig.d1_databases, undefined)
+  assert.deepEqual(wranglerVitestConfig.r2_buckets, undefined)
   assert.match(readme, /packages\/trpc/)
   assert.match(readme, /frontend\/src\/lib\/trpc\.ts/)
   assert.match(readme, /API SSOT/)
   assert.match(readme, /server API의 source of truth/)
+  assert.match(readme, /wrangler\.vitest\.jsonc/)
+  assert.match(readme, /local D1\/R2 binding/)
   assert.doesNotMatch(readme, /trpc:sync/)
 })
 

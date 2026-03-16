@@ -1,6 +1,26 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: tRPC overlay가 필요한 frontend / Cloudflare test config를 같이 생성
+1. 문제
+   - `packages/trpc`는 source export(`src/index.ts`)와 `.ts` 확장자 import를 쓰는데, generated `frontend/tsconfig.json`은 `allowImportingTsExtensions`를 켜지 않아 Granite frontend typecheck가 깨질 수 있다.
+   - Cloudflare는 deploy용 `wrangler.jsonc`에 D1/R2 binding을 `remote: true`로 기록하는데, Worker 테스트도 같은 config를 보면 local test가 원격 리소스를 바라봐 timeout/502가 날 수 있다.
+   - 현재 tRPC overlay는 router/client wiring까지만 해 주고, 이 두 보조 설정은 사용자가 직접 메워야 한다.
+2. 방향
+   - tRPC overlay를 고른 `frontend` workspace에는 `allowImportingTsExtensions`를 자동으로 넣는다.
+   - 특히 Granite frontend가 `@workspace/trpc` source export를 바로 읽는 `supabase` / `cloudflare` 경로를 우선 보정한다.
+   - Cloudflare + tRPC server에는 deploy config와 분리된 `wrangler.vitest.jsonc`, `vitest.config.mts`, 샘플 test를 생성해서 local D1/R2 binding으로 Worker 테스트가 돌게 한다.
+   - `server/package.json`의 test 스크립트도 generated Vitest config를 쓰도록 맞춘다.
+   - Supabase는 Deno alias 기반 구조에서 추가로 깨질 지점이 있는지 테스트로 먼저 점검하고, 별도 설정이 필요 없으면 문서화만 한다.
+3. 테스트
+   - `patchFrontendWorkspace` 테스트에서 `supabase` / `cloudflare` + `trpc`일 때 `tsconfig.json`에 `allowImportingTsExtensions`가 들어가는지 검증한다.
+   - `patchCloudflareServerWorkspace` 테스트에서 `wrangler.vitest.jsonc`, `vitest.config.mts`, example test와 local binding 설정이 생성되는지 검증한다.
+   - Supabase tRPC patch 테스트는 현재 생성물만으로 필요한 alias/config가 닫혀 있는지 검증한다.
+4. 완료 기준
+   - tRPC overlay 생성물은 frontend typecheck를 위해 추가 수작업이 필요 없다.
+   - Cloudflare Worker 테스트는 deploy binding과 분리된 local config를 기본 제공한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: root workspace manifest의 `packages/trpc`를 `packages/*`로 일반화
 1. 문제
    - 지금 generated root workspace manifest는 optional package workspace가 생기면 `packages/trpc`를 그대로 등록한다.
