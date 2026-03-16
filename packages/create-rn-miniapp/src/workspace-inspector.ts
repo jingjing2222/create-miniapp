@@ -68,7 +68,9 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
 
   const hasServer = await pathExists(path.join(resolvedRootDir, 'server'))
   const hasBackoffice = await pathExists(path.join(resolvedRootDir, 'backoffice'))
-  const hasTrpc = await pathExists(path.join(resolvedRootDir, 'packages', 'trpc', 'package.json'))
+  const hasTrpc =
+    (await pathExists(path.join(resolvedRootDir, 'packages', 'app-router', 'package.json'))) ||
+    (await pathExists(path.join(resolvedRootDir, 'packages', 'trpc', 'package.json')))
   const serverProvider = hasServer ? await detectServerProvider(resolvedRootDir) : null
 
   return {

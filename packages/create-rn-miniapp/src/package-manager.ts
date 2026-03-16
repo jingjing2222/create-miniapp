@@ -35,7 +35,7 @@ export type PackageManagerAdapter = {
   runScriptInDirectoryCommand(directory: string, script: string): string
   dlxCommand(packageName: string, args: string[]): string
   workspaceRunCommand(
-    workspace: 'frontend' | 'backoffice' | 'server' | 'packages/trpc',
+    workspace: 'frontend' | 'backoffice' | 'server' | 'packages/app-router' | 'packages/contracts',
     script: string,
   ): string
   runScript(script: string): string

@@ -13,16 +13,16 @@ import {
 } from './jsonc.js'
 import { patchPackageJsonSource } from './package-json.js'
 import {
+  APP_ROUTER_WORKSPACE_DEPENDENCY,
   renderCloudflareServerIndexSource,
   renderCloudflareServerTrpcContextSource,
   renderCloudflareTrpcClientSource,
+  CONTRACTS_WORKSPACE_DEPENDENCY,
   renderSupabaseEdgeFunctionTrpcSource,
   renderSupabaseTrpcDenoConfig,
   renderSupabaseTrpcClientSource,
   TRPC_CLIENT_VERSION,
   TRPC_SERVER_VERSION,
-  TRPC_WORKSPACE_DEPENDENCY,
-  ZOD_VERSION,
 } from './trpc.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
@@ -675,9 +675,9 @@ function renderSupabaseServerReadme(
     '- frontend `granite.config.ts`는 `.env.local` 값을 읽어 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 주입해요.',
     ...(trpcEnabled
       ? [
-          '- tRPC를 같이 골랐다면 `packages/trpc`가 router와 `AppRouter` 타입의 canonical source예요.',
+          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary schema의 source of truth이고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth예요.',
           '- miniapp frontend는 `frontend/src/lib/trpc.ts`로 `AppRouter` 타입을 가져와 Edge Function `/api/trpc` endpoint를 호출해요.',
-          '- `server/supabase/functions/api/deno.json`의 `imports`가 `@workspace/trpc`를 `packages/trpc/src/index.ts`로 직접 연결해요.',
+          '- `server/supabase/functions/api/deno.json`의 `imports`가 `@workspace/app-router`, `@workspace/contracts`를 shared package source에 직접 연결해요.',
         ]
       : [
           `- miniapp frontend는 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\` 형태로 Edge Function을 호출할 수 있어요.`,
@@ -695,8 +695,9 @@ function renderSupabaseServerReadme(
           '',
           '## API SSOT',
           '',
-          '- tRPC를 같이 골랐다면 `packages/trpc`가 server API의 source of truth예요.',
-          '- route shape를 바꾸고 싶으면 먼저 `packages/trpc`를 수정한 뒤 `functions:serve`나 `functions:deploy`를 다시 실행하면 돼요.',
+          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary type과 schema의 source of truth예요.',
+          '- 같은 경우 `packages/app-router`가 route shape와 `AppRouter` 타입의 source of truth예요.',
+          '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `functions:serve`나 `functions:deploy`를 다시 실행하면 돼요.',
         ]
       : []),
     '',
@@ -707,7 +708,8 @@ function renderSupabaseServerReadme(
     '- frontend/backoffice의 `.env.local`은 server provisioning 결과와 같은 Supabase project를 가리키게 맞춰두는 걸 권장해요.',
     ...(trpcEnabled
       ? [
-          '- tRPC를 같이 썼다면 `packages/trpc`만 수정하면 되고, Supabase 함수는 `deno.json` alias로 같은 router를 바로 봐요.',
+          '- tRPC를 같이 썼다면 boundary contract은 `packages/contracts`, router는 `packages/app-router`만 수정하면 돼요.',
+          '- Supabase 함수는 `deno.json` alias로 shared package를 바로 봐요.',
           '- 즉 `functions:serve` 또는 `functions:deploy`를 다시 실행하면 sync 없이 같은 router가 바로 반영돼요.',
         ]
       : []),
@@ -779,9 +781,9 @@ function renderCloudflareServerReadme(
     `- Worker 코드는 \`${CLOUDFLARE_D1_BINDING_NAME}\` D1 binding과 \`${CLOUDFLARE_R2_BINDING_NAME}\` R2 binding을 사용할 수 있어요.`,
     ...(trpcEnabled
       ? [
-          '- tRPC를 같이 골랐다면 `packages/trpc`가 router와 `AppRouter` 타입의 canonical source예요.',
+          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary schema의 source of truth이고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth예요.',
           '- miniapp frontend는 `frontend/src/lib/trpc.ts`, backoffice는 `backoffice/src/lib/trpc.ts`에서 Worker `/trpc` endpoint를 호출해요.',
-          '- Worker runtime은 `@workspace/trpc`를 직접 import해서 같은 router를 바로 써요.',
+          '- Worker runtime은 `@workspace/app-router`를 직접 import해서 같은 router를 바로 써요.',
         ]
       : [
           '- miniapp frontend는 `frontend/src/lib/api.ts`에서 API helper를 만들고 `MINIAPP_API_BASE_URL`을 사용해요.',
@@ -792,8 +794,9 @@ function renderCloudflareServerReadme(
           '',
           '## API SSOT',
           '',
-          '- tRPC를 같이 골랐다면 `packages/trpc`가 server API의 source of truth예요.',
-          '- route shape를 바꾸고 싶으면 먼저 `packages/trpc`를 수정한 뒤 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
+          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary type과 schema의 source of truth예요.',
+          '- 같은 경우 `packages/app-router`가 route shape와 `AppRouter` 타입의 source of truth예요.',
+          '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
         ]
       : []),
     '',
@@ -804,7 +807,7 @@ function renderCloudflareServerReadme(
     '- `wrangler.jsonc`는 원격 deploy 기준 설정이고, `wrangler.vitest.jsonc`는 local D1/R2 binding으로 테스트를 돌리기 위한 설정이에요.',
     ...(trpcEnabled
       ? [
-          '- tRPC를 같이 썼다면 `packages/trpc`만 수정하고 `dev`, `build`, `deploy`를 다시 실행하면 같은 router가 바로 반영돼요.',
+          '- tRPC를 같이 썼다면 boundary contract은 `packages/contracts`, router는 `packages/app-router`만 수정하고 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
         ]
       : []),
     '',
@@ -1336,8 +1339,8 @@ async function ensureFrontendPackageJsonForWorkspace(
       dependencies['@trpc/client'] = TRPC_CLIENT_VERSION
     }
 
-    if (!packageJson.devDependencies?.['@workspace/trpc']) {
-      devDependencies['@workspace/trpc'] = TRPC_WORKSPACE_DEPENDENCY
+    if (!packageJson.devDependencies?.['@workspace/app-router']) {
+      devDependencies['@workspace/app-router'] = APP_ROUTER_WORKSPACE_DEPENDENCY
     }
   }
 
@@ -1389,8 +1392,8 @@ async function ensureBackofficePackageJsonForWorkspace(
       dependencies['@trpc/client'] = TRPC_CLIENT_VERSION
     }
 
-    if (!packageJson.devDependencies?.['@workspace/trpc']) {
-      devDependencies['@workspace/trpc'] = TRPC_WORKSPACE_DEPENDENCY
+    if (!packageJson.devDependencies?.['@workspace/app-router']) {
+      devDependencies['@workspace/app-router'] = APP_ROUTER_WORKSPACE_DEPENDENCY
     }
   }
 
@@ -1746,8 +1749,8 @@ export async function patchCloudflareServerWorkspace(
         ? {
             dependencies: {
               '@trpc/server': TRPC_SERVER_VERSION,
-              '@workspace/trpc': TRPC_WORKSPACE_DEPENDENCY,
-              zod: ZOD_VERSION,
+              '@workspace/app-router': APP_ROUTER_WORKSPACE_DEPENDENCY,
+              '@workspace/contracts': CONTRACTS_WORKSPACE_DEPENDENCY,
             },
           }
         : {}),

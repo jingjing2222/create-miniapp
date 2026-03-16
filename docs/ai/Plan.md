@@ -1,6 +1,23 @@
 ## 작업명
 `create-miniapp` 오케스트레이션 CLI 구현
 
+## 다음 작업: tRPC overlay를 `packages/contracts` + `packages/app-router`로 재구성
+1. 문제
+   - 기존 `packages/trpc` 하나에 boundary schema, router, `AppRouter` 타입을 같이 두면 shared runtime code와 server-oriented code의 책임이 흐려진다.
+   - generated README, provider engineering docs, optional tRPC guide도 모두 옛 구조를 기준으로 설명하고 있어서 생성 결과물의 mental model이 어긋난다.
+2. 방향
+   - tRPC를 고른 경우에만 `packages/contracts`와 `packages/app-router`를 함께 만든다.
+   - `packages/contracts`는 Zod schema와 `z.infer` 기반 boundary type의 source of truth로 둔다.
+   - `packages/app-router`는 tRPC router와 `AppRouter` 타입의 source of truth로 둔다.
+   - frontend, backoffice, provider server README, optional engineering docs, AGENTS 링크가 모두 같은 구조를 설명하게 맞춘다.
+3. 테스트
+   - template test, patching test, workspace inspector test를 새 구조 기준으로 먼저 고친다.
+   - README와 provider engineering docs의 `packages/trpc` 설명을 모두 교체한다.
+   - 마지막에 `pnpm verify`를 통과시킨다.
+4. 완료 기준
+   - generated repo는 `packages/contracts`, `packages/app-router`를 기준으로 tRPC mental model을 설명한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: tRPC를 만든 경우에만 AGENTS Golden Rule에 schema-derived boundary type 규칙 추가
 1. 문제
    - 지금 generated `AGENTS.md`는 tRPC가 있는 repo와 없는 repo의 Golden Rules가 같다.
@@ -174,7 +191,7 @@
     - 이 분리는 `create-t3-turbo`의 `api` package 원칙을 거의 그대로 따르되, package 이름만 우리 문맥에 맞게 바꾼 것이다.
     - 서버 생성물
      - `packages/trpc`
-       - `src/router.ts`, `src/root.ts`, `src/routers/example.ts`, `src/types.ts` 같은 canonical 구조를 둔다.
+     - 샘플 router 파일명은 바뀔 수 있으니, canonical entrypoint는 `src/index.ts`, `src/root.ts`처럼 안정적인 엔트리 기준으로 둔다.
        - 여기에는 provider-specific handler가 아니라 runtime-neutral router 정의와 `AppRouter` export만 둔다.
        - 내부 import는 tsconfig path alias를 쓰지 않고 package 내부 상대 경로만 쓴다.
        - `AppRouter`가 client 쪽에서 `any`로 무너지는 문제를 피하려고 `composite: true`, declaration emit, portable export를 기본값으로 둔다.
