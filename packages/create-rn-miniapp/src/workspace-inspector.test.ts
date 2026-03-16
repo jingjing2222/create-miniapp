@@ -166,7 +166,61 @@ test('inspectWorkspace detects firebase server workspaces from firebase config',
   assert.equal(inspection.serverProvider, 'firebase')
 })
 
-test('inspectWorkspace detects trpc workspace from packages/trpc/package.json', async (t) => {
+test('inspectWorkspace detects tRPC workspace from packages/app-router/package.json', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'packages', 'app-router'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'package.json'),
+    JSON.stringify(
+      {
+        packageManager: 'pnpm@10.32.1',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'frontend', 'granite.config.ts'),
+    [
+      "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+      "import { defineConfig } from '@granite-js/react-native/config'",
+      '',
+      'export default defineConfig({',
+      '  appName: "ebook-miniapp",',
+      '  plugins: [',
+      '    appsInToss({',
+      '      brand: {',
+      '        displayName: "전자책 미니앱",',
+      '      },',
+      '    }),',
+      '  ],',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'server', 'wrangler.jsonc'),
+    '{\n  "name": "server"\n}\n',
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'packages', 'app-router', 'package.json'),
+    JSON.stringify({ name: '@workspace/app-router', private: true }, null, 2),
+    'utf8',
+  )
+
+  const inspection = await inspectWorkspace(targetRoot)
+
+  assert.equal(inspection.hasTrpc, true)
+  assert.equal(inspection.serverProvider, 'cloudflare')
+})
+
+test('inspectWorkspace still detects legacy tRPC workspace from packages/trpc/package.json', async (t) => {
   const targetRoot = await createTempWorkspace(t)
 
   await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })

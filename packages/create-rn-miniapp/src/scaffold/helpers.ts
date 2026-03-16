@@ -2,6 +2,7 @@ import path from 'node:path'
 import { log } from '@clack/prompts'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import { getServerProviderAdapter, type ServerProvider } from '../providers/index.js'
+import { APP_ROUTER_WORKSPACE_PATH, CONTRACTS_WORKSPACE_PATH } from '../templates/trpc.js'
 import {
   applyTrpcWorkspaceTemplate,
   pathExists,
@@ -42,7 +43,13 @@ export async function maybeWriteNpmWorkspaceConfig(
 export async function resolveRootWorkspaces(targetRoot: string) {
   const workspaces: WorkspaceName[] = []
 
-  for (const workspace of ['frontend', 'server', 'packages/trpc', 'backoffice'] as const) {
+  for (const workspace of [
+    'frontend',
+    'server',
+    CONTRACTS_WORKSPACE_PATH,
+    APP_ROUTER_WORKSPACE_PATH,
+    'backoffice',
+  ] as const) {
     if (await pathExists(path.join(targetRoot, workspace))) {
       workspaces.push(workspace)
     }

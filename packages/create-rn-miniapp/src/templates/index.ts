@@ -4,11 +4,18 @@ import path from 'node:path'
 import { patchRootPackageJsonSource } from '../patching/package-json.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
+  APP_ROUTER_WORKSPACE_PATH,
+  CONTRACTS_WORKSPACE_PATH,
   applyTrpcWorkspaceTemplate as applyTrpcWorkspaceTemplateImpl,
-  TRPC_WORKSPACE_PATH,
 } from './trpc.js'
 
-const ROOT_WORKSPACE_ORDER = ['frontend', 'server', TRPC_WORKSPACE_PATH, 'backoffice'] as const
+const ROOT_WORKSPACE_ORDER = [
+  'frontend',
+  'server',
+  CONTRACTS_WORKSPACE_PATH,
+  APP_ROUTER_WORKSPACE_PATH,
+  'backoffice',
+] as const
 
 export type WorkspaceName = (typeof ROOT_WORKSPACE_ORDER)[number]
 

@@ -96,7 +96,7 @@ test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in p
   const tokens = createTokens('pnpm')
 
   await applyRootTemplates(targetRoot, tokens, ['frontend'])
-  await syncRootWorkspaceManifest(targetRoot, 'pnpm', ['frontend', 'packages/trpc'])
+  await syncRootWorkspaceManifest(targetRoot, 'pnpm', ['frontend', 'packages/contracts'])
 
   assert.equal(
     await readFile(path.join(targetRoot, 'pnpm-workspace.yaml'), 'utf8'),
@@ -104,22 +104,34 @@ test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in p
   )
 })
 
-test('applyTrpcWorkspaceTemplate creates a shared packages/trpc workspace for cloudflare', async (t) => {
+test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspaces for cloudflare', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
-  await applyRootTemplates(targetRoot, tokens, ['frontend', 'server', 'packages/trpc'])
+  await applyRootTemplates(targetRoot, tokens, [
+    'frontend',
+    'server',
+    'packages/contracts',
+    'packages/app-router',
+  ])
   await applyTrpcWorkspaceTemplate(targetRoot, tokens, { serverProvider: 'cloudflare' })
 
-  const packageJson = JSON.parse(
-    await readFile(path.join(targetRoot, 'packages', 'trpc', 'package.json'), 'utf8'),
+  const contractsPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'packages', 'contracts', 'package.json'), 'utf8'),
   ) as {
     name?: string
     dependencies?: Record<string, string>
     scripts?: Record<string, string>
   }
-  const tsconfig = JSON.parse(
-    await readFile(path.join(targetRoot, 'packages', 'trpc', 'tsconfig.json'), 'utf8'),
+  const appRouterPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'packages', 'app-router', 'package.json'), 'utf8'),
+  ) as {
+    name?: string
+    dependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  }
+  const appRouterTsconfig = JSON.parse(
+    await readFile(path.join(targetRoot, 'packages', 'app-router', 'tsconfig.json'), 'utf8'),
   ) as {
     compilerOptions?: {
       allowImportingTsExtensions?: boolean
@@ -129,36 +141,54 @@ test('applyTrpcWorkspaceTemplate creates a shared packages/trpc workspace for cl
       rewriteRelativeImportExtensions?: boolean
     }
   }
-  const projectJson = JSON.parse(
-    await readFile(path.join(targetRoot, 'packages', 'trpc', 'project.json'), 'utf8'),
+  const appRouterProjectJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'packages', 'app-router', 'project.json'), 'utf8'),
   ) as {
     targets?: Record<string, { command?: string }>
   }
-  const readme = await readFile(path.join(targetRoot, 'packages', 'trpc', 'README.md'), 'utf8')
-  const indexSource = await readFile(
-    path.join(targetRoot, 'packages', 'trpc', 'src', 'index.ts'),
+  const contractsReadme = await readFile(
+    path.join(targetRoot, 'packages', 'contracts', 'README.md'),
     'utf8',
   )
-  const rootSource = await readFile(
-    path.join(targetRoot, 'packages', 'trpc', 'src', 'root.ts'),
+  const appRouterReadme = await readFile(
+    path.join(targetRoot, 'packages', 'app-router', 'README.md'),
+    'utf8',
+  )
+  const contractsIndexSource = await readFile(
+    path.join(targetRoot, 'packages', 'contracts', 'src', 'index.ts'),
+    'utf8',
+  )
+  const appRouterIndexSource = await readFile(
+    path.join(targetRoot, 'packages', 'app-router', 'src', 'index.ts'),
+    'utf8',
+  )
+  const appRouterRootSource = await readFile(
+    path.join(targetRoot, 'packages', 'app-router', 'src', 'root.ts'),
     'utf8',
   )
 
-  assert.equal(packageJson.name, '@workspace/trpc')
-  assert.equal(packageJson.dependencies?.['@trpc/server'], '^11.13.4')
-  assert.equal(packageJson.dependencies?.zod, '^4.3.6')
-  assert.equal(packageJson.scripts?.build, 'tsc -p tsconfig.json')
-  assert.equal(tsconfig.compilerOptions?.composite, true)
-  assert.equal(tsconfig.compilerOptions?.declaration, true)
-  assert.equal(tsconfig.compilerOptions?.outDir, 'dist')
-  assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
-  assert.equal(tsconfig.compilerOptions?.rewriteRelativeImportExtensions, true)
-  assert.equal(projectJson.targets?.build?.command, 'pnpm --dir packages/trpc build')
-  assert.equal(projectJson.targets?.typecheck?.command, 'pnpm --dir packages/trpc typecheck')
-  assert.match(readme, /packages\/trpc/)
-  assert.match(readme, /server를 직접 참조하지 않아요/)
-  assert.match(indexSource, /export type \{ AppRouter \} from '\.\/root\.ts'/)
-  assert.match(rootSource, /from '\.\/routers\/example\.ts'/)
+  assert.equal(contractsPackageJson.name, '@workspace/contracts')
+  assert.equal(contractsPackageJson.dependencies?.zod, '^4.3.6')
+  assert.equal(appRouterPackageJson.name, '@workspace/app-router')
+  assert.equal(appRouterPackageJson.dependencies?.['@trpc/server'], '^11.13.4')
+  assert.equal(appRouterPackageJson.dependencies?.['@workspace/contracts'], 'workspace:*')
+  assert.equal(appRouterPackageJson.scripts?.build, 'tsc -p tsconfig.json')
+  assert.equal(appRouterTsconfig.compilerOptions?.composite, true)
+  assert.equal(appRouterTsconfig.compilerOptions?.declaration, true)
+  assert.equal(appRouterTsconfig.compilerOptions?.outDir, 'dist')
+  assert.equal(appRouterTsconfig.compilerOptions?.allowImportingTsExtensions, true)
+  assert.equal(appRouterTsconfig.compilerOptions?.rewriteRelativeImportExtensions, true)
+  assert.equal(appRouterProjectJson.targets?.build?.command, 'pnpm --dir packages/app-router build')
+  assert.equal(
+    appRouterProjectJson.targets?.typecheck?.command,
+    'pnpm --dir packages/app-router typecheck',
+  )
+  assert.match(contractsReadme, /packages\/contracts/)
+  assert.match(appRouterReadme, /packages\/app-router/)
+  assert.match(appRouterReadme, /packages\/contracts/)
+  assert.match(contractsIndexSource, /ExampleEchoInputSchema/)
+  assert.match(appRouterIndexSource, /export type \{ AppRouter \} from '\.\/root\.ts'/)
+  assert.match(appRouterRootSource, /from '\.\/routers\/example\.ts'/)
 })
 
 test('applyDocsTemplates keeps optional workspace docs out of the base copy', async (t) => {
@@ -711,10 +741,30 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
   await applyRootTemplates(npmRoot, createTokens('npm'), ['frontend'])
   await applyRootTemplates(bunRoot, createTokens('bun'), ['frontend'])
 
-  await syncRootWorkspaceManifest(pnpmRoot, 'pnpm', ['frontend', 'server', 'packages/trpc'])
-  await syncRootWorkspaceManifest(yarnRoot, 'yarn', ['frontend', 'backoffice', 'packages/trpc'])
-  await syncRootWorkspaceManifest(npmRoot, 'npm', ['frontend', 'server', 'packages/trpc'])
-  await syncRootWorkspaceManifest(bunRoot, 'bun', ['frontend', 'backoffice', 'packages/trpc'])
+  await syncRootWorkspaceManifest(pnpmRoot, 'pnpm', [
+    'frontend',
+    'server',
+    'packages/contracts',
+    'packages/app-router',
+  ])
+  await syncRootWorkspaceManifest(yarnRoot, 'yarn', [
+    'frontend',
+    'backoffice',
+    'packages/contracts',
+    'packages/app-router',
+  ])
+  await syncRootWorkspaceManifest(npmRoot, 'npm', [
+    'frontend',
+    'server',
+    'packages/contracts',
+    'packages/app-router',
+  ])
+  await syncRootWorkspaceManifest(bunRoot, 'bun', [
+    'frontend',
+    'backoffice',
+    'packages/contracts',
+    'packages/app-router',
+  ])
 
   const pnpmWorkspaceManifest = await readFile(path.join(pnpmRoot, 'pnpm-workspace.yaml'), 'utf8')
   const yarnPackageJson = JSON.parse(

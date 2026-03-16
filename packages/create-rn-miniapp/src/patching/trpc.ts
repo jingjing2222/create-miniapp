@@ -1,6 +1,7 @@
 export const TRPC_CLIENT_VERSION = '^11.13.4'
 export const TRPC_SERVER_VERSION = '^11.13.4'
-export const TRPC_WORKSPACE_DEPENDENCY = 'workspace:*'
+export const APP_ROUTER_WORKSPACE_DEPENDENCY = 'workspace:*'
+export const CONTRACTS_WORKSPACE_DEPENDENCY = 'workspace:*'
 export const ZOD_VERSION = '^4.3.6'
 
 export function renderCloudflareTrpcClientSource(options: {
@@ -8,7 +9,7 @@ export function renderCloudflareTrpcClientSource(options: {
 }) {
   return [
     "import { createTRPCProxyClient, httpBatchLink } from '@trpc/client'",
-    "import type { AppRouter } from '@workspace/trpc'",
+    "import type { AppRouter } from '@workspace/app-router'",
     '',
     'function resolveTrpcUrl() {',
     `  const baseUrl = ${options.urlExpression}.trim()`,
@@ -38,7 +39,7 @@ export function renderSupabaseTrpcClientSource(options: {
 }) {
   return [
     "import { createTRPCProxyClient, httpBatchLink } from '@trpc/client'",
-    "import type { AppRouter } from '@workspace/trpc'",
+    "import type { AppRouter } from '@workspace/app-router'",
     `import { supabase } from '${options.supabaseImportPath}'`,
     '',
     'function resolveTrpcUrl() {',
@@ -96,7 +97,7 @@ export function renderCloudflareServerTrpcContextSource() {
 export function renderCloudflareServerIndexSource() {
   return [
     "import { fetchRequestHandler } from '@trpc/server/adapters/fetch'",
-    "import { appRouter } from '@workspace/trpc'",
+    "import { appRouter } from '@workspace/app-router'",
     "import { createCloudflareTrpcContext } from './trpc/context'",
     '',
     'export default {',
@@ -120,7 +121,7 @@ export function renderCloudflareServerIndexSource() {
 export function renderSupabaseEdgeFunctionTrpcSource() {
   return [
     "import { fetchRequestHandler } from 'npm:@trpc/server/adapters/fetch'",
-    "import { appRouter } from '@workspace/trpc'",
+    "import { appRouter } from '@workspace/app-router'",
     '',
     'Deno.serve((request) =>',
     '  fetchRequestHandler({',
@@ -140,7 +141,8 @@ export function renderSupabaseTrpcDenoConfig() {
   return `${JSON.stringify(
     {
       imports: {
-        '@workspace/trpc': '../../../../packages/trpc/src/index.ts',
+        '@workspace/app-router': '../../../../packages/app-router/src/index.ts',
+        '@workspace/contracts': '../../../../packages/contracts/src/index.ts',
         '@trpc/server': `npm:@trpc/server@${TRPC_SERVER_VERSION}`,
         zod: `npm:zod@${ZOD_VERSION}`,
       },

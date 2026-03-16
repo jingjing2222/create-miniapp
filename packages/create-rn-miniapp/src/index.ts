@@ -24,7 +24,7 @@ function describeWorkspaceLayout(options: {
   return [
     'frontend',
     ...(options.withServer ? ['server'] : []),
-    ...(options.withTrpc ? ['packages/trpc'] : []),
+    ...(options.withTrpc ? ['packages/contracts', 'packages/app-router'] : []),
     ...(options.withBackoffice ? ['backoffice'] : []),
   ].join(', ')
 }
