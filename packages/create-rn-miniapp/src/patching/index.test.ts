@@ -112,6 +112,7 @@ test('patchFrontendWorkspace keeps supabase bootstrap out when no server provide
   const packageJson = JSON.parse(
     await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -421,6 +422,7 @@ test('patchFrontendWorkspace adds supabase bootstrap when supabase server provid
   const packageJson = JSON.parse(
     await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -548,6 +550,7 @@ test('patchFrontendWorkspace adds cloudflare API bootstrap when cloudflare serve
   const packageJson = JSON.parse(
     await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -628,6 +631,7 @@ test('patchFrontendWorkspace adds cloudflare trpc client when trpc overlay is se
   const packageJson = JSON.parse(
     await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -642,6 +646,10 @@ test('patchFrontendWorkspace adds cloudflare trpc client when trpc overlay is se
 
   assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
   assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    'pnpm --dir ../packages/app-router build && tsc --noEmit',
+  )
   assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
   assert.equal(tsconfig.compilerOptions?.moduleResolution, 'bundler')
   assert.equal(tsconfig.compilerOptions?.noEmit, true)
@@ -710,6 +718,7 @@ test('patchFrontendWorkspace adds supabase trpc client and ts extension support 
   const packageJson = JSON.parse(
     await readFile(path.join(frontendRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -724,6 +733,10 @@ test('patchFrontendWorkspace adds supabase trpc client and ts extension support 
 
   assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
   assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    'pnpm --dir ../packages/app-router build && tsc --noEmit',
+  )
   assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
   assert.equal(tsconfig.compilerOptions?.moduleResolution, 'bundler')
   assert.equal(tsconfig.compilerOptions?.noEmit, true)
@@ -1320,6 +1333,7 @@ test('patchBackofficeWorkspace adds supabase trpc client when trpc overlay is se
   const packageJson = JSON.parse(
     await readFile(path.join(backofficeRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -1327,6 +1341,10 @@ test('patchBackofficeWorkspace adds supabase trpc client when trpc overlay is se
 
   assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
   assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    'pnpm --dir ../packages/app-router build && tsc -b --pretty false',
+  )
   assert.match(trpcClient, /createTRPCProxyClient/)
   assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/app-router'/)
   assert.match(trpcClient, /Authorization/)
@@ -1404,6 +1422,7 @@ test('patchBackofficeWorkspace adds cloudflare trpc client without api helper wh
   const packageJson = JSON.parse(
     await readFile(path.join(backofficeRoot, 'package.json'), 'utf8'),
   ) as {
+    scripts?: Record<string, string>
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
@@ -1411,6 +1430,10 @@ test('patchBackofficeWorkspace adds cloudflare trpc client without api helper wh
 
   assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
   assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    'pnpm --dir ../packages/app-router build && tsc -b --pretty false',
+  )
   assert.equal(await pathExists(path.join(backofficeRoot, 'src', 'lib', 'api.ts')), false)
   assert.match(trpcClient, /createTRPCProxyClient/)
   assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/app-router'/)
@@ -1706,8 +1729,19 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
   assert.equal(packageJson.dependencies?.['@workspace/app-router'], 'workspace:*')
   assert.equal(packageJson.dependencies?.['@workspace/contracts'], 'workspace:*')
   assert.equal(packageJson.scripts?.['trpc:sync'], undefined)
-  assert.equal(packageJson.scripts?.dev, 'wrangler dev')
-  assert.equal(packageJson.scripts?.build, 'wrangler deploy --dry-run')
+  assert.equal(packageJson.scripts?.dev, 'pnpm --dir ../packages/app-router build && wrangler dev')
+  assert.equal(
+    packageJson.scripts?.build,
+    'pnpm --dir ../packages/app-router build && wrangler deploy --dry-run',
+  )
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    'pnpm --dir ../packages/app-router build && wrangler types && tsc --noEmit',
+  )
+  assert.equal(
+    packageJson.scripts?.deploy,
+    'pnpm --dir ../packages/app-router build && node ./scripts/cloudflare-deploy.mjs',
+  )
   assert.match(indexSource, /fetchRequestHandler/)
   assert.match(indexSource, /from '@workspace\/app-router'/)
   assert.match(contextSource, /export type CloudflareTrpcContext/)

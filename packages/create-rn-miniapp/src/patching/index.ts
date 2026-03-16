@@ -1595,9 +1595,21 @@ function normalizeVitestTestScript(script: string) {
   return script
 }
 
+function renderTrpcWorkspaceBuildCommand(packageManager: PackageManager) {
+  return getPackageManagerAdapter(packageManager).runScriptInDirectoryCommand(
+    '../packages/app-router',
+    'build',
+  )
+}
+
+function prefixTrpcWorkspaceBuild(command: string, packageManager: PackageManager) {
+  return `${renderTrpcWorkspaceBuildCommand(packageManager)} && ${command}`
+}
+
 async function ensureFrontendPackageJsonForWorkspace(
   frontendRoot: string,
   packageJson: PackageJson,
+  packageManager: PackageManager,
   serverProvider: ServerProvider | null,
   trpc = false,
 ) {
@@ -1656,6 +1668,11 @@ async function ensureFrontendPackageJsonForWorkspace(
     if (!packageJson.devDependencies?.['@workspace/app-router']) {
       devDependencies['@workspace/app-router'] = APP_ROUTER_WORKSPACE_DEPENDENCY
     }
+
+    scripts.typecheck = prefixTrpcWorkspaceBuild(
+      packageJson.scripts?.typecheck ?? 'tsc --noEmit',
+      packageManager,
+    )
   }
 
   await patchPackageJsonFile(path.join(frontendRoot, 'package.json'), {
@@ -1676,6 +1693,7 @@ async function ensureFrontendPackageJsonForWorkspace(
 async function ensureBackofficePackageJsonForWorkspace(
   backofficeRoot: string,
   packageJson: PackageJson,
+  packageManager: PackageManager,
   serverProvider: ServerProvider | null,
   trpc = false,
 ) {
@@ -1709,6 +1727,8 @@ async function ensureBackofficePackageJsonForWorkspace(
     if (!packageJson.devDependencies?.['@workspace/app-router']) {
       devDependencies['@workspace/app-router'] = APP_ROUTER_WORKSPACE_DEPENDENCY
     }
+
+    scripts.typecheck = prefixTrpcWorkspaceBuild(scripts.typecheck, packageManager)
   }
 
   await patchPackageJsonFile(path.join(backofficeRoot, 'package.json'), {
@@ -1731,7 +1751,12 @@ export async function ensureFrontendSupabaseBootstrap(targetRoot: string, tokens
   const packageJsonPath = path.join(frontendRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'supabase')
+  await ensureFrontendPackageJsonForWorkspace(
+    frontendRoot,
+    packageJson,
+    tokens.packageManager,
+    'supabase',
+  )
   await patchGraniteConfig(frontendRoot, tokens, 'supabase')
   await patchWorkspaceTsconfigModules(frontendRoot, [
     {
@@ -1751,7 +1776,12 @@ export async function ensureBackofficeSupabaseBootstrap(
   const packageJsonPath = path.join(backofficeRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'supabase')
+  await ensureBackofficePackageJsonForWorkspace(
+    backofficeRoot,
+    packageJson,
+    tokens.packageManager,
+    'supabase',
+  )
   await patchWorkspaceTsconfigModules(backofficeRoot, [
     { fileName: 'tsconfig.json' },
     { fileName: 'tsconfig.app.json' },
@@ -1770,7 +1800,12 @@ export async function ensureFrontendCloudflareBootstrap(
   const packageJsonPath = path.join(frontendRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'cloudflare')
+  await ensureFrontendPackageJsonForWorkspace(
+    frontendRoot,
+    packageJson,
+    tokens.packageManager,
+    'cloudflare',
+  )
   await patchGraniteConfig(frontendRoot, tokens, 'cloudflare')
   await patchWorkspaceTsconfigModules(frontendRoot, [
     {
@@ -1787,7 +1822,12 @@ export async function ensureFrontendFirebaseBootstrap(targetRoot: string, tokens
   const packageJsonPath = path.join(frontendRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureFrontendPackageJsonForWorkspace(frontendRoot, packageJson, 'firebase')
+  await ensureFrontendPackageJsonForWorkspace(
+    frontendRoot,
+    packageJson,
+    tokens.packageManager,
+    'firebase',
+  )
   await patchGraniteConfig(frontendRoot, tokens, 'firebase')
   await patchWorkspaceTsconfigModules(frontendRoot, [
     {
@@ -1807,7 +1847,12 @@ export async function ensureBackofficeCloudflareBootstrap(
   const packageJsonPath = path.join(backofficeRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'cloudflare')
+  await ensureBackofficePackageJsonForWorkspace(
+    backofficeRoot,
+    packageJson,
+    tokens.packageManager,
+    'cloudflare',
+  )
   await patchWorkspaceTsconfigModules(backofficeRoot, [
     { fileName: 'tsconfig.json' },
     { fileName: 'tsconfig.app.json' },
@@ -1826,7 +1871,12 @@ export async function ensureBackofficeFirebaseBootstrap(
   const packageJsonPath = path.join(backofficeRoot, 'package.json')
   const packageJson = await readPackageJson(packageJsonPath)
 
-  await ensureBackofficePackageJsonForWorkspace(backofficeRoot, packageJson, 'firebase')
+  await ensureBackofficePackageJsonForWorkspace(
+    backofficeRoot,
+    packageJson,
+    tokens.packageManager,
+    'firebase',
+  )
   await patchWorkspaceTsconfigModules(backofficeRoot, [
     { fileName: 'tsconfig.json' },
     { fileName: 'tsconfig.app.json' },
@@ -1863,6 +1913,7 @@ export async function patchFrontendWorkspace(
   await ensureFrontendPackageJsonForWorkspace(
     frontendRoot,
     packageJson,
+    options.packageManager,
     options.serverProvider,
     options.trpc,
   )
@@ -1939,6 +1990,7 @@ export async function patchBackofficeWorkspace(
   await ensureBackofficePackageJsonForWorkspace(
     backofficeRoot,
     packageJson,
+    options.packageManager,
     options.serverProvider,
     options.trpc,
   )
@@ -2045,10 +2097,19 @@ export async function patchCloudflareServerWorkspace(
       scripts: {
         ...(options.trpc
           ? {
-              dev: packageJson.scripts?.dev ?? 'wrangler dev',
-              deploy: 'node ./scripts/cloudflare-deploy.mjs',
-              build: 'wrangler deploy --dry-run',
-              typecheck: 'wrangler types && tsc --noEmit',
+              dev: prefixTrpcWorkspaceBuild(
+                packageJson.scripts?.dev ?? 'wrangler dev',
+                options.packageManager,
+              ),
+              deploy: prefixTrpcWorkspaceBuild(
+                'node ./scripts/cloudflare-deploy.mjs',
+                options.packageManager,
+              ),
+              build: prefixTrpcWorkspaceBuild('wrangler deploy --dry-run', options.packageManager),
+              typecheck: prefixTrpcWorkspaceBuild(
+                'wrangler types && tsc --noEmit',
+                options.packageManager,
+              ),
             }
           : {
               deploy: 'node ./scripts/cloudflare-deploy.mjs',
