@@ -1,5 +1,6 @@
 ---
 "create-rn-miniapp": patch
+"@create-rn-miniapp/scaffold-templates": patch
 ---
 
 Finish the generated frontend TypeScript config for tRPC overlays.
