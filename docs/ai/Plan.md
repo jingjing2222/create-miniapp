@@ -191,7 +191,7 @@
     - 이 분리는 `create-t3-turbo`의 `api` package 원칙을 거의 그대로 따르되, package 이름만 우리 문맥에 맞게 바꾼 것이다.
     - 서버 생성물
      - `packages/trpc`
-       - `src/router.ts`, `src/root.ts`, `src/routers/example.ts`, `src/types.ts` 같은 canonical 구조를 둔다.
+     - 샘플 router 파일명은 바뀔 수 있으니, canonical entrypoint는 `src/index.ts`, `src/root.ts`처럼 안정적인 엔트리 기준으로 둔다.
        - 여기에는 provider-specific handler가 아니라 runtime-neutral router 정의와 `AppRouter` export만 둔다.
        - 내부 import는 tsconfig path alias를 쓰지 않고 package 내부 상대 경로만 쓴다.
        - `AppRouter`가 client 쪽에서 `any`로 무너지는 문제를 피하려고 `composite: true`, declaration emit, portable export를 기본값으로 둔다.

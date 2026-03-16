@@ -9,15 +9,14 @@
 
 ## 가장 먼저 볼 파일
 - `packages/contracts/src/index.ts`
-- `packages/contracts/src/example.ts`
 - `packages/app-router/src/index.ts`
 - `packages/app-router/src/root.ts`
-- `packages/app-router/src/routers/example.ts`
 
 ## 어떻게 이해하면 되나요
 - boundary input/output을 바꾸고 싶으면 먼저 `packages/contracts`의 Zod schema를 수정해요.
 - client-server 경계 타입은 schema에서 `z.infer`로만 파생하고, 같은 DTO를 별도 type alias로 중복 선언하지 않아요.
 - route 구조를 바꾸고 싶으면 `packages/app-router`를 수정해요.
+- `example.ts`나 `routers/example.ts` 같은 샘플 파일은 언제든 바뀌거나 사라질 수 있으니, 문서를 볼 때는 엔트리 파일인 `index.ts`, `root.ts`를 먼저 기준으로 잡아요.
 - client 타입은 `frontend/src/lib/trpc.ts`, `backoffice/src/lib/trpc.ts`에서 `AppRouter`로 따라와요.
 - server runtime adapter는 provider별로 다르지만, boundary contract과 API shape의 SSOT는 계속 shared package 두 개예요.
 
