@@ -326,7 +326,7 @@ const FRONTEND_SAFE_STARTER_INDEX_PAGE = [
   '            MiniApp 준비가 끝났어요.',
   '          </Txt>',
   '          <Txt typography="t6" color="#4A5568" style={styles.description}>',
-  '            이제 `frontend/src/pages`에서 화면을 만들고 AppInToss framework, TDS, provider SDK를 붙이면 돼요.',
+  '            이제 `frontend/src/pages`에서 화면을 만들고 AppInToss framework, TDS를 활용해 개발하면 돼요.',
   '          </Txt>',
   '        </View>',
   '      </View>',
