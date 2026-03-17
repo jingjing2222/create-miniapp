@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
@@ -26,6 +27,7 @@ type SupabaseApiKey = {
 export type ProvisionedSupabaseProject = {
   projectRef: string
   publishableKey: string | null
+  dbPassword: string | null
   mode: ServerProjectMode
 }
 
@@ -40,8 +42,8 @@ const CREATE_SUPABASE_PROJECT_SENTINEL = '__create_supabase_project__'
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
 const SUPABASE_MANAGEMENT_API_DOC_URL = 'https://supabase.com/docs/reference/api/introduction'
 
-export function buildCreateSupabaseProjectArgs(projectName: string) {
-  return ['projects', 'create', projectName]
+export function buildCreateSupabaseProjectArgs(projectName: string, dbPassword: string) {
+  return ['projects', 'create', projectName, '--db-password', dbPassword]
 }
 
 function buildSupabaseCommand(
@@ -84,6 +86,10 @@ function createSupabaseServerEnvValues(projectRef: string, dbPassword = '', acce
     `SUPABASE_ACCESS_TOKEN=${accessToken}`,
     '',
   ].join('\n')
+}
+
+function generateSupabaseDbPassword() {
+  return randomBytes(24).toString('base64url')
 }
 
 function getSupabaseApiSettingsUrl(projectRef: string) {
@@ -251,6 +257,7 @@ export async function writeSupabaseLocalEnvFiles(options: {
 export async function writeSupabaseServerLocalEnvFile(options: {
   targetRoot: string
   projectRef: string
+  dbPassword?: string | null
 }) {
   const serverEnvPath = path.join(options.targetRoot, 'server', '.env.local')
   let existingSource = ''
@@ -284,6 +291,12 @@ export async function writeSupabaseServerLocalEnvFile(options: {
     if (trimmed.startsWith('SUPABASE_DB_PASSWORD=')) {
       hasPassword = true
       hasNonEmptyPassword = trimmed.slice('SUPABASE_DB_PASSWORD='.length).trim().length > 0
+
+      if (!hasNonEmptyPassword && options.dbPassword) {
+        nextLines[index] = `SUPABASE_DB_PASSWORD=${options.dbPassword}`
+        hasNonEmptyPassword = true
+      }
+
       continue
     }
 
@@ -298,7 +311,8 @@ export async function writeSupabaseServerLocalEnvFile(options: {
   }
 
   if (!hasPassword) {
-    nextLines.push('SUPABASE_DB_PASSWORD=')
+    nextLines.push(`SUPABASE_DB_PASSWORD=${options.dbPassword ?? ''}`)
+    hasNonEmptyPassword = Boolean(options.dbPassword)
   }
 
   if (!hasAccessToken) {
@@ -445,11 +459,16 @@ async function createSupabaseProject(
 ) {
   log.step('Supabase 프로젝트를 새로 만들게요')
   const projectName = (await promptSupabaseProjectName(prompt, cwd)).trim()
+  const dbPassword = generateSupabaseDbPassword()
   await runCommand(
     buildSupabaseCommand(packageManager, cwd, 'Supabase 프로젝트 만들기', [
-      ...buildCreateSupabaseProjectArgs(projectName),
+      ...buildCreateSupabaseProjectArgs(projectName, dbPassword),
     ]),
   )
+
+  return {
+    dbPassword,
+  }
 }
 
 async function getSupabaseApiKeys(packageManager: PackageManager, cwd: string, projectRef: string) {
@@ -533,6 +552,7 @@ export async function provisionSupabaseProject(
 
   let selectedProjectId: string | null = null
   let resolvedProjectMode = options.projectMode
+  let createdProjectDbPassword: string | null = null
 
   if (resolvedProjectMode === null) {
     const selectedProject = await selectSupabaseProject(options.prompt, projects, {
@@ -550,15 +570,20 @@ export async function provisionSupabaseProject(
 
   if (resolvedProjectMode === 'create') {
     const previousProjectIds = new Set(projects.map((project) => project.id))
-    await createSupabaseProject(options.packageManager, options.targetRoot, options.prompt)
+    const createdProject = await createSupabaseProject(
+      options.packageManager,
+      options.targetRoot,
+      options.prompt,
+    )
+    createdProjectDbPassword = createdProject.dbPassword
 
-    const createdProject = await pollForNewSupabaseProject([...previousProjectIds], {
+    const createdSupabaseProject = await pollForNewSupabaseProject([...previousProjectIds], {
       listProjects: async () =>
         await ensureSupabaseProjects(options.packageManager, options.targetRoot),
     })
 
-    if (createdProject) {
-      selectedProjectId = createdProject.id
+    if (createdSupabaseProject) {
+      selectedProjectId = createdSupabaseProject.id
     } else {
       const refreshedProjects = await ensureSupabaseProjects(
         options.packageManager,
@@ -597,6 +622,7 @@ export async function provisionSupabaseProject(
   return {
     projectRef: selectedProjectId,
     publishableKey,
+    dbPassword: createdProjectDbPassword,
     mode: resolvedProjectMode,
   }
 }
@@ -618,6 +644,7 @@ export async function finalizeSupabaseProvisioning(options: {
   const serverEnv = await writeSupabaseServerLocalEnvFile({
     targetRoot: options.targetRoot,
     projectRef: options.provisionedProject.projectRef,
+    dbPassword: options.provisionedProject.dbPassword,
   })
 
   if (options.provisionedProject.publishableKey) {

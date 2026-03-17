@@ -1,3 +1,19 @@
+## 다음 작업: Supabase 새 프로젝트 DB 비밀번호를 생성기가 직접 만들고 저장하기
+1. 문제
+   - Supabase CLI prompt에서 DB 비밀번호를 비워 두면 생성된 값을 CLI가 다시 보여주지 않아, 사용자가 비밀번호를 모른 채 프로젝트가 만들어질 수 있다.
+   - 현재 생성기는 그 값을 알 수 없어서 `server/.env.local`에도 비워 둔다.
+2. 방향
+   - 생성기가 강한 DB 비밀번호를 직접 만들고, `supabase projects create <name> --db-password <generated>`로 넘긴다.
+   - create는 여전히 interactive TTY로 실행해서 org와 region 선택은 Supabase CLI 흐름을 그대로 쓴다.
+   - 생성한 비밀번호는 `server/.env.local`에 바로 적어 두고, 기존 값이 있으면 덮어쓰지 않는다.
+3. 테스트
+   - create args가 `--db-password`를 포함하는지 먼저 고정한다.
+   - `writeSupabaseServerLocalEnvFile`이 새 비밀번호를 초기값으로 기록하는지 테스트를 추가한다.
+4. 완료 기준
+   - 새 Supabase 프로젝트를 만들 때 DB 비밀번호를 잃어버리지 않는다.
+   - `server/.env.local`에 바로 이어서 쓸 수 있는 비밀번호가 남는다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: Supabase create 명령에 프로젝트 이름 positional arg 넣기
 1. 문제
    - 최신 Supabase CLI는 `supabase projects create [project name]` 형태를 요구한다.

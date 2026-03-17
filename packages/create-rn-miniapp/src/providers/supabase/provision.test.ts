@@ -74,10 +74,12 @@ test('extractJsonPayload strips package-manager log lines around JSON output', (
 })
 
 test('buildCreateSupabaseProjectArgs appends the project name positional arg', () => {
-  assert.deepEqual(buildCreateSupabaseProjectArgs('test-project'), [
+  assert.deepEqual(buildCreateSupabaseProjectArgs('test-project', 'generated-password'), [
     'projects',
     'create',
     'test-project',
+    '--db-password',
+    'generated-password',
   ])
 })
 
@@ -173,6 +175,7 @@ test('writeSupabaseServerLocalEnvFile creates server env file and preserves an e
     await writeSupabaseServerLocalEnvFile({
       targetRoot,
       projectRef: 'abc123',
+      dbPassword: 'generated-password',
     })
 
     const initialServerEnv = await readFile(path.join(targetRoot, 'server', '.env.local'), 'utf8')
@@ -182,7 +185,7 @@ test('writeSupabaseServerLocalEnvFile creates server env file and preserves an e
       [
         '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
         'SUPABASE_PROJECT_REF=abc123',
-        'SUPABASE_DB_PASSWORD=',
+        'SUPABASE_DB_PASSWORD=generated-password',
         'SUPABASE_ACCESS_TOKEN=',
         '',
       ].join('\n'),
@@ -226,6 +229,7 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
       provisionedProject: {
         projectRef: 'abc123',
         publishableKey: 'sb_publishable_123',
+        dbPassword: null,
         mode: 'existing',
       },
     })
@@ -286,6 +290,7 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
       provisionedProject: {
         projectRef: 'abc123',
         publishableKey: 'sb_publishable_123',
+        dbPassword: null,
         mode: 'existing',
       },
     })
@@ -310,6 +315,7 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
       provisionedProject: {
         projectRef: 'abc123',
         publishableKey: null,
+        dbPassword: null,
         mode: 'existing',
       },
     })
