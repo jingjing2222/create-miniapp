@@ -1,3 +1,17 @@
+## 다음 작업: Supabase provisioning note에서 배포 설명을 빼고 값 입력 안내만 남기기
+1. 문제
+   - 지금 Supabase provisioning note에는 `db:apply`, `functions:deploy`, Edge Function 위치 같은 배포 설명이 섞여 있다.
+   - 이 내용은 이미 generated `server/README.md`에 있으니, note까지 같은 책임을 지면 오히려 혼잡하다.
+2. 방향
+   - note에서는 `.env.local`에 어떤 값을 넣어야 하는지와 해당 대시보드 URL만 남긴다.
+   - 배포/재배포 명령과 Edge Function 설명은 `server/README.md`에만 남긴다.
+3. 테스트
+   - Supabase note 테스트에서 `functions:deploy`, `db:apply` 같은 문구를 더 이상 기대하지 않게 바꾼다.
+4. 완료 기준
+   - note는 값 입력 안내만 짧게 보여준다.
+   - 배포 설명은 `server/README.md`에만 남는다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: Supabase provisioning note를 짧게 줄이고 DB password 대시보드 URL을 바로 안내하기
 1. 문제
    - 지금 Supabase provisioning note는 access token, DB password, publishable key 설명이 길게 섞여 있어서 필요한 행동이 바로 보이지 않는다.

@@ -10,7 +10,7 @@ import {
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
-import { pathExists, SUPABASE_DEFAULT_FUNCTION_NAME } from '../../templates/index.js'
+import { pathExists } from '../../templates/index.js'
 
 type SupabaseProject = {
   id: string
@@ -231,8 +231,6 @@ export function formatSupabaseManualSetupNote(options: {
     '',
     path.join(options.targetRoot, 'server', '.env.local'),
     createSupabaseServerEnvValues(options.projectRef, '<프로젝트 DB password>').trimEnd(),
-    '',
-    'server/package.json 의 db:apply 와 functions:deploy 는 server/.env.local 값을 사용합니다.',
   )
 
   const secretGuidance = formatSupabaseSecretGuidance({
@@ -242,12 +240,8 @@ export function formatSupabaseManualSetupNote(options: {
   })
 
   if (secretGuidance.length > 0) {
-    lines.push('', ...secretGuidance, '')
+    lines.push('', ...secretGuidance)
   }
-
-  lines.push(
-    `기본 Edge Function은 \`supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts\`에 생성되어 있고, \`${path.join(options.targetRoot, 'server', 'package.json')}\`의 \`functions:deploy\`로 다시 배포할 수 있습니다.`,
-  )
 
   return {
     title: 'Supabase 연결 값을 이렇게 넣어 주세요',
@@ -681,9 +675,9 @@ export async function finalizeSupabaseProvisioning(options: {
           hasBackoffice
             ? 'frontend/.env.local 과 backoffice/.env.local 에 Supabase 연결 값을 적어뒀어요.'
             : 'frontend/.env.local 에 Supabase 연결 값을 적어뒀어요.',
-          'server/.env.local 에는 원격 DB 반영과 Edge Functions 배포에 필요한 값을 적어뒀어요.',
+          'server/.env.local 에도 필요한 값을 적어뒀어요.',
           ...(serverEnv.hasDbPassword && serverEnv.hasAccessToken
-            ? ['server/package.json 의 db:apply 와 functions:deploy 로 바로 이어갈 수 있어요.']
+            ? []
             : formatSupabaseSecretGuidance({
                 projectRef: options.provisionedProject.projectRef,
                 hasDbPassword: serverEnv.hasDbPassword,

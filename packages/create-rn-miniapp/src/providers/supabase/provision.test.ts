@@ -56,7 +56,8 @@ test('formatSupabaseManualSetupNote includes frontend and backoffice env guidanc
   )
   assert.match(note.body, /dashboard\/account\/tokens/)
   assert.match(note.body, /dashboard\/project\/abc123\/database\/settings/)
-  assert.match(note.body, /functions:deploy/)
+  assert.doesNotMatch(note.body, /functions:deploy/)
+  assert.doesNotMatch(note.body, /db:apply/)
 })
 
 test('extractJsonPayload strips package-manager log lines around JSON output', () => {
@@ -255,6 +256,8 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
     )
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /functions:deploy/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /db:apply/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -328,7 +331,8 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     )
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
-    assert.match(notes[0]?.body ?? '', /functions:deploy/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /functions:deploy/)
+    assert.doesNotMatch(notes[0]?.body ?? '', /db:apply/)
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
