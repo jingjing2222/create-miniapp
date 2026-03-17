@@ -1,17 +1,19 @@
-## 다음 작업: Supabase DB 비밀번호를 직접 입력했을 때는 자동 저장하지 않고 note로만 안내하기
+## 다음 작업: Supabase DB 비밀번호는 CLI에 맡기고 생성기는 note만 남기기
 1. 문제
-   - 지금 생성기는 새 Supabase 프로젝트의 DB 비밀번호를 직접 만들어 `server/.env.local`에 적어 두는 흐름을 갖고 있다.
-   - 그런데 사용자가 직접 비밀번호를 정해서 넣는 경우에는 그 값을 생성기가 다시 저장하기보다, 마지막 note에서 직접 넣으라고 안내하는 편이 안전하고 자연스럽다.
+   - 생성기가 DB 비밀번호를 직접 물어보거나 만들어서 넘기는 방식은 Supabase CLI 비밀번호 정책이 바뀔 때마다 쉽게 깨진다.
+   - 사용자는 Supabase 공식 interactive prompt를 그대로 쓰는 편이 더 자연스럽고, 생성기가 그 규칙까지 복제하는 건 유지보수 비용이 크다.
 2. 방향
-   - 새 프로젝트 생성 전에 DB 비밀번호를 한 번 더 물어본다.
-   - 사용자가 값을 직접 입력하면 그 값으로 프로젝트를 만들되, `server/.env.local`에는 자동으로 적지 않는다.
-   - 사용자가 비워 두면 생성기가 강한 비밀번호를 만들고, 그때만 `server/.env.local`에 적어 둔다.
+   - `supabase projects create <name>`는 다시 공식 interactive CLI 흐름만 띄운다.
+   - 생성기는 DB 비밀번호를 직접 입력받거나 만들지 않는다.
+   - 새 프로젝트 생성 뒤에는 `server/.env.local`의 `SUPABASE_DB_PASSWORD`를 자동으로 채우지 않고, 마지막 note에서 직접 넣으라고 안내한다.
+   - CLI 출력에서 비밀번호를 안정적으로 읽을 수 있는 경우만 나중에 별도 확장하고, 지금은 보수적으로 비워 둔다.
 3. 테스트
-   - 직접 입력한 비밀번호는 create에는 쓰이지만 persisted password는 비어 있는지 먼저 고정한다.
-   - 비워 둔 입력은 generated password가 create와 persistence에 같이 쓰이는지 먼저 고정한다.
+   - create args에 `--db-password`가 더 이상 붙지 않는지 먼저 고정한다.
+   - 새 프로젝트 생성 후 note가 `SUPABASE_DB_PASSWORD`를 직접 넣으라고 안내하는지 유지한다.
 4. 완료 기준
-   - 직접 입력한 비밀번호일 때는 마지막 note에 직접 넣으라고 남는다.
-   - 비워 두면 마지막 note에서 비밀번호 안내가 빠지고 `server/.env.local`에 값이 있다.
+   - Supabase 프로젝트 생성은 공식 interactive CLI 그대로 동작한다.
+   - 생성기는 비밀번호 규칙을 직접 구현하지 않는다.
+   - 새 프로젝트를 만든 뒤에는 `SUPABASE_DB_PASSWORD`를 직접 넣으라는 안내가 남는다.
    - `pnpm verify` 통과
 
 ## 다음 작업: Supabase 새 프로젝트 DB 비밀번호를 생성기가 직접 만들고 저장하기

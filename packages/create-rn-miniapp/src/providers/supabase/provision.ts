@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
@@ -42,26 +41,8 @@ const CREATE_SUPABASE_PROJECT_SENTINEL = '__create_supabase_project__'
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
 const SUPABASE_MANAGEMENT_API_DOC_URL = 'https://supabase.com/docs/reference/api/introduction'
 
-export function buildCreateSupabaseProjectArgs(projectName: string, dbPassword: string) {
-  return ['projects', 'create', projectName, '--db-password', dbPassword]
-}
-
-export function resolveSupabaseProjectDbPassword(rawDbPassword: string) {
-  const manualDbPassword = rawDbPassword.trim()
-
-  if (manualDbPassword.length > 0) {
-    return {
-      createPassword: manualDbPassword,
-      persistedPassword: null,
-    }
-  }
-
-  const generatedPassword = generateSupabaseDbPassword()
-
-  return {
-    createPassword: generatedPassword,
-    persistedPassword: generatedPassword,
-  }
+export function buildCreateSupabaseProjectArgs(projectName: string) {
+  return ['projects', 'create', projectName]
 }
 
 function buildSupabaseCommand(
@@ -104,10 +85,6 @@ function createSupabaseServerEnvValues(projectRef: string, dbPassword = '', acce
     `SUPABASE_ACCESS_TOKEN=${accessToken}`,
     '',
   ].join('\n')
-}
-
-function generateSupabaseDbPassword() {
-  return randomBytes(24).toString('base64url')
 }
 
 function getSupabaseApiSettingsUrl(projectRef: string) {
@@ -470,20 +447,6 @@ async function promptSupabaseProjectName(prompt: CliPrompter, targetRoot: string
   })
 }
 
-async function promptSupabaseProjectDbPassword(prompt: CliPrompter) {
-  const options = {
-    message: '새 Supabase 프로젝트 DB 비밀번호를 적어 주세요.',
-    guide:
-      '직접 정한 비밀번호를 쓰고 싶으면 적어 주세요. 비워 두면 제가 강한 비밀번호를 만들어서 server/.env.local에 적어둘게요.',
-  } as const
-
-  if (prompt.password) {
-    return await prompt.password(options)
-  }
-
-  return await prompt.text(options)
-}
-
 async function createSupabaseProject(
   packageManager: PackageManager,
   cwd: string,
@@ -491,17 +454,14 @@ async function createSupabaseProject(
 ) {
   log.step('Supabase 프로젝트를 새로 만들게요')
   const projectName = (await promptSupabaseProjectName(prompt, cwd)).trim()
-  const resolvedDbPassword = resolveSupabaseProjectDbPassword(
-    await promptSupabaseProjectDbPassword(prompt),
-  )
   await runCommand(
     buildSupabaseCommand(packageManager, cwd, 'Supabase 프로젝트 만들기', [
-      ...buildCreateSupabaseProjectArgs(projectName, resolvedDbPassword.createPassword),
+      ...buildCreateSupabaseProjectArgs(projectName),
     ]),
   )
 
   return {
-    dbPassword: resolvedDbPassword.persistedPassword,
+    dbPassword: null,
   }
 }
 
