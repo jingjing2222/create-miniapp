@@ -119,7 +119,7 @@ pnpm verify
 
 - `supabase`: 프로젝트 목록 조회, 신규 프로젝트 생성, `supabase link`, `db push`, Edge Functions deploy, key 조회, `.env.local` 작성
 - `cloudflare`: account/Worker 목록 조회, 신규 Worker 생성, D1/R2 연결, deploy, URL 계산, `.env.local` 작성
-- `firebase`: 프로젝트 목록 조회, 신규 프로젝트 생성, Web App 목록 조회, Functions deploy, Web SDK config 조회, deploy auth `.env.local` 작성
+- `firebase`: 프로젝트 목록 조회, 신규 프로젝트 생성, Web App 목록 조회, Firestore API와 `(default)` database 준비, Functions + Firestore 리소스 deploy, Web SDK config 조회, deploy auth `.env.local` 작성
 
 `cloudflare`를 고르면 tRPC도 같이 이어줄지 물어봐요. tRPC를 고르면 `packages/contracts`가 boundary schema와 type의 source of truth가 되고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth가 돼요. `frontend`/`backoffice`는 `src/lib/trpc.ts`를 통해 그 타입만 가져와요.
 
@@ -127,18 +127,18 @@ pnpm verify
 
 ## Provider 공통 생성
 
-`server`를 생성하게 선택하면 `server/`뿐 아니라 `frontend`와 optional `backoffice`에도 바로 연결할 수 있는 기본 파일을 같이 만들어줘요.
+`server`를 생성하게 선택하면 `server/`뿐 아니라 `frontend`와 optional `backoffice`에도 provider 연결에 필요한 공통 기본 파일을 같이 만들어줘요.
 
 `frontend`:
 - `.env.local`
 - `src/env.d.ts`
-- `src/lib/supabase.ts`
 - `granite.config.ts` / `scaffold.preset.ts` patch와 monorepo `watchFolders` 연결
 
 `backoffice`:
 - `.env.local`
 - `src/vite-env.d.ts`
-- `src/lib/supabase.ts`
+
+provider별 client/bootstrap 파일은 각 provider 섹션에서 따로 설명해요.
 
 ## Supabase를 같이 만들면
 

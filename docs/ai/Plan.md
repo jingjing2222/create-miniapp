@@ -1,3 +1,16 @@
+## 다음 작업: 루트 README의 provider 공통 설명을 실제 생성 구조에 맞게 정리하기
+1. 문제
+   - 현재 루트 README의 `Provider 공통 생성` 섹션은 `frontend/src/lib/supabase.ts`, `backoffice/src/lib/supabase.ts`가 모든 provider에서 생기는 것처럼 적혀 있다.
+   - 실제 생성물은 provider마다 bootstrap 파일이 다르고, Firebase는 Firestore bootstrap까지 포함하는데 상단 요약은 이 흐름을 충분히 설명하지 못한다.
+2. 방향
+   - `Provider IaC` 요약은 Firebase의 Firestore API / `(default)` DB 준비까지 반영한다.
+   - `Provider 공통 생성` 섹션은 공통 파일만 남기고, provider-specific client/bootstrap은 각 provider 섹션에서 설명하게 정리한다.
+3. 테스트
+   - 루트 README만 수정한 뒤 `pnpm verify`를 다시 통과시킨다.
+4. 완료 기준
+   - 루트 README의 공통 설명이 실제 생성 구조와 어긋나지 않는다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: generated frontend의 Granite preset 로직을 로컬 helper로 분리하기
 1. 문제
    - 지금 `frontend/granite.config.ts`는 repoRoot, env 로딩, provider별 `env()` plugin, Firebase crypto shim resolver까지 모두 직접 들고 있어 patch 결과가 점점 비대해진다.
