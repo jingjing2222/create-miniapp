@@ -18,7 +18,7 @@ export const TSDOWN_VERSION = '^0.21.4'
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
 
-type SupportedTrpcProvider = Extract<ServerProvider, 'supabase' | 'cloudflare'>
+type SupportedTrpcProvider = Extract<ServerProvider, 'cloudflare'>
 
 type ApplyTrpcWorkspaceTemplateOptions = {
   serverProvider: SupportedTrpcProvider
@@ -181,7 +181,7 @@ function renderContractsReadme() {
   ].join('\n')
 }
 
-function renderAppRouterReadme(options: ApplyTrpcWorkspaceTemplateOptions) {
+function renderAppRouterReadme(_options: ApplyTrpcWorkspaceTemplateOptions) {
   return [
     '# packages/app-router',
     '',
@@ -189,13 +189,7 @@ function renderAppRouterReadme(options: ApplyTrpcWorkspaceTemplateOptions) {
     '',
     '- `packages/contracts`의 schema를 써서 procedure input/output을 맞춰요.',
     '- `frontend`와 `backoffice`는 server를 직접 참조하지 않고 여기서 `AppRouter` 타입만 가져와요.',
-    ...(options.serverProvider === 'supabase'
-      ? [
-          '- 지금 선택한 provider는 `supabase`라서, function-local `deno.json`의 `imports`가 이 워크스페이스와 `packages/contracts`를 직접 가리켜요.',
-        ]
-      : [
-          '- 지금 선택한 provider는 `cloudflare`라서, Worker runtime이 이 워크스페이스를 직접 import해요.',
-        ]),
+    '- 지금 선택한 provider는 `cloudflare`라서, Worker runtime이 이 워크스페이스를 직접 import해요.',
     '',
     '## 구조',
     '',
@@ -269,7 +263,7 @@ function renderAppRouterInitSource() {
 
 function renderAppRouterExampleRouterSource() {
   return [
-    "import { ExampleEchoInputSchema, ExampleEchoOutputSchema, ExamplePingOutputSchema } from '@workspace/contracts'",
+    "import { ExampleEchoInputSchema, ExampleEchoOutputSchema, ExamplePingOutputSchema } from '../../../contracts/src/index.ts'",
     "import { createTRPCRouter, publicProcedure } from '../init.ts'",
     '',
     'export const exampleRouter = createTRPCRouter({',

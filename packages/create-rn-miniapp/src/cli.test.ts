@@ -91,7 +91,6 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
     'supabase',
     'no',
-    'no',
   ]
 
   const prompts: CliPrompter = {
@@ -159,9 +158,9 @@ test('resolveCliOptions asks for missing values when interactive input is needed
       initialValue: undefined,
     },
   ])
+  assert.equal(resolved.withTrpc, false)
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
-    '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 만들까요?',
   ])
 })
@@ -300,7 +299,39 @@ test('resolveCliOptions rejects trpc without a supported server provider', async
           npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
         },
       ),
-    /`--trpc`는 `supabase` 또는 `cloudflare` server provider와 함께만 사용할 수 있어요\./,
+    /`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요\./,
+  )
+})
+
+test('resolveCliOptions rejects trpc with supabase server provider', async () => {
+  await assert.rejects(
+    () =>
+      resolveCliOptions(
+        {
+          add: false,
+          name: 'ebook-miniapp',
+          serverProvider: 'supabase',
+          trpc: true,
+          outputDir: '/tmp/workspace',
+          rootDir: '/tmp/workspace',
+          yes: true,
+          skipInstall: false,
+          help: false,
+          version: false,
+        },
+        {
+          async text() {
+            throw new Error('text prompt should not be called')
+          },
+          async select() {
+            throw new Error('select prompt should not be called')
+          },
+        },
+        {
+          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+        },
+      ),
+    /`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요\./,
   )
 })
 
@@ -607,7 +638,6 @@ test('resolveCliOptions skips package-manager prompt when pnpm create invoked th
   assert.equal(resolved.packageManager, 'pnpm')
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
-    '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 만들까요?',
   ])
 })
@@ -806,7 +836,6 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
   const selectMessages: string[] = []
   const promptSelections: Array<'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
     'supabase',
-    'no',
     'yes',
   ]
 
@@ -867,7 +896,6 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
   assert.equal(resolved.existingHasTrpc, false)
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
-    '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 추가할까요?',
   ])
 })
@@ -967,6 +995,58 @@ test('resolveAddCliOptions can add trpc to an existing cloudflare server workspa
     '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 추가할까요?',
   ])
+})
+
+test('resolveAddCliOptions does not ask for trpc when the existing server is supabase', async () => {
+  const selectMessages: string[] = []
+  const promptSelections: Array<'yes' | 'no'> = ['yes']
+
+  const resolved = await resolveAddCliOptions(
+    {
+      add: true,
+      rootDir: '/tmp/existing-miniapp',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+    },
+    {
+      rootDir: '/tmp/existing-miniapp',
+      packageManager: 'pnpm',
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      hasServer: true,
+      hasBackoffice: false,
+      hasTrpc: false,
+      serverProvider: 'supabase',
+    },
+  )
+
+  assert.equal(resolved.withTrpc, false)
+  assert.equal(resolved.withBackoffice, true)
+  assert.deepEqual(selectMessages, ['`backoffice`도 같이 추가할까요?'])
 })
 
 test('resolveAddCliOptions asks whether to remove existing cloudflare api helpers when adding trpc', async () => {

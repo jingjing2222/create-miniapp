@@ -1,3 +1,37 @@
+## 다음 작업: Supabase server typecheck를 placeholder에서 실제 Edge Function 정적 검사로 바꾸기
+1. 문제
+   - 현재 generated `server/package.json`의 `typecheck`는 placeholder라 `supabase/functions/*/index.ts` entrypoint 자체를 검사하지 않는다.
+   - 이 상태면 `pnpm verify`가 통과해도 Supabase Edge Function 소스 오류를 놓칠 수 있다.
+2. 방향
+   - `server/scripts/supabase-functions-typecheck.mjs`를 생성해서 모든 function entrypoint를 순회한다.
+   - 각 function root의 `deno.json`이 있으면 그 config를 사용하고, 없으면 entrypoint만 대상으로 `deno check`를 실행한다.
+   - generated `server/package.json`의 `typecheck`는 새 스크립트를 실행하게 바꾸고, generated README와 Supabase guide도 같은 기준으로 맞춘다.
+3. 테스트
+   - template 테스트에서 `typecheck` 스크립트가 placeholder가 아니라 새 node script를 가리키는지 고정한다.
+   - generated script가 `deno check`와 `supabase/functions` 탐색을 포함하는지도 고정한다.
+   - Supabase server README 테스트에 `typecheck`와 `deno check` 안내를 추가한다.
+4. 완료 기준
+   - Supabase 생성물의 `server typecheck`가 실제 Edge Function entrypoint를 정적 검사한다.
+   - README와 provider guide가 새 스크립트 의미를 설명한다.
+   - `pnpm verify` 통과
+
+## 다음 작업: Supabase를 tRPC 정식 경로에서 제외하고 Cloudflare 전용으로 정리하기
+1. 문제
+   - 현재 CLI와 문서는 `supabase`도 `--trpc`를 정식 지원하는 것처럼 보이지만, 실제 runtime 구조는 workaround 성격이 강하다.
+   - 이 상태로 두면 사용자와 에이전트가 Supabase+tRPC를 happy path로 오해하게 된다.
+2. 방향
+   - `--trpc`는 `cloudflare`일 때만 허용한다.
+   - Supabase patch, README, engineering docs에서 tRPC 관련 분기를 제거한다.
+   - `frontend`/`backoffice`의 Supabase tRPC client bootstrap도 제거하고, Supabase는 `supabase-js`와 `functions.invoke('api')` 기준으로 유지한다.
+   - `packages/contracts`, `packages/app-router`, tRPC SSOT 문서는 Cloudflare+tRPC일 때만 생성되는 구조로 유지한다.
+3. 테스트
+   - CLI 테스트에서 `supabase + --trpc`를 에러로 고정한다.
+   - patch 테스트에서 Supabase tRPC bootstrap 기대값을 제거한다.
+   - README/help 문구도 `cloudflare 전용` 기준으로 맞춘다.
+4. 완료 기준
+   - `supabase + --trpc`는 인터랙티브와 비대화형 모두 막힌다.
+   - Supabase 생성물에는 더 이상 tRPC bootstrap과 관련 문서가 없다.
+
 ## 다음 작업: Supabase provisioning note에서 배포 설명을 빼고 값 입력 안내만 남기기
 1. 문제
    - 지금 Supabase provisioning note에는 `db:apply`, `functions:deploy`, Edge Function 위치 같은 배포 설명이 섞여 있다.

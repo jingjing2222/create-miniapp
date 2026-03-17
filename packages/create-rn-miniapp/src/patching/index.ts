@@ -30,9 +30,6 @@ import {
   renderCloudflareServerIndexSource,
   renderCloudflareServerTrpcContextSource,
   renderCloudflareTrpcClientSource,
-  renderSupabaseEdgeFunctionTrpcSource,
-  renderSupabaseTrpcClientSource,
-  renderSupabaseTrpcDenoConfig,
   TRPC_CLIENT_VERSION,
   TRPC_SERVER_VERSION,
 } from './trpc.js'
@@ -920,11 +917,8 @@ function renderSupabaseServerReadme(
   tokens: TemplateTokens,
   options?: {
     accessTokenGuideImagePaths?: string[] | null
-    trpc?: boolean
   },
 ) {
-  const trpcEnabled = options?.trpc === true
-
   return [
     '# server',
     '',
@@ -937,8 +931,8 @@ function renderSupabaseServerReadme(
     '  supabase/config.toml',
     '  supabase/migrations/',
     `  supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts`,
-    ...(trpcEnabled ? ['  supabase/functions/api/deno.json'] : []),
     '  scripts/supabase-db-apply.mjs',
+    '  scripts/supabase-functions-typecheck.mjs',
     '  scripts/supabase-functions-deploy.mjs',
     '  .env.local',
     '  package.json',
@@ -947,6 +941,7 @@ function renderSupabaseServerReadme(
     '## 주요 스크립트',
     '',
     `- \`cd server && ${tokens.packageManagerRunCommand} dev\`: 로컬 Supabase stack을 시작해요.`,
+    `- \`cd server && ${tokens.packageManagerRunCommand} typecheck\`: \`supabase/functions/*/index.ts\` entrypoint를 \`deno check\`로 정적 검사해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} db:apply\`: \`server/.env.local\`의 \`SUPABASE_DB_PASSWORD\`를 사용해 linked remote project에 migration을 적용해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} functions:serve\`: \`server/.env.local\`을 주입해 Edge Functions를 로컬에서 serve해요.`,
     `- \`cd server && ${tokens.packageManagerRunCommand} functions:deploy\`: \`server/.env.local\`의 \`SUPABASE_PROJECT_REF\`를 사용해 Edge Functions를 원격 Supabase project에 배포해요.`,
@@ -959,46 +954,17 @@ function renderSupabaseServerReadme(
     '- miniapp frontend는 `frontend/src/lib/supabase.ts`에서 Supabase client를 생성해요.',
     '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
     '- frontend `granite.config.ts`는 `.env.local` 값을 읽어 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 주입해요.',
-    ...(trpcEnabled
-      ? [
-          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary schema의 source of truth이고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth예요.',
-          '- miniapp frontend는 `frontend/src/lib/trpc.ts`로 `AppRouter` 타입을 가져와 Edge Function `/api/trpc` endpoint를 호출해요.',
-          '- `server/supabase/functions/api/deno.json`의 `imports`가 `@workspace/app-router`, `@workspace/contracts`를 shared package source에 직접 연결해요.',
-        ]
-      : [
-          `- miniapp frontend는 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\` 형태로 Edge Function을 호출할 수 있어요.`,
-        ]),
+    `- miniapp frontend는 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\` 형태로 Edge Function을 호출할 수 있어요.`,
     '- backoffice가 있으면 `backoffice/src/lib/supabase.ts`에서 별도 browser client를 생성해요.',
     '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
-    ...(trpcEnabled
-      ? ['- backoffice도 `backoffice/src/lib/trpc.ts`에서 같은 `AppRouter` 타입을 사용해요.']
-      : [
-          '- backoffice도 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
-          `- backoffice도 동일하게 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\`를 사용할 수 있어요.`,
-        ]),
-    ...(trpcEnabled
-      ? [
-          '',
-          '## API SSOT',
-          '',
-          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary type과 schema의 source of truth예요.',
-          '- 같은 경우 `packages/app-router`가 route shape와 `AppRouter` 타입의 source of truth예요.',
-          '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `functions:serve`나 `functions:deploy`를 다시 실행하면 돼요.',
-        ]
-      : []),
+    '- backoffice도 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
+    `- backoffice도 동일하게 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\`를 사용할 수 있어요.`,
     '',
     '## 운영 메모',
     '',
     '- 원격 SQL push를 계속하려면 `server/.env.local`의 `SUPABASE_DB_PASSWORD`를 채워주세요.',
     '- 다른 Edge Function을 추가하려면 `supabase functions new <name> --workdir .`로 생성한 뒤 `functions:deploy`를 다시 실행하면 돼요.',
     '- frontend/backoffice의 `.env.local`은 server provisioning 결과와 같은 Supabase project를 가리키게 맞춰두는 걸 권장해요.',
-    ...(trpcEnabled
-      ? [
-          '- tRPC를 같이 썼다면 boundary contract은 `packages/contracts`, router는 `packages/app-router`만 수정하면 돼요.',
-          '- Supabase 함수는 `deno.json` alias로 shared package를 바로 봐요.',
-          '- 즉 `functions:serve` 또는 `functions:deploy`를 다시 실행하면 sync 없이 같은 router가 바로 반영돼요.',
-        ]
-      : []),
     '',
     '## Supabase access token',
     '',
@@ -1070,6 +1036,7 @@ function renderCloudflareServerReadme(
           '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary schema의 source of truth이고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth예요.',
           '- miniapp frontend는 `frontend/src/lib/trpc.ts`, backoffice는 `backoffice/src/lib/trpc.ts`에서 Worker `/trpc` endpoint를 호출해요.',
           '- Worker runtime은 `@workspace/app-router`를 직접 import해서 같은 router를 바로 써요.',
+          '- `GET /` 는 ready JSON을 반환하고, 실제 tRPC 호출은 `/trpc` endpoint로 들어가요.',
         ]
       : [
           '- miniapp frontend는 `frontend/src/lib/api.ts`에서 API helper를 만들고 `MINIAPP_API_BASE_URL`을 사용해요.',
@@ -1083,6 +1050,7 @@ function renderCloudflareServerReadme(
           '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary type과 schema의 source of truth예요.',
           '- 같은 경우 `packages/app-router`가 route shape와 `AppRouter` 타입의 source of truth예요.',
           '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
+          '- runtime verify는 `GET /`, 실제 router entry는 `/trpc` endpoint를 기준으로 보면 돼요.',
         ]
       : []),
     '',
@@ -1474,17 +1442,6 @@ async function writeBackofficeSupabaseBootstrap(backofficeRoot: string) {
   )
 }
 
-async function writeBackofficeSupabaseTrpcBootstrap(backofficeRoot: string) {
-  await writeTextFile(
-    path.join(backofficeRoot, 'src', 'lib', 'trpc.ts'),
-    renderSupabaseTrpcClientSource({
-      supabaseImportPath: './supabase',
-      urlExpression: 'import.meta.env.VITE_SUPABASE_URL',
-      publishableKeyExpression: 'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY',
-    }),
-  )
-}
-
 async function writeBackofficeCloudflareBootstrap(backofficeRoot: string) {
   await writeTextFile(
     path.join(backofficeRoot, 'src', 'vite-env.d.ts'),
@@ -1501,17 +1458,6 @@ async function writeBackofficeCloudflareTrpcBootstrap(backofficeRoot: string) {
     path.join(backofficeRoot, 'src', 'lib', 'trpc.ts'),
     renderCloudflareTrpcClientSource({
       urlExpression: 'import.meta.env.VITE_API_BASE_URL',
-    }),
-  )
-}
-
-async function writeFrontendSupabaseTrpcBootstrap(frontendRoot: string) {
-  await writeTextFile(
-    path.join(frontendRoot, 'src', 'lib', 'trpc.ts'),
-    renderSupabaseTrpcClientSource({
-      supabaseImportPath: './supabase',
-      urlExpression: 'import.meta.env.MINIAPP_SUPABASE_URL',
-      publishableKeyExpression: 'import.meta.env.MINIAPP_SUPABASE_PUBLISHABLE_KEY',
     }),
   )
 }
@@ -1541,17 +1487,6 @@ async function writeCloudflareTrpcServerBootstrap(serverRoot: string) {
     renderCloudflareServerTrpcContextSource(),
   )
   await writeTextFile(path.join(serverRoot, 'src', 'index.ts'), renderCloudflareServerIndexSource())
-}
-
-async function writeSupabaseTrpcServerBootstrap(serverRoot: string) {
-  await writeTextFile(
-    path.join(serverRoot, 'supabase', 'functions', 'api', 'index.ts'),
-    renderSupabaseEdgeFunctionTrpcSource(),
-  )
-  await writeTextFile(
-    path.join(serverRoot, 'supabase', 'functions', 'api', 'deno.json'),
-    renderSupabaseTrpcDenoConfig(),
-  )
 }
 
 async function patchBackofficeEntryFiles(backofficeRoot: string) {
@@ -1660,7 +1595,7 @@ async function ensureFrontendPackageJsonForWorkspace(
     devDependencies.dotenv = DOTENV_VERSION
   }
 
-  if (trpc && (serverProvider === 'supabase' || serverProvider === 'cloudflare')) {
+  if (trpc && serverProvider === 'cloudflare') {
     if (!packageJson.dependencies?.['@trpc/client']) {
       dependencies['@trpc/client'] = TRPC_CLIENT_VERSION
     }
@@ -1719,7 +1654,7 @@ async function ensureBackofficePackageJsonForWorkspace(
     dependencies.firebase = FIREBASE_JS_VERSION
   }
 
-  if (trpc && (serverProvider === 'supabase' || serverProvider === 'cloudflare')) {
+  if (trpc && serverProvider === 'cloudflare') {
     if (!packageJson.dependencies?.['@trpc/client']) {
       dependencies['@trpc/client'] = TRPC_CLIENT_VERSION
     }
@@ -1926,9 +1861,7 @@ export async function patchFrontendWorkspace(
     {
       fileName: 'tsconfig.json',
       includeNodeTypes: true,
-      allowImportingTsExtensions:
-        options.trpc &&
-        (options.serverProvider === 'supabase' || options.serverProvider === 'cloudflare'),
+      allowImportingTsExtensions: options.trpc && options.serverProvider === 'cloudflare',
     },
   ])
   if (options.packageManager === 'npm') {
@@ -1937,9 +1870,6 @@ export async function patchFrontendWorkspace(
 
   if (options.serverProvider === 'supabase') {
     await writeFrontendSupabaseBootstrap(frontendRoot)
-    if (options.trpc) {
-      await writeFrontendSupabaseTrpcBootstrap(frontendRoot)
-    }
   }
 
   if (options.serverProvider === 'cloudflare') {
@@ -2008,9 +1938,6 @@ export async function patchBackofficeWorkspace(
 
   if (options.serverProvider === 'supabase') {
     await writeBackofficeSupabaseBootstrap(backofficeRoot)
-    if (options.trpc) {
-      await writeBackofficeSupabaseTrpcBootstrap(backofficeRoot)
-    }
   }
 
   if (options.serverProvider === 'cloudflare') {
@@ -2043,7 +1970,6 @@ export async function patchSupabaseServerWorkspace(
   tokens: TemplateTokens,
   options: Pick<WorkspacePatchOptions, 'packageManager'> & {
     accessTokenGuideImageSourcePaths?: string[] | null
-    trpc?: boolean
   },
 ) {
   const serverRoot = path.join(targetRoot, 'server')
@@ -2053,16 +1979,10 @@ export async function patchSupabaseServerWorkspace(
     SUPABASE_ACCESS_TOKEN_GUIDE_ASSET_CANDIDATES,
   )
   await applyServerPackageTemplate(targetRoot, tokens)
-  if (options.trpc) {
-    await writeSupabaseTrpcServerBootstrap(serverRoot)
-    await removePathIfExists(path.join(serverRoot, 'scripts', 'trpc-sync.mjs'))
-    await removePathIfExists(path.join(serverRoot, 'supabase', 'functions', '_shared', 'trpc'))
-  }
   await writeTextFile(
     path.join(serverRoot, 'README.md'),
     renderSupabaseServerReadme(tokens, {
       accessTokenGuideImagePaths,
-      trpc: options.trpc,
     }),
   )
   await removeToolingFiles(serverRoot, options.packageManager)

@@ -660,7 +660,7 @@ test('patchFrontendWorkspace adds cloudflare trpc client when trpc overlay is se
   assert.doesNotMatch(trpcClient, /from '\.\/api'/)
 })
 
-test('patchFrontendWorkspace adds supabase trpc client and ts extension support when trpc overlay is selected', async (t) => {
+test('patchFrontendWorkspace keeps supabase bootstrap provider-native even if trpc flag is passed', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const frontendRoot = path.join(targetRoot, 'frontend')
 
@@ -729,21 +729,13 @@ test('patchFrontendWorkspace adds supabase trpc client and ts extension support 
       noEmit?: boolean
     }
   }
-  const trpcClient = await readFile(path.join(frontendRoot, 'src', 'lib', 'trpc.ts'), 'utf8')
-
-  assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
-  assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
-  assert.equal(
-    packageJson.scripts?.typecheck,
-    'pnpm --dir ../packages/app-router build && tsc --noEmit',
-  )
-  assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, true)
-  assert.equal(tsconfig.compilerOptions?.moduleResolution, 'bundler')
-  assert.equal(tsconfig.compilerOptions?.noEmit, true)
-  assert.match(trpcClient, /createTRPCProxyClient/)
-  assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/app-router'/)
-  assert.match(trpcClient, /functions\/v1\/api\/trpc/)
-  assert.match(trpcClient, /supabase\.auth\.getSession/)
+  assert.equal(packageJson.dependencies?.['@trpc/client'], undefined)
+  assert.equal(packageJson.devDependencies?.['@workspace/app-router'], undefined)
+  assert.equal(packageJson.scripts?.typecheck, 'tsc --noEmit')
+  assert.equal(tsconfig.compilerOptions?.allowImportingTsExtensions, undefined)
+  assert.equal(tsconfig.compilerOptions?.moduleResolution, undefined)
+  assert.equal(tsconfig.compilerOptions?.noEmit, undefined)
+  assert.equal(await pathExists(path.join(frontendRoot, 'src', 'lib', 'trpc.ts')), false)
 })
 
 test('patchFrontendWorkspace removes existing cloudflare api helper when trpc cleanup is requested', async (t) => {
@@ -1261,7 +1253,7 @@ test('patchBackofficeWorkspace adds firebase bootstrap when firebase server prov
   assert.match(storageClient, /getStorage/)
 })
 
-test('patchBackofficeWorkspace adds supabase trpc client when trpc overlay is selected', async (t) => {
+test('patchBackofficeWorkspace keeps supabase bootstrap provider-native even if trpc flag is passed', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const backofficeRoot = path.join(targetRoot, 'backoffice')
 
@@ -1337,18 +1329,10 @@ test('patchBackofficeWorkspace adds supabase trpc client when trpc overlay is se
     dependencies?: Record<string, string>
     devDependencies?: Record<string, string>
   }
-  const trpcClient = await readFile(path.join(backofficeRoot, 'src', 'lib', 'trpc.ts'), 'utf8')
-
-  assert.equal(packageJson.dependencies?.['@trpc/client'], '^11.13.4')
-  assert.equal(packageJson.devDependencies?.['@workspace/app-router'], 'workspace:*')
-  assert.equal(
-    packageJson.scripts?.typecheck,
-    'pnpm --dir ../packages/app-router build && tsc -b --pretty false',
-  )
-  assert.match(trpcClient, /createTRPCProxyClient/)
-  assert.match(trpcClient, /import type \{ AppRouter \} from '@workspace\/app-router'/)
-  assert.match(trpcClient, /Authorization/)
-  assert.match(trpcClient, /functions\/v1\/api\/trpc/)
+  assert.equal(packageJson.dependencies?.['@trpc/client'], undefined)
+  assert.equal(packageJson.devDependencies?.['@workspace/app-router'], undefined)
+  assert.equal(packageJson.scripts?.typecheck, 'tsc -b --pretty false')
+  assert.equal(await pathExists(path.join(backofficeRoot, 'src', 'lib', 'trpc.ts')), false)
 })
 
 test('patchBackofficeWorkspace adds cloudflare trpc client without api helper when trpc overlay is selected', async (t) => {
@@ -1753,6 +1737,8 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
   assert.match(readme, /packages\/app-router/)
   assert.match(readme, /frontend\/src\/lib\/trpc\.ts/)
   assert.match(readme, /API SSOT/)
+  assert.match(readme, /`GET \/` 는 ready JSON을 반환/)
+  assert.match(readme, /`\/trpc` endpoint/)
   assert.match(readme, /boundary type과 schema의 source of truth/)
   assert.match(readme, /route shape와 `AppRouter` 타입의 source of truth/)
   assert.match(readme, /wrangler\.vitest\.jsonc/)
@@ -1813,6 +1799,8 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /supabase\/config\.toml/)
   assert.match(readme, /supabase\/migrations\//)
   assert.match(readme, /supabase\/functions\/api\/index\.ts/)
+  assert.match(readme, /scripts\/supabase-functions-typecheck\.mjs/)
+  assert.match(readme, /cd server && pnpm typecheck/)
   assert.match(readme, /cd server && pnpm db:apply/)
   assert.match(readme, /cd server && pnpm functions:serve/)
   assert.match(readme, /cd server && pnpm functions:deploy/)
@@ -1822,6 +1810,7 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /MINIAPP_SUPABASE_URL/)
   assert.match(readme, /backoffice\/src\/lib\/supabase\.ts/)
   assert.match(readme, /VITE_SUPABASE_URL/)
+  assert.match(readme, /deno check/)
   assert.doesNotMatch(readme, /API SSOT/)
   assert.match(readme, /## Supabase access token/)
   assert.match(readme, /SUPABASE_ACCESS_TOKEN=/)
@@ -1838,11 +1827,26 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.equal(await readFile(copiedGuide2, 'utf8'), 'fake-image-2')
 })
 
-test('patchSupabaseServerWorkspace wires tRPC through function-local deno.json aliases when tRPC overlay is selected', async (t) => {
+test('patchSupabaseServerWorkspace ignores trpc wiring and keeps provider-native runtime', async (t) => {
   const targetRoot = await createTempWorkspace(t)
   const serverRoot = path.join(targetRoot, 'server')
 
   await mkdir(path.join(serverRoot, 'supabase', 'functions', 'api'), { recursive: true })
+  await writeFile(
+    path.join(serverRoot, 'supabase', 'functions', 'api', 'index.ts'),
+    [
+      "import '@supabase/functions-js/edge-runtime.d.ts'",
+      '',
+      "console.log('Hello from Functions!')",
+      '',
+      'Deno.serve(async (req) => {',
+      '  await req.json()',
+      '  return new Response(JSON.stringify({ message: "Hello!" }))',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
 
   await patchSupabaseServerWorkspace(
     targetRoot,
@@ -1855,7 +1859,7 @@ test('patchSupabaseServerWorkspace wires tRPC through function-local deno.json a
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
-    { packageManager: 'pnpm', trpc: true },
+    { packageManager: 'pnpm' },
   )
 
   const serverPackageJson = JSON.parse(
@@ -1867,40 +1871,25 @@ test('patchSupabaseServerWorkspace wires tRPC through function-local deno.json a
     path.join(serverRoot, 'supabase', 'functions', 'api', 'index.ts'),
     'utf8',
   )
-  const denoConfig = JSON.parse(
-    await readFile(path.join(serverRoot, 'supabase', 'functions', 'api', 'deno.json'), 'utf8'),
-  ) as {
-    imports?: Record<string, string>
-  }
   const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
 
   assert.equal(serverPackageJson.scripts?.['trpc:sync'], undefined)
   assert.doesNotMatch(serverPackageJson.scripts?.['functions:serve'] ?? '', /trpc:sync/)
   assert.doesNotMatch(serverPackageJson.scripts?.['functions:deploy'] ?? '', /trpc:sync/)
-  assert.match(functionSource, /fetchRequestHandler/)
-  assert.match(functionSource, /npm:@trpc\/server\/adapters\/fetch/)
-  assert.match(functionSource, /from '@workspace\/app-router'/)
+  assert.doesNotMatch(functionSource, /fetchRequestHandler/)
+  assert.doesNotMatch(functionSource, /@trpc\/server/)
+  assert.doesNotMatch(functionSource, /packages\/app-router/)
+  assert.match(functionSource, /Hello from Functions!/)
   assert.equal(
-    denoConfig.imports?.['@workspace/app-router'],
-    '../../../../packages/app-router/src/index.ts',
+    await pathExists(path.join(serverRoot, 'supabase', 'functions', 'api', 'deno.json')),
+    false,
   )
-  assert.equal(
-    denoConfig.imports?.['@workspace/contracts'],
-    '../../../../packages/contracts/src/index.ts',
-  )
-  assert.equal(denoConfig.imports?.['@trpc/server'], 'npm:@trpc/server@^11.13.4')
-  assert.equal(denoConfig.imports?.zod, 'npm:zod@^4.3.6')
-  assert.match(readme, /packages\/contracts/)
-  assert.match(readme, /packages\/app-router/)
-  assert.match(readme, /frontend\/src\/lib\/trpc\.ts/)
-  assert.match(readme, /functions\/api\/deno\.json/)
-  assert.match(readme, /@workspace\/app-router/)
-  assert.match(readme, /@workspace\/contracts/)
-  assert.match(readme, /API SSOT/)
-  assert.match(readme, /boundary type과 schema의 source of truth/)
-  assert.match(readme, /route shape와 `AppRouter` 타입의 source of truth/)
-  assert.doesNotMatch(readme, /trpc:sync/)
-  assert.doesNotMatch(readme, /supabase\.functions\.invoke\('api'\)/)
+  assert.doesNotMatch(readme, /packages\/contracts/)
+  assert.doesNotMatch(readme, /packages\/app-router/)
+  assert.doesNotMatch(readme, /frontend\/src\/lib\/trpc\.ts/)
+  assert.doesNotMatch(readme, /API SSOT/)
+  assert.doesNotMatch(readme, /\/functions\/v1\/api\/trpc/)
+  assert.match(readme, /supabase\.functions\.invoke\('api'\)/)
 })
 
 test('patchFirebaseServerWorkspace creates a server README for firebase functions', async (t) => {

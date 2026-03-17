@@ -23,4 +23,4 @@
 
 ## provider별 메모
 - Cloudflare는 Worker runtime이 `@workspace/app-router`를 직접 import하고, router는 내부에서 `@workspace/contracts`를 사용해요.
-- Supabase는 `server/supabase/functions/api/deno.json`의 `imports`가 `@workspace/app-router`, `@workspace/contracts`를 shared package source에 직접 연결해요.
+- Cloudflare runtime verify는 `GET /`, 실제 router entry는 `/trpc`예요.
