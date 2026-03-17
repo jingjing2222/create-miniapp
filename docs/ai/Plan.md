@@ -1,3 +1,17 @@
+## 다음 작업: Supabase provisioning note를 짧게 줄이고 DB password 대시보드 URL을 바로 안내하기
+1. 문제
+   - 지금 Supabase provisioning note는 access token, DB password, publishable key 설명이 길게 섞여 있어서 필요한 행동이 바로 보이지 않는다.
+   - 특히 DB password는 생성기가 알 수 없는 경우가 많으니, 프로젝트별 Database Settings 대시보드 URL을 바로 주는 편이 더 낫다.
+2. 방향
+   - note에서 `SUPABASE_ACCESS_TOKEN`과 `SUPABASE_DB_PASSWORD`가 비어 있으면 한 줄로 묶어서 짧게 안내한다.
+   - 바로 아래에 access token dashboard URL과 project database settings URL만 남긴다.
+   - success note와 manual setup note 둘 다 같은 톤으로 정리한다.
+3. 테스트
+   - provisioning note test가 짧은 문구와 두 URL만 기대하도록 먼저 고친다.
+4. 완료 기준
+   - note가 짧아지고, 어디서 값을 넣어야 하는지 URL만 봐도 바로 알 수 있다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: Supabase DB 비밀번호는 CLI에 맡기고 생성기는 note만 남기기
 1. 문제
    - 생성기가 DB 비밀번호를 직접 물어보거나 만들어서 넘기는 방식은 Supabase CLI 비밀번호 정책이 바뀔 때마다 쉽게 깨진다.

@@ -39,7 +39,6 @@ type ProvisionSupabaseProjectOptions = {
 
 const CREATE_SUPABASE_PROJECT_SENTINEL = '__create_supabase_project__'
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
-const SUPABASE_MANAGEMENT_API_DOC_URL = 'https://supabase.com/docs/reference/api/introduction'
 
 export function buildCreateSupabaseProjectArgs(projectName: string) {
   return ['projects', 'create', projectName]
@@ -89,6 +88,44 @@ function createSupabaseServerEnvValues(projectRef: string, dbPassword = '', acce
 
 function getSupabaseApiSettingsUrl(projectRef: string) {
   return `https://supabase.com/dashboard/project/${projectRef}/settings/api`
+}
+
+function getSupabaseDatabaseSettingsUrl(projectRef: string) {
+  return `https://supabase.com/dashboard/project/${projectRef}/database/settings`
+}
+
+function formatSupabaseSecretGuidance(options: {
+  projectRef: string
+  hasDbPassword: boolean
+  hasAccessToken: boolean
+}) {
+  const lines: string[] = []
+
+  if (!options.hasAccessToken && !options.hasDbPassword) {
+    lines.push(
+      'server/.env.local 의 `SUPABASE_ACCESS_TOKEN`과 `SUPABASE_DB_PASSWORD`는 비어 있어요. 아래 URL을 통해 각각 값을 넣어 주세요.',
+      SUPABASE_ACCESS_TOKENS_DASHBOARD_URL,
+      getSupabaseDatabaseSettingsUrl(options.projectRef),
+    )
+
+    return lines
+  }
+
+  if (!options.hasAccessToken) {
+    lines.push(
+      'server/.env.local 의 `SUPABASE_ACCESS_TOKEN`은 비어 있어요. 아래 URL에서 값을 확인한 뒤 넣어 주세요.',
+      SUPABASE_ACCESS_TOKENS_DASHBOARD_URL,
+    )
+  }
+
+  if (!options.hasDbPassword) {
+    lines.push(
+      'server/.env.local 의 `SUPABASE_DB_PASSWORD`는 비어 있어요. 아래 URL에서 DB password를 확인하거나 재설정한 뒤 넣어 주세요.',
+      getSupabaseDatabaseSettingsUrl(options.projectRef),
+    )
+  }
+
+  return lines
 }
 
 function stripAnsi(value: string) {
@@ -198,27 +235,15 @@ export function formatSupabaseManualSetupNote(options: {
     'server/package.json 의 db:apply 와 functions:deploy 는 server/.env.local 값을 사용합니다.',
   )
 
-  if (!options.hasDbPassword) {
-    lines.push(
-      'server/.env.local 의 SUPABASE_DB_PASSWORD 는 비어 있어요. 프로젝트를 만들 때 쓴 DB password를 직접 채워 넣으면 돼요.',
-    )
-  }
+  const secretGuidance = formatSupabaseSecretGuidance({
+    projectRef: options.projectRef,
+    hasDbPassword: options.hasDbPassword,
+    hasAccessToken: options.hasAccessToken ?? false,
+  })
 
-  lines.push(
-    '',
-    '## Supabase access token',
-    '',
-    '- 브라우저 로그인 없이 CI나 비대화형 배포를 할 때만 필요해요.',
-    '- Supabase Dashboard > Account > Access Tokens 에서 새 personal access token을 만들어 주세요.',
-    '- Supabase access token은 별도 scope를 고르는 방식이 아니라, 토큰을 만든 계정 권한을 그대로 따라가요.',
-    '- 프로젝트 생성이나 배포가 필요하면 해당 organization / project에 접근 가능한 계정으로 만들어 주세요.',
-    options.hasAccessToken
-      ? '- `server/.env.local`의 `SUPABASE_ACCESS_TOKEN`은 기존 값을 그대로 둘게요.'
-      : '- 발급된 token은 `server/.env.local`의 `SUPABASE_ACCESS_TOKEN=` 뒤에 붙여 넣으면 돼요.',
-    `- ${SUPABASE_ACCESS_TOKENS_DASHBOARD_URL}`,
-    `- ${SUPABASE_MANAGEMENT_API_DOC_URL}`,
-    '',
-  )
+  if (secretGuidance.length > 0) {
+    lines.push('', ...secretGuidance, '')
+  }
 
   lines.push(
     `기본 Edge Function은 \`supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts\`에 생성되어 있고, \`${path.join(options.targetRoot, 'server', 'package.json')}\`의 \`functions:deploy\`로 다시 배포할 수 있습니다.`,
@@ -657,27 +682,13 @@ export async function finalizeSupabaseProvisioning(options: {
             ? 'frontend/.env.local 과 backoffice/.env.local 에 Supabase 연결 값을 적어뒀어요.'
             : 'frontend/.env.local 에 Supabase 연결 값을 적어뒀어요.',
           'server/.env.local 에는 원격 DB 반영과 Edge Functions 배포에 필요한 값을 적어뒀어요.',
-          serverEnv.hasDbPassword
-            ? 'server/package.json 의 db:apply 와 functions:deploy 로 다음 배포도 바로 이어갈 수 있어요.'
-            : 'server/.env.local 의 SUPABASE_DB_PASSWORD 는 비어 있어요. 프로젝트를 만들 때 쓴 DB password를 직접 넣어 주세요.',
-          ...(!serverEnv.hasDbPassword
-            ? [
-                'SUPABASE_DB_PASSWORD 를 넣고 나면 server/package.json 의 db:apply 와 functions:deploy 로 바로 이어서 반영할 수 있어요.',
-              ]
-            : []),
-          serverEnv.hasAccessToken
-            ? 'server/.env.local 의 SUPABASE_ACCESS_TOKEN 은 기존 값을 그대로 둘게요.'
-            : [
-                'server/.env.local 의 SUPABASE_ACCESS_TOKEN 은 비어 있어요.',
-                '브라우저 로그인 없이 CI나 비대화형 배포가 필요하면 Supabase Dashboard > Account > Access Tokens 에서 personal access token을 만들어 넣어 주세요.',
-                'Supabase access token은 토큰을 만든 계정 권한을 그대로 따라가요.',
-                SUPABASE_ACCESS_TOKENS_DASHBOARD_URL,
-                SUPABASE_MANAGEMENT_API_DOC_URL,
-              ].join('\n'),
-          `기본 Edge Function은 \`supabase/functions/${SUPABASE_DEFAULT_FUNCTION_NAME}/index.ts\`에 만들어뒀어요.`,
-          '',
-          '키를 다시 확인해야 하면 아래 URL을 보면 돼요.',
-          getSupabaseApiSettingsUrl(options.provisionedProject.projectRef),
+          ...(serverEnv.hasDbPassword && serverEnv.hasAccessToken
+            ? ['server/package.json 의 db:apply 와 functions:deploy 로 바로 이어갈 수 있어요.']
+            : formatSupabaseSecretGuidance({
+                projectRef: options.provisionedProject.projectRef,
+                hasDbPassword: serverEnv.hasDbPassword,
+                hasAccessToken: serverEnv.hasAccessToken,
+              })),
         ].join('\n'),
       },
     ] satisfies ProvisioningNote[]

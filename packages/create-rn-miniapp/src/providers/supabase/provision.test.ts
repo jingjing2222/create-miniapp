@@ -50,11 +50,12 @@ test('formatSupabaseManualSetupNote includes frontend and backoffice env guidanc
     note.body,
     /VITE_SUPABASE_PUBLISHABLE_KEY=<Supabase Settings > API에서 복사한 Publishable key>/,
   )
-  assert.match(note.body, /SUPABASE_DB_PASSWORD 는 비어 있어요/)
-  assert.match(note.body, /## Supabase access token/)
-  assert.match(note.body, /SUPABASE_ACCESS_TOKEN=/)
+  assert.match(
+    note.body,
+    /server\/\.env\.local 의 `SUPABASE_ACCESS_TOKEN`과 `SUPABASE_DB_PASSWORD`는 비어 있어요\./,
+  )
   assert.match(note.body, /dashboard\/account\/tokens/)
-  assert.match(note.body, /토큰을 만든 계정 권한을 그대로 따라가요/)
+  assert.match(note.body, /dashboard\/project\/abc123\/database\/settings/)
   assert.match(note.body, /functions:deploy/)
 })
 
@@ -247,17 +248,13 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
     assert.match(serverEnv, /^SUPABASE_DB_PASSWORD=$/m)
     assert.match(serverEnv, /^SUPABASE_ACCESS_TOKEN=$/m)
     assert.equal(notes[0]?.title, 'Supabase 연결 값을 적어뒀어요')
+    assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
     assert.match(
       notes[0]?.body ?? '',
-      /https:\/\/supabase\.com\/dashboard\/project\/abc123\/settings\/api/,
+      /server\/\.env\.local 의 `SUPABASE_ACCESS_TOKEN`과 `SUPABASE_DB_PASSWORD`는 비어 있어요\./,
     )
-    assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_ACCESS_TOKEN 은 비어 있어요/)
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
-    assert.match(notes[0]?.body ?? '', /토큰을 만든 계정 권한을 그대로 따라가요/)
-    assert.match(notes[0]?.body ?? '', /db:apply/)
-    assert.match(notes[0]?.body ?? '', /functions:deploy/)
+    assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -298,7 +295,8 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
     assert.match(serverEnv, /^SUPABASE_DB_PASSWORD=secret-password$/m)
     assert.doesNotMatch(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_ACCESS_TOKEN 은 기존 값을 그대로 둘게요/)
+    assert.match(notes[0]?.body ?? '', /SUPABASE_ACCESS_TOKEN`은 비어 있어요/)
+    assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -324,10 +322,12 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     assert.match(notes[0]?.body ?? '', /settings\/api/)
     assert.match(notes[0]?.body ?? '', /frontend\/\.env\.local/)
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /## Supabase access token/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_ACCESS_TOKEN=/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /server\/\.env\.local 의 `SUPABASE_ACCESS_TOKEN`과 `SUPABASE_DB_PASSWORD`는 비어 있어요\./,
+    )
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
+    assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
     assert.match(notes[0]?.body ?? '', /functions:deploy/)
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
   } finally {
