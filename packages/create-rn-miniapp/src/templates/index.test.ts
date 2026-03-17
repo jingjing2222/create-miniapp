@@ -204,6 +204,10 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     path.join(targetRoot, 'packages', 'app-router', 'src', 'index.ts'),
     'utf8',
   )
+  const appRouterExampleRouterSource = await readFile(
+    path.join(targetRoot, 'packages', 'app-router', 'src', 'routers', 'example.ts'),
+    'utf8',
+  )
   const appRouterRootSource = await readFile(
     path.join(targetRoot, 'packages', 'app-router', 'src', 'root.ts'),
     'utf8',
@@ -251,6 +255,7 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
   assert.match(appRouterReadme, /packages\/app-router/)
   assert.match(appRouterReadme, /packages\/contracts/)
   assert.match(contractsIndexSource, /ExampleEchoInputSchema/)
+  assert.match(appRouterExampleRouterSource, /from '\.\.\/\.\.\/\.\.\/contracts\/src\/index\.ts'/)
   assert.match(appRouterIndexSource, /export type \{ AppRouter \} from '\.\/root\.ts'/)
   assert.match(appRouterRootSource, /from '\.\/routers\/example\.ts'/)
 })
@@ -570,6 +575,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
     'utf8',
   )
+  const serverTypecheckScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-typecheck.mjs'),
+    'utf8',
+  )
   const serverFunctionsDeployScript = await readFile(
     path.join(targetRoot, 'server', 'scripts', 'supabase-functions-deploy.mjs'),
     'utf8',
@@ -607,6 +616,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.equal(frontendProject.targets?.typecheck.command, 'yarn workspace frontend typecheck')
   assert.equal(serverPackageJson.scripts?.dev, 'yarn dlx supabase start --workdir .')
   assert.equal(serverPackageJson.scripts?.build, 'yarn typecheck')
+  assert.equal(
+    serverPackageJson.scripts?.typecheck,
+    'node ./scripts/supabase-functions-typecheck.mjs',
+  )
   assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
   assert.equal(
     serverPackageJson.scripts?.['functions:serve'],
@@ -627,6 +640,9 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(serverDbApplyScript, /SUPABASE_DB_PASSWORD/)
   assert.match(serverDbApplyScript, /baseArgs = \["dlx","supabase","db","push"/)
   assert.match(serverDbApplyScript, /yarn/)
+  assert.match(serverTypecheckScript, /const denoCommand =/)
+  assert.match(serverTypecheckScript, /\['check'/)
+  assert.match(serverTypecheckScript, /path\.join\(serverRoot, 'supabase', 'functions'\)/)
   assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
   assert.match(serverFunctionsDeployScript, /baseArgs = \["dlx","supabase","functions","deploy"/)
   assert.match(serverFunctionsDeployScript, /--project-ref/)
@@ -661,6 +677,10 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
     path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
     'utf8',
   )
+  const serverTypecheckScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-typecheck.mjs'),
+    'utf8',
+  )
 
   assert.equal(packageJson.packageManager, 'npm@11.11.1')
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
@@ -678,6 +698,10 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
   )
   assert.equal(serverPackageJson.scripts?.build, 'npm run typecheck')
   assert.equal(
+    serverPackageJson.scripts?.typecheck,
+    'node ./scripts/supabase-functions-typecheck.mjs',
+  )
+  assert.equal(
     packageJson.scripts?.verify,
     'npm run format:check && npm run lint && npm run typecheck && npm run test && npm run frontend:policy:check',
   )
@@ -686,6 +710,9 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
     'legacy-peer-deps=true\n',
   )
   assert.match(serverDbApplyScript, /npx/)
+  assert.match(serverTypecheckScript, /const denoCommand =/)
+  assert.match(serverTypecheckScript, /\['check'/)
+  assert.match(serverTypecheckScript, /path\.join\(serverRoot, 'supabase', 'functions'\)/)
 })
 
 test('applyRootTemplates emits bun-specific workspace manifest and scripts', async (t) => {
@@ -715,6 +742,10 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
     path.join(targetRoot, 'server', 'scripts', 'supabase-db-apply.mjs'),
     'utf8',
   )
+  const serverTypecheckScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-functions-typecheck.mjs'),
+    'utf8',
+  )
 
   assert.equal(packageJson.packageManager, 'bun@1.3.4')
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
@@ -730,10 +761,17 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
   )
   assert.equal(serverPackageJson.scripts?.build, 'bun run typecheck')
   assert.equal(
+    serverPackageJson.scripts?.typecheck,
+    'node ./scripts/supabase-functions-typecheck.mjs',
+  )
+  assert.equal(
     packageJson.scripts?.verify,
     'bun run format:check && bun run lint && bun run typecheck && bun run test && bun run frontend:policy:check',
   )
   assert.match(serverDbApplyScript, /bunx/)
+  assert.match(serverTypecheckScript, /const denoCommand =/)
+  assert.match(serverTypecheckScript, /\['check'/)
+  assert.match(serverTypecheckScript, /path\.join\(serverRoot, 'supabase', 'functions'\)/)
 })
 
 test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with package-manager aware scripts', async (t) => {

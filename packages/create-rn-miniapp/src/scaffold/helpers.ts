@@ -107,7 +107,7 @@ export async function maybePrepareTrpcWorkspace(options: {
   targetRoot: string
   tokens: TemplateTokens
   withTrpc: boolean
-  serverProvider: Extract<ServerProvider, 'supabase' | 'cloudflare'> | null
+  serverProvider: Extract<ServerProvider, 'cloudflare'> | null
 }) {
   if (!options.withTrpc || !options.serverProvider) {
     return

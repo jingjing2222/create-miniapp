@@ -4,7 +4,6 @@ import { log } from '@clack/prompts'
 import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import { patchBackofficeWorkspace, patchFrontendWorkspace } from '../patching/index.js'
-import { serverProviderSupportsTrpc } from '../providers/index.js'
 import {
   applyDocsTemplates,
   applyRootTemplates,
@@ -43,6 +42,7 @@ export { buildCreateExecutionOrder, buildCreateLifecycleOrder } from './orders.j
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
   const targetRoot = path.resolve(options.outputDir, options.appName)
   const notes: ProvisioningNote[] = []
+  const trpcEnabled = options.withTrpc && options.serverProvider === 'cloudflare'
   const tokens = createTemplateTokens({
     appName: options.appName,
     displayName: options.displayName,
@@ -92,20 +92,18 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   await maybePrepareTrpcWorkspace({
     targetRoot,
     tokens,
-    withTrpc: options.withTrpc,
-    serverProvider: serverProviderSupportsTrpc(options.serverProvider)
-      ? options.serverProvider
-      : null,
+    withTrpc: trpcEnabled,
+    serverProvider: trpcEnabled ? 'cloudflare' : null,
   })
   await maybePatchServerWorkspace({
     targetRoot,
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
-    trpc: options.withTrpc,
+    trpc: trpcEnabled,
   })
 
-  if (options.withTrpc) {
+  if (trpcEnabled) {
     await syncRootWorkspaceManifest(
       targetRoot,
       options.packageManager,
@@ -113,7 +111,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     )
   }
 
-  if (options.serverProvider === 'cloudflare' && options.withTrpc) {
+  if (trpcEnabled) {
     const packageManager = getPackageManagerAdapter(options.packageManager)
     log.step('루트 tRPC workspace 의존성을 먼저 설치할게요')
     await runCommand({
@@ -160,7 +158,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'backoffice'), options.packageManager)
   }
 
-  if (options.withBackoffice || options.withTrpc) {
+  if (options.withBackoffice || trpcEnabled) {
     await syncRootWorkspaceManifest(
       targetRoot,
       options.packageManager,
@@ -172,21 +170,21 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     hasBackoffice:
       options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
     serverProvider: options.serverProvider,
-    hasTrpc: options.withTrpc,
+    hasTrpc: trpcEnabled,
   })
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
-    trpc: options.withTrpc,
-    removeCloudflareApiClientHelpers: options.serverProvider === 'cloudflare' && options.withTrpc,
+    trpc: trpcEnabled,
+    removeCloudflareApiClientHelpers: trpcEnabled,
   })
 
   if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
     await patchBackofficeWorkspace(targetRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: options.serverProvider,
-      trpc: options.withTrpc,
-      removeCloudflareApiClientHelpers: options.serverProvider === 'cloudflare' && options.withTrpc,
+      trpc: trpcEnabled,
+      removeCloudflareApiClientHelpers: trpcEnabled,
     })
   }
 
@@ -241,6 +239,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     packageManager: options.packageManager,
   })
   const trpcServerProvider = options.serverProvider ?? options.existingServerProvider
+  const trpcEnabled = options.withTrpc && trpcServerProvider === 'cloudflare'
 
   if (options.withServer) {
     await mkdir(path.join(targetRoot, 'server'), { recursive: true })
@@ -267,11 +266,8 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   await maybePrepareTrpcWorkspace({
     targetRoot,
     tokens,
-    withTrpc: options.withTrpc,
-    serverProvider:
-      trpcServerProvider === 'supabase' || trpcServerProvider === 'cloudflare'
-        ? trpcServerProvider
-        : null,
+    withTrpc: trpcEnabled,
+    serverProvider: trpcEnabled ? 'cloudflare' : null,
   })
 
   await maybePatchServerWorkspace({
@@ -280,13 +276,13 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     packageManager: options.packageManager,
     serverProvider: options.withServer
       ? options.serverProvider
-      : options.withTrpc
+      : trpcEnabled
         ? options.existingServerProvider
         : null,
-    trpc: options.withTrpc,
+    trpc: trpcEnabled,
   })
 
-  if (options.withTrpc) {
+  if (trpcEnabled) {
     await syncRootWorkspaceManifest(
       targetRoot,
       options.packageManager,
@@ -294,7 +290,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     )
   }
 
-  if (options.withServer && options.serverProvider === 'cloudflare' && options.withTrpc) {
+  if (options.withServer && options.serverProvider === 'cloudflare' && trpcEnabled) {
     const packageManager = getPackageManagerAdapter(options.packageManager)
     log.step('루트 tRPC workspace 의존성을 먼저 설치할게요')
     await runCommand({
@@ -357,30 +353,30 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   await syncOptionalDocsTemplates(targetRoot, tokens, {
     hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
     serverProvider: finalServerProvider,
-    hasTrpc: options.withTrpc,
+    hasTrpc: trpcEnabled,
   })
 
   if (
-    (options.withServer || options.withTrpc) &&
+    (options.withServer || trpcEnabled) &&
     (await pathExists(path.join(targetRoot, 'frontend')))
   ) {
     await patchFrontendWorkspace(targetRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: finalServerProvider,
-      trpc: options.withTrpc,
-      removeCloudflareApiClientHelpers: options.removeCloudflareApiClientHelpers,
+      trpc: trpcEnabled,
+      removeCloudflareApiClientHelpers: trpcEnabled && options.removeCloudflareApiClientHelpers,
     })
   }
 
   if (
-    (options.withBackoffice || options.withServer || options.withTrpc) &&
+    (options.withBackoffice || options.withServer || trpcEnabled) &&
     (await pathExists(path.join(targetRoot, 'backoffice')))
   ) {
     await patchBackofficeWorkspace(targetRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: finalServerProvider,
-      trpc: options.withTrpc,
-      removeCloudflareApiClientHelpers: options.removeCloudflareApiClientHelpers,
+      trpc: trpcEnabled,
+      removeCloudflareApiClientHelpers: trpcEnabled && options.removeCloudflareApiClientHelpers,
     })
   }
 

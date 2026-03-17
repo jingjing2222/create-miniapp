@@ -78,7 +78,7 @@ function buildSupabasePlan(options: ProviderPlanOptions): ServerProviderCommandS
 const supabaseAdapter: ServerProviderAdapter = {
   id: 'supabase',
   label: 'Supabase',
-  supportsTrpc: true,
+  supportsTrpc: false,
   async detect(rootDir) {
     return pathExists(path.join(rootDir, 'server', 'supabase', 'config.toml'))
   },
@@ -192,8 +192,8 @@ export function getServerProviderAdapter(provider: ServerProvider): ServerProvid
 
 export function serverProviderSupportsTrpc(
   provider: ServerProvider | null | undefined,
-): provider is Extract<ServerProvider, 'supabase' | 'cloudflare'> {
-  return provider === 'supabase' || provider === 'cloudflare'
+): provider is Extract<ServerProvider, 'cloudflare'> {
+  return provider === 'cloudflare'
 }
 
 export async function detectServerProvider(rootDir: string) {

@@ -364,6 +364,63 @@ function renderSupabaseFunctionsDeployScript(tokens: TemplateTokens) {
   ].join('\n')
 }
 
+function renderSupabaseFunctionsTypecheckScript() {
+  return [
+    "import { spawnSync } from 'node:child_process'",
+    "import { existsSync, readdirSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    "const functionsRoot = path.join(serverRoot, 'supabase', 'functions')",
+    '',
+    'function collectFunctionEntrypoints(rootDir) {',
+    '  if (!existsSync(rootDir)) {',
+    '    return []',
+    '  }',
+    '',
+    '  return readdirSync(rootDir, { withFileTypes: true })',
+    "    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))",
+    "    .map((entry) => path.join(rootDir, entry.name, 'index.ts'))",
+    '    .filter((entrypoint) => existsSync(entrypoint))',
+    '    .sort((left, right) => left.localeCompare(right))',
+    '}',
+    '',
+    'const entrypoints = collectFunctionEntrypoints(functionsRoot)',
+    'if (entrypoints.length === 0) {',
+    "  console.log('[server] typecheck할 Supabase Edge Function entrypoint를 찾지 못했어요.')",
+    '  process.exit(0)',
+    '}',
+    '',
+    "const denoCommand = process.platform === 'win32' ? 'deno.cmd' : 'deno'",
+    'for (const entrypoint of entrypoints) {',
+    '  const functionRoot = path.dirname(entrypoint)',
+    "  const denoConfigPath = path.join(functionRoot, 'deno.json')",
+    "  const args = existsSync(denoConfigPath) ? ['check', '--config', denoConfigPath, entrypoint] : ['check', entrypoint]",
+    '  const result = spawnSync(denoCommand, args, {',
+    '    cwd: serverRoot,',
+    "    stdio: 'inherit',",
+    '    env: process.env,',
+    '  })',
+    '',
+    "  if (typeof result.status === 'number' && result.status !== 0) {",
+    '    process.exit(result.status)',
+    '  }',
+    '',
+    '  if (result.error) {',
+    "    if (typeof result.error === 'object' && result.error !== null && 'code' in result.error && result.error.code === 'ENOENT') {",
+    "      console.error('[server] Supabase Edge Function typecheck에는 Deno가 필요해요. https://supabase.com/docs/guides/functions/development-environment#step-1-install-deno 를 먼저 확인해 주세요.')",
+    '      process.exit(1)',
+    '    }',
+    '',
+    '    throw result.error',
+    '  }',
+    '}',
+    '',
+  ].join('\n')
+}
+
 function renderFirebaseFunctionsDeployScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
   const command = packageManager.dlx('firebase-tools', [
@@ -909,7 +966,7 @@ export async function applyTrpcWorkspaceTemplate(
   targetRoot: string,
   tokens: TemplateTokens,
   options: {
-    serverProvider: 'supabase' | 'cloudflare'
+    serverProvider: 'cloudflare'
   },
 ) {
   await applyTrpcWorkspaceTemplateImpl(targetRoot, tokens, options)
@@ -1016,6 +1073,7 @@ export async function applyServerPackageTemplate(targetRoot: string, tokens: Tem
   packageJson.scripts ??= {}
   packageJson.scripts.dev = packageManager.dlxCommand('supabase', ['start', '--workdir', '.'])
   packageJson.scripts.build = packageManager.runScript('typecheck')
+  packageJson.scripts.typecheck = 'node ./scripts/supabase-functions-typecheck.mjs'
   packageJson.scripts['db:apply'] = 'node ./scripts/supabase-db-apply.mjs'
   packageJson.scripts['db:apply:remote'] = 'node ./scripts/supabase-db-apply.mjs'
   packageJson.scripts['functions:serve'] = packageManager.dlxCommand('supabase', [
@@ -1050,6 +1108,11 @@ export async function applyServerPackageTemplate(targetRoot: string, tokens: Tem
   await writeFile(
     path.join(serverRoot, 'scripts', 'supabase-db-apply.mjs'),
     renderSupabaseDbApplyScript(tokens),
+    'utf8',
+  )
+  await writeFile(
+    path.join(serverRoot, 'scripts', 'supabase-functions-typecheck.mjs'),
+    renderSupabaseFunctionsTypecheckScript(),
     'utf8',
   )
   await writeFile(

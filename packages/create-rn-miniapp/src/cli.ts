@@ -217,7 +217,7 @@ export function formatCliHelp() {
     '  --no-git                       생성 완료 후 루트 git init 생략',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
-    '  --trpc                         지원하는 `server` provider 위에 tRPC overlay 추가',
+    '  --trpc                         `cloudflare` server provider 위에 tRPC overlay 추가',
     '  --with-backoffice              `backoffice` 워크스페이스 포함',
     '  --root-dir <디렉터리>          `--add`에서 수정할 기존 모노레포 루트 디렉터리',
     '  --output-dir <디렉터리>        생성할 모노레포의 상위 디렉터리',
@@ -255,9 +255,7 @@ function validateServerProjectMode(
 
 function validateTrpcSelection(serverProvider: ServerProvider | null, trpc: boolean | undefined) {
   if (trpc && !serverProviderSupportsTrpc(serverProvider)) {
-    throw new Error(
-      '`--trpc`는 `supabase` 또는 `cloudflare` server provider와 함께만 사용할 수 있어요.',
-    )
+    throw new Error('`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요.')
   }
 }
 

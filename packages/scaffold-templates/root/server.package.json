@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm dlx supabase start --workdir .",
     "build": "pnpm run typecheck",
-    "typecheck": "node -e \"console.log('server typecheck placeholder')\"",
+    "typecheck": "node ./scripts/supabase-functions-typecheck.mjs",
     "test": "node -e \"console.log('server test placeholder')\"",
     "db:apply": "node ./scripts/supabase-db-apply.mjs",
     "db:apply:local": "pnpm dlx supabase db push --local --workdir .",

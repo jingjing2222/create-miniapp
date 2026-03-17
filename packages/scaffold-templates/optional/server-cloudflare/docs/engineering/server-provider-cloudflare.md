@@ -37,6 +37,7 @@ Worker URL이 바뀌면 `.env.local`과 배포 경로를 같이 확인해야 해
 - `frontend/src/lib/trpc.ts`, `backoffice/src/lib/trpc.ts`가 Worker `/trpc` endpoint를 호출해요.
 - 기존 `api.ts` helper는 기본 진입점이 아니에요. 새 생성물은 `trpc.ts`만 쓰고, 기존 repo에 `--add --trpc`를 붙일 때만 정리 여부를 고르게 돼요.
 - `server/src/index.ts`는 Worker fetch handler를 tRPC adapter 기준으로 다시 연결해요.
+- `GET /`로 ready JSON을 확인하고, 실제 router 호출은 `/trpc` endpoint로 보면 돼요.
 
 ## 작업할 때 먼저 확인할 것
 - `server/.env.local`에 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_WORKER_NAME`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_R2_BUCKET_NAME`이 있는가
