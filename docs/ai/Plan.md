@@ -1,3 +1,18 @@
+## 다음 작업: Supabase 새 프로젝트 생성 직후 재선택 프롬프트를 없애기
+1. 문제
+   - `supabase projects create` 직후 프로젝트 목록이 바로 최신화되지 않으면, 방금 만든 프로젝트가 리스트에 안 보여도 다시 고르게 만든다.
+   - 이 흐름은 새 프로젝트를 만든 직후 가장 불편한 구간이고, 사용자 입장에선 방금 만든 프로젝트를 또 찾으라는 형태가 된다.
+2. 방향
+   - `supabase projects create` 출력에서 새 `project ref`를 먼저 파싱한다.
+   - 그 ref 기준으로 1초, 2초, 4초, 5초 간격으로 목록을 폴링한다.
+   - 목록에서 프로젝트가 잡히면 바로 그 ref로 진행하고, 끝까지 안 잡혀도 다시 선택을 강요하지 말고 파싱한 ref로 계속 진행한다.
+3. 테스트
+   - create 출력에서 `project ref`를 뽑는 테스트를 먼저 추가한다.
+   - 폴링이 1/2/4/5초 순서로 돌고, 중간에 프로젝트를 찾으면 즉시 멈추는 테스트를 먼저 추가한다.
+4. 완료 기준
+   - 새 프로젝트 생성 직후 재선택 프롬프트가 사라진다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: tRPC shared packages를 `tsdown` 빌드 산출물 기반으로 전환하기
 1. 문제
    - 지금 `packages/contracts`, `packages/app-router`는 package root가 `src/index.ts`를 바로 export하는 source package 구조다.

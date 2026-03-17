@@ -139,6 +139,14 @@ export function extractJsonPayload<T>(output: Pick<CommandOutput, 'stdout' | 'st
   throw new Error('JSON 결과를 해석하지 못했습니다.')
 }
 
+export function extractCreatedSupabaseProjectRef(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
+  const match = `${output.stdout}\n${output.stderr}`.match(
+    /https:\/\/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i,
+  )
+
+  return match?.[1] ?? null
+}
+
 export function resolveSupabaseClientApiKey(apiKeys: SupabaseApiKey[]) {
   const publishableKey =
     apiKeys.find((key) => key.name?.toLowerCase() === 'publishable')?.api_key ??
@@ -343,6 +351,43 @@ async function ensureSupabaseProjects(packageManager: PackageManager, cwd: strin
   }
 }
 
+async function sleep(delayMs: number) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, delayMs)
+  })
+}
+
+export async function pollForCreatedSupabaseProject(
+  projectRef: string,
+  options: {
+    delaysMs?: number[]
+    listProjects?: () => Promise<SupabaseProject[]>
+    sleep?: (delayMs: number) => Promise<void>
+  } = {},
+) {
+  const delaysMs = options.delaysMs ?? [1000, 2000, 4000, 5000]
+  const listProjects = options.listProjects
+
+  if (!listProjects) {
+    throw new Error('Supabase 프로젝트 목록 조회 함수가 필요해요.')
+  }
+
+  const wait = options.sleep ?? sleep
+
+  for (const delayMs of delaysMs) {
+    await wait(delayMs)
+
+    const projects = await listProjects()
+    const matchedProject = projects.find((project) => project.id === projectRef)
+
+    if (matchedProject) {
+      return matchedProject
+    }
+  }
+
+  return null
+}
+
 async function selectSupabaseProject(
   prompt: CliPrompter,
   projects: SupabaseProject[],
@@ -384,9 +429,11 @@ async function selectSupabaseProject(
 
 async function createSupabaseProject(packageManager: PackageManager, cwd: string) {
   log.step('Supabase 프로젝트를 새로 만들게요')
-  await runCommand(
+  const output = await runCommandWithOutput(
     buildSupabaseCommand(packageManager, cwd, 'Supabase 프로젝트 만들기', ['projects', 'create']),
   )
+
+  return extractCreatedSupabaseProjectRef(output)
 }
 
 async function getSupabaseApiKeys(packageManager: PackageManager, cwd: string, projectRef: string) {
@@ -486,7 +533,10 @@ export async function provisionSupabaseProject(
   }
 
   if (resolvedProjectMode === 'create') {
-    await createSupabaseProject(options.packageManager, options.targetRoot)
+    const createdProjectRef = await createSupabaseProject(
+      options.packageManager,
+      options.targetRoot,
+    )
     const refreshedProjects = await ensureSupabaseProjects(
       options.packageManager,
       options.targetRoot,
@@ -497,7 +547,17 @@ export async function provisionSupabaseProject(
       (project) => !previousProjectIds.has(project.id),
     )
 
-    if (newlyCreatedProjects.length === 1) {
+    if (createdProjectRef) {
+      selectedProjectId =
+        newlyCreatedProjects.find((project) => project.id === createdProjectRef)?.id ??
+        (
+          await pollForCreatedSupabaseProject(createdProjectRef, {
+            listProjects: async () =>
+              await ensureSupabaseProjects(options.packageManager, options.targetRoot),
+          })
+        )?.id ??
+        createdProjectRef
+    } else if (newlyCreatedProjects.length === 1) {
       selectedProjectId = newlyCreatedProjects[0].id
     } else {
       selectedProjectId = await selectSupabaseProject(options.prompt, refreshedProjects, {

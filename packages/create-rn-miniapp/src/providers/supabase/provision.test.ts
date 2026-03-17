@@ -4,9 +4,11 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
+  extractCreatedSupabaseProjectRef,
   extractJsonPayload,
   finalizeSupabaseProvisioning,
   formatSupabaseManualSetupNote,
+  pollForCreatedSupabaseProject,
   resolveSupabaseClientApiKey,
   writeSupabaseServerLocalEnvFile,
   writeSupabaseLocalEnvFiles,
@@ -69,6 +71,59 @@ test('extractJsonPayload strips package-manager log lines around JSON output', (
   assert.deepEqual(payload, {
     project: ['one', 'two'],
   })
+})
+
+test('extractCreatedSupabaseProjectRef reads the new ref from create output', () => {
+  const projectRef = extractCreatedSupabaseProjectRef({
+    stdout: [
+      'Created a new project at https://supabase.com/dashboard/project/seqbtbmjhrcdsvmatmwg',
+      '',
+      '   ORG ID               | REFERENCE ID         | NAME | REGION                 | CREATED AT (UTC)',
+      '  ----------------------|----------------------|------|------------------------|---------------------',
+      '   eitbkocnrlydxxerbpws | seqbtbmjhrcdsvmatmwg | test | Northeast Asia (Seoul) | 2026-03-17 05:41:03',
+    ].join('\n'),
+    stderr: '',
+  })
+
+  assert.equal(projectRef, 'seqbtbmjhrcdsvmatmwg')
+})
+
+test('pollForCreatedSupabaseProject waits 1, 2, 4, 5 seconds and stops when the project appears', async () => {
+  const delays: number[] = []
+  const listedRefs: string[] = []
+  let attempt = 0
+
+  const project = await pollForCreatedSupabaseProject('created-ref', {
+    delaysMs: [1000, 2000, 4000, 5000],
+    sleep: async (delayMs) => {
+      delays.push(delayMs)
+    },
+    listProjects: async () => {
+      attempt += 1
+
+      if (attempt < 3) {
+        listedRefs.push('existing-ref')
+        return [
+          {
+            id: 'existing-ref',
+            name: 'existing',
+          },
+        ]
+      }
+
+      listedRefs.push('created-ref')
+      return [
+        {
+          id: 'created-ref',
+          name: 'created',
+        },
+      ]
+    },
+  })
+
+  assert.deepEqual(delays, [1000, 2000, 4000])
+  assert.deepEqual(listedRefs, ['existing-ref', 'existing-ref', 'created-ref'])
+  assert.equal(project?.id, 'created-ref')
 })
 
 test('writeSupabaseLocalEnvFiles writes frontend and backoffice .env.local files', async () => {
