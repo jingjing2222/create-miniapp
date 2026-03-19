@@ -15,9 +15,14 @@ function createControlRootAgentsStub(workspaceDirectory: string) {
     `실제 repo root와 하네스 문서는 \`${workspaceDirectory}/\` 아래에 있어요.`,
     '',
     '## Start Here',
-    `1. \`cd ${workspaceDirectory}\``,
-    '2. 필요하면 원하는 worktree로 이동해요.',
-    '3. 해당 worktree 안의 `AGENTS.md`를 먼저 읽어요.',
+    `- 지금 기본 브랜치에서 바로 시작하려면 \`cd ${workspaceDirectory}\``,
+    '- 상태 확인: `wt status`',
+    `- 새 worktree 만들기: \`wt add -c <branch> -b ${workspaceDirectory}\``,
+    '- 전체 동기화: `wt pull`',
+    '- 작업할 worktree 안의 `AGENTS.md`를 먼저 읽어요.',
+    '',
+    '## Cleanup',
+    '- 작업이 끝난 브랜치 정리: `wt remove <branch> -b`',
     '',
     '## Do Not',
     '- control root에서 `git commit`',
@@ -34,8 +39,11 @@ function createControlRootReadmeStub(workspaceDirectory: string) {
     `실제 MiniApp repo는 \`${workspaceDirectory}/\` 아래에 있어요.`,
     '',
     '## Start',
-    `- \`cd ${workspaceDirectory}\``,
-    '- 실제 코드 수정, commit, push는 worktree 안에서만 진행해요.',
+    '- 상태 확인: `wt status`',
+    `- 새 worktree 만들기: \`wt add -c <branch> -b ${workspaceDirectory}\``,
+    '- 전체 동기화: `wt pull`',
+    '- 정리: `wt remove <branch> -b`',
+    `- 기본 브랜치에서 바로 시작하려면 \`cd ${workspaceDirectory}\``,
     '',
   ].join('\n')
 }
@@ -59,7 +67,10 @@ export function createWorktreeLayoutNote(options: { controlRoot: string; workspa
     body: [
       `control root: ${options.controlRoot}`,
       `main worktree: ${options.workspaceRoot}`,
-      '실제 repo 작업은 `main/` 안에서 진행해 주세요.',
+      '상태 확인: `wt status`',
+      '새 worktree 만들기: `wt add -c <branch> -b main`',
+      '전체 동기화: `wt pull`',
+      '실제 repo 작업은 `main/` 또는 추가 worktree 안에서 진행해 주세요.',
     ].join('\n'),
   } satisfies ProvisioningNote
 }

@@ -100,7 +100,8 @@ test('createWorktreeLayoutNote points users at the control root and main worktre
   assert.equal(note.title, 'worktree 레이아웃으로 준비했어요')
   assert.match(note.body, /control root: \/tmp\/ebook/)
   assert.match(note.body, /main worktree: \/tmp\/ebook\/main/)
-  assert.match(note.body, /실제 repo 작업은 `main\/` 안에서 진행/)
+  assert.match(note.body, /wt status/)
+  assert.match(note.body, /wt add -c/)
 })
 
 test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main/ and leaves local shims in the control root', async () => {
@@ -125,6 +126,8 @@ test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main
       '# plan\n',
     )
     assert.match(await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'), /cd main/)
+    assert.match(await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'), /wt status/)
+    assert.match(await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'), /wt add -c/)
     assert.match(
       await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'),
       /control root에서 `git commit`/,
@@ -133,6 +136,7 @@ test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main
       await readFile(path.join(targetRoot, 'README.md'), 'utf8'),
       /실제 MiniApp repo는 `main\/` 아래에 있어요/,
     )
+    assert.match(await readFile(path.join(targetRoot, 'README.md'), 'utf8'), /wt remove/)
     await assert.rejects(() => stat(path.join(targetRoot, 'package.json')))
     assert.equal(runGit(result.workspaceRoot, ['symbolic-ref', '--short', 'HEAD']), 'main')
     assert.match(runGit(targetRoot, ['worktree', 'list', '--porcelain']), /main$/m)

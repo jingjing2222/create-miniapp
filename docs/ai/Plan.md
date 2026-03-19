@@ -1,39 +1,32 @@
-## 다음 작업: 에이전트 친화적인 worktree 기반 스캐폴딩 구조로 개편하기
+## 다음 작업: 에이전트 친화적인 worktree 기반 스캐폴딩 구조를 `wt` 중심 운영으로 정리하기
 1. 문제
-   - 지금 스캐폴더는 `<appName>/` 자체를 곧바로 단일 working tree 루트로 취급해서, 여러 에이전트가 같은 디렉터리에서 작업할 때 브랜치/컨텍스트/임시 파일 충돌을 피하기 어렵다.
-   - 현재 opt-in worktree 구현은 `--add`, provider note, generated harness 진입점이 control root와 `main/` worktree를 구분하지 못해서 실제 운영 동선이 깨질 수 있다.
-   - 새로 생성한 로컬 scaffold는 원격 clone이 아니라서, bare repo + worktree bootstrap을 빈 저장소 상태에서 어떻게 안정적으로 시작할지 먼저 검증해야 한다.
+   - 지금 opt-in worktree 구현은 control root + `main/` 구조 자체는 만들지만, 이후 worktree 생성/동기화/정리 동선은 여전히 raw git 설명에 가깝다.
+   - 형정님이 준 `wt` 도구는 `init/add/remove/status/fetch/pull/upstream/prune`를 제공하므로, multi-agent 운영은 이 표준 동선으로 맞추는 편이 낫다.
+   - 다만 `wt init`은 `repo_url`을 받아 clone하는 명령이라, 방금 생성한 로컬 scaffold를 곧바로 bootstrap하는 데는 쓸 수 없다. create의 첫 worktree 전환은 내부 bootstrap을 유지해야 한다.
 2. 방향
-   - Git worktree 글의 핵심 원칙을 그대로 따른다: control root는 bare repo와 worktree 관리만 맡고, 실제 앱 소스와 AI 하네스 문서는 `main/` 및 추가 worktree 아래에서만 작업한다.
-   - 1차 도입은 opt-in으로 유지한다. `--worktree` 또는 마지막 git 단계 프롬프트로만 들어가고, single-root는 기존 동선 그대로 둔다.
-   - 최종 형태 기준으로도 tracked repo 문서는 계속 "repo root" 기준으로 유지한다. worktree-specific 안내는 control root의 로컬 shim 문서만 맡는다.
-   - scaffold 내부 모델을 `controlRoot`와 `workspaceRoot`로 분리하고, inspector/add/install/finalize/provider note가 모두 공통 workspace resolver를 통해 실제 repo root를 찾게 만든다.
-   - worktree 변환 후 control root에는 로컬 stub `AGENTS.md`와 `README.md`를 써서 "`main/` 또는 worktree 안에서 작업"만 짧게 안내한다.
-   - provider finalize note와 CLI outro는 repo-root relative path와 control root / workspace root를 혼동하지 않도록 출력 순서를 재정렬하고, worktree mode에서는 `main/` 경로를 명시한다.
+   - 초기 scaffold의 single-root -> control root + `main/` 전환은 현재 내부 bootstrap 로직으로 유지한다.
+   - 그 이후 day-2 worktree 관리는 `wt` 기준으로 정리한다. control root stub, completion note, README가 모두 `wt status`, `wt add`, `wt pull`, `wt remove`를 기본 경로로 안내하게 한다.
+   - generated tracked repo 문서는 계속 repo root 기준으로 두고, `wt` 관련 운영 안내는 control root의 로컬 stub와 create-rn-miniapp README에 집중한다.
+   - create-rn-miniapp README에는 `uv`/`wt` 준비와 `wt`가 실제로 어떤 구조를 만드는지, worktree mode에서 왜 `main/`으로 들어가야 하는지 함께 설명한다.
 3. 수정 파일
-   - CLI/output: `packages/create-rn-miniapp/src/index.ts`, `packages/create-rn-miniapp/src/scaffold/index.ts`
-   - Worktree bootstrap/shim: `packages/create-rn-miniapp/src/scaffold/worktree.ts`, 관련 test
-   - Existing workspace detection: `packages/create-rn-miniapp/src/workspace-inspector.ts`, `packages/create-rn-miniapp/src/workspace-inspector.test.ts`
-   - 문서: `README.md`
+   - worktree bootstrap/note/stub: `packages/create-rn-miniapp/src/scaffold/worktree.ts`, 관련 test
+   - 문서/안내: `README.md`, 필요 시 `packages/create-rn-miniapp/src/scaffold/index.ts`
 4. 구현 순서
-   1. `Plan`을 현재 PR 범위로 좁히고, `--add` root resolution과 control root shim에 대한 실패 테스트를 먼저 추가한다.
-   2. workspace inspector에 control root / worktree root 공통 resolver를 넣고, `--add`가 둘 다 받도록 맞춘다.
-   3. worktree 변환 후 control root shim을 생성하고, CLI note/outro/provider 안내를 worktree-aware하게 정리한다.
-   4. README와 integration test를 갱신하고 `pnpm verify`로 고정한다.
+   1. `Plan`을 `wt` 기준으로 다시 적고, control root stub/note가 `wt` 명령을 안내하는 실패 테스트를 먼저 추가한다.
+   2. control root `AGENTS.md`/`README.md` stub와 create completion note를 `wt` 중심 동선으로 바꾼다.
+   3. create-rn-miniapp README를 `wt` 기준 설치/운영 가이드와 함께 정리한다.
+   4. focused test와 `pnpm verify`를 통과한다.
 5. 제외 범위
-   - multi-worktree helper(`publish`, `sync`, `remove`, `doctor`)와 clone 후 로컬 worktree 재구성 명령은 이번 PR 범위에서 제외한다.
-   - generated tracked harness docs를 `main/` 기준 경로로 rewrite하지 않는다.
-   - 기존 single-root repo를 사후 변환하는 migration command는 이번 범위에서 제외한다.
+   - `wt init`으로 create bootstrap 전체를 대체하는 작업은 이번 범위에서 제외한다.
+   - create CLI가 사용자 머신에 `uv`/`wt`를 자동 설치하게 만들지는 않는다.
+   - generated repo 내부 tracked 문서를 `wt` 설명으로 오염시키지 않는다.
 6. 테스트
-   - workspace inspector test: control root와 worktree root를 각각 넣었을 때 동일한 workspace metadata를 읽는지 확인한다.
-   - worktree integration test: opt-in 변환 후 control root에 shim 문서가 생기고, 실제 tracked 파일은 `main/` 아래에 남는지 확인한다.
-   - CLI/output test: worktree note가 provider note보다 먼저 나오고, 경로 안내가 `main/` 기준으로 혼동 없이 보이는지 확인한다.
-   - README review: `--add`와 worktree 안내가 실제 구현과 같은지 확인한다.
+   - worktree test: control root stub와 completion note가 `wt` 명령을 포함하는지 확인한다.
+   - README review: `wt` 기준 운영 가이드가 실제 도구 동작과 맞는지 확인한다.
    - `pnpm verify`를 통과한다.
 7. 완료 기준
-   - worktree mode로 생성한 결과물이 `control root + main worktree` 구조를 가지면서 control root에서도 길을 잃지 않는다.
-   - `--add`가 control root와 worktree root 둘 다 지원한다.
-   - control root의 stub 안내와 CLI note 순서가 worktree 동선과 충돌하지 않는다.
+   - worktree mode 결과물의 control root에서 `wt` 중심 운영 동선을 바로 이해할 수 있다.
+   - 초기 bootstrap은 유지하되, 이후 worktree 생성/동기화/정리는 `wt` 기준으로 안내된다.
    - `pnpm verify` 통과
 
 ## 다음 작업: Supabase 기존 프로젝트 skip 경로에서 generated Biome/schema와 `.mjs` 스크립트 문법을 정상화하기
