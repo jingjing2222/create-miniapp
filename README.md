@@ -58,22 +58,47 @@ pnpm verify
 # 또는 yarn verify / npm run verify / bun run verify
 ```
 
+worktree 레이아웃을 골랐다면 실제 repo root는 `my-miniapp/main`이 돼요. 이 경우 verify와 이후 작업도 `main/` 안에서 진행하면 돼요. control root에는 로컬 안내용 `AGENTS.md`, `README.md`, `.git`, `.bare/`만 남아요.
+
 기본값은 지금처럼 single-root예요. 다만 마지막 git 단계 직전에 `control root + main/ worktree`로 바꿀지 한 번 더 물어봐요. `--worktree`를 주면 그 마지막 질문 없이 바로 opt-in할 수 있고, `--no-git`이면 이 단계는 건너뛰어요.
 
 ## 생성되는 구조
+
+기본 single-root 구조는 이렇습니다.
 
 ```text
 <appName>/
   frontend/
   packages/contracts/   # optional (cloudflare + trpc)
   packages/app-router/  # optional (cloudflare + trpc)
-  backoffice/    # optional
-  server/        # optional
+  backoffice/           # optional
+  server/               # optional
   docs/
   AGENTS.md
   package.json
   nx.json
   biome.json
+```
+
+`--worktree`를 고르거나 마지막 질문에서 worktree로 바꾸면 로컬 레이아웃은 이렇게 바뀌어요.
+
+```text
+<appName>/
+  .git
+  .bare/
+  AGENTS.md     # local control-root stub
+  README.md     # local control-root stub
+  main/
+    frontend/
+    packages/contracts/   # optional (cloudflare + trpc)
+    packages/app-router/  # optional (cloudflare + trpc)
+    backoffice/           # optional
+    server/               # optional
+    docs/
+    AGENTS.md
+    package.json
+    nx.json
+    biome.json
 ```
 
 `docs/`는 단순 샘플 문서가 아니라, 생성 직후부터 작업 기준을 맞추기 위한 컨텍스트 문서예요.
@@ -238,6 +263,8 @@ create-miniapp --add --with-backoffice
 ```bash
 create-miniapp --add --root-dir /path/to/existing-miniapp --server-provider cloudflare --with-backoffice
 ```
+
+worktree 레이아웃을 골랐던 프로젝트라면 control root를 넘겨도 괜찮아요. CLI가 자동으로 `main/` worktree를 찾아서 실제 repo root에 반영해줘요. 물론 `/path/to/existing-miniapp/main`처럼 worktree root를 직접 넘겨도 돼요.
 
 `--add`는 root `package.json.packageManager`와 `frontend/granite.config.ts`를 읽어 기존 워크스페이스 정보를 감지한 뒤, 아직 없는 워크스페이스만 추가하고 root workspace manifest도 함께 갱신해줘요.
 

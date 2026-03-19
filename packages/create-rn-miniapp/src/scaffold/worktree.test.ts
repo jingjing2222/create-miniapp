@@ -7,6 +7,7 @@ import test from 'node:test'
 import type { CliPrompter } from '../cli.js'
 import {
   convertSingleRootToWorktreeLayout,
+  createWorktreeLayoutNote,
   MAIN_WORKTREE_DIRECTORY,
   resolveCreateWorktreeLayout,
 } from './worktree.js'
@@ -90,7 +91,19 @@ test('resolveCreateWorktreeLayout asks at the last git step when no explicit fla
   ])
 })
 
-test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main/', async () => {
+test('createWorktreeLayoutNote points users at the control root and main worktree', () => {
+  const note = createWorktreeLayoutNote({
+    controlRoot: '/tmp/ebook',
+    workspaceRoot: '/tmp/ebook/main',
+  })
+
+  assert.equal(note.title, 'worktree 레이아웃으로 준비했어요')
+  assert.match(note.body, /control root: \/tmp\/ebook/)
+  assert.match(note.body, /main worktree: \/tmp\/ebook\/main/)
+  assert.match(note.body, /실제 repo 작업은 `main\/` 안에서 진행/)
+})
+
+test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main/ and leaves local shims in the control root', async () => {
   const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-'))
 
   try {
@@ -110,6 +123,15 @@ test('convertSingleRootToWorktreeLayout moves the scaffolded workspace into main
     assert.equal(
       await readFile(path.join(result.workspaceRoot, 'docs', 'ai', 'Plan.md'), 'utf8'),
       '# plan\n',
+    )
+    assert.match(await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'), /cd main/)
+    assert.match(
+      await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8'),
+      /control root에서 `git commit`/,
+    )
+    assert.match(
+      await readFile(path.join(targetRoot, 'README.md'), 'utf8'),
+      /실제 MiniApp repo는 `main\/` 아래에 있어요/,
     )
     await assert.rejects(() => stat(path.join(targetRoot, 'package.json')))
     assert.equal(runGit(result.workspaceRoot, ['symbolic-ref', '--short', 'HEAD']), 'main')

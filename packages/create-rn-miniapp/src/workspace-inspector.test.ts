@@ -340,3 +340,49 @@ test('inspectWorkspace accepts npm and bun packageManager fields', async (t) => 
   assert.equal(npmInspection.packageManager, 'npm')
   assert.equal(bunInspection.packageManager, 'bun')
 })
+
+test('inspectWorkspace resolves a worktree control root to main/', async (t) => {
+  const controlRoot = await createTempWorkspace(t)
+  const workspaceRoot = path.join(controlRoot, 'main')
+
+  await mkdir(path.join(controlRoot, '.bare'), { recursive: true })
+  await writeFile(path.join(controlRoot, '.git'), 'gitdir: ./.bare\n', 'utf8')
+  await mkdir(path.join(workspaceRoot, 'frontend'), { recursive: true })
+  await writeFile(
+    path.join(workspaceRoot, 'package.json'),
+    JSON.stringify(
+      {
+        packageManager: 'pnpm@10.32.1',
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    path.join(workspaceRoot, 'frontend', 'granite.config.ts'),
+    [
+      "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+      "import { defineConfig } from '@granite-js/react-native/config'",
+      '',
+      'export default defineConfig({',
+      '  appName: "ebook-miniapp",',
+      '  plugins: [',
+      '    appsInToss({',
+      '      brand: {',
+      '        displayName: "전자책 미니앱",',
+      '      },',
+      '    }),',
+      '  ],',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+
+  const inspection = await inspectWorkspace(controlRoot)
+
+  assert.equal(inspection.rootDir, workspaceRoot)
+  assert.equal(inspection.packageManager, 'pnpm')
+  assert.equal(inspection.appName, 'ebook-miniapp')
+})

@@ -129,13 +129,6 @@ export async function main() {
       note(item.body, item.title)
     }
 
-    if (result.worktree && result.workspaceRoot !== result.targetRoot) {
-      note(
-        [`control root: ${result.targetRoot}`, `main worktree: ${result.workspaceRoot}`].join('\n'),
-        'worktree 레이아웃으로 준비했어요',
-      )
-    }
-
     outro(`${resolved.appName}을 만들었어요: ${result.workspaceRoot}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : '알 수 없는 오류가 있었어요.'

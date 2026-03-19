@@ -503,7 +503,7 @@ export async function resolveAddCliOptions(
     throw new Error('`--add`에서는 기존 루트와 다른 package manager를 쓸 수 없어요.')
   }
 
-  const rootDir = path.resolve(argv.rootDir)
+  const rootDir = inspection.rootDir
   const addServerProvider = inspection.hasServer
     ? null
     : await resolveServerProviderInput(argv, prompt, {

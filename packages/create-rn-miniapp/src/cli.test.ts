@@ -510,6 +510,7 @@ test('resolveCliOptions does not create a server in yes mode without server-prov
       name: 'ebook-miniapp',
       rootDir: '/tmp/workspace',
       outputDir: '/tmp/workspace',
+      withBackoffice: true,
       skipInstall: false,
       yes: true,
       help: false,
@@ -905,6 +906,41 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 추가할까요?',
   ])
+})
+
+test('resolveAddCliOptions keeps the inspected workspace root when the input path was a control root', async () => {
+  const resolved = await resolveAddCliOptions(
+    {
+      add: true,
+      rootDir: '/tmp/existing-miniapp',
+      outputDir: '/tmp/workspace',
+      withBackoffice: true,
+      skipInstall: false,
+      yes: true,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select() {
+        throw new Error('select prompt should not be called')
+      },
+    },
+    {
+      rootDir: '/tmp/existing-miniapp/main',
+      packageManager: 'pnpm',
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      hasServer: true,
+      hasBackoffice: false,
+      hasTrpc: false,
+      serverProvider: 'supabase',
+    },
+  )
+
+  assert.equal(resolved.rootDir, path.resolve('/tmp/existing-miniapp/main'))
 })
 
 test('resolveAddCliOptions accepts explicit server-provider in yes mode', async () => {

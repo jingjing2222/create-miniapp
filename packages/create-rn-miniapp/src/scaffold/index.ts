@@ -31,7 +31,11 @@ import {
   resolveRootWorkspaces,
 } from './helpers.js'
 import type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
-import { convertSingleRootToWorktreeLayout, resolveCreateWorktreeLayout } from './worktree.js'
+import {
+  convertSingleRootToWorktreeLayout,
+  createWorktreeLayoutNote,
+  resolveCreateWorktreeLayout,
+} from './worktree.js'
 
 export type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
 export {
@@ -190,29 +194,6 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     })
   }
 
-  notes.push(
-    ...(await maybeFinalizeSupabaseProvisioning({
-      targetRoot,
-      provisionedProject: provisionedSupabaseProject,
-      serverProvider: options.serverProvider,
-    })),
-  )
-  notes.push(
-    ...(await maybeFinalizeCloudflareProvisioning({
-      targetRoot,
-      provisionedWorker: provisionedCloudflareWorker,
-      serverProvider: options.serverProvider,
-    })),
-  )
-  notes.push(
-    ...(await maybeFinalizeFirebaseProvisioning({
-      targetRoot,
-      packageManager: options.packageManager,
-      provisionedProject: provisionedFirebaseProject,
-      serverProvider: options.serverProvider,
-    })),
-  )
-
   const shouldUseWorktreeLayout = await resolveCreateWorktreeLayout({
     prompt: options.prompt,
     noGit: options.noGit,
@@ -231,6 +212,38 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
         await runCommand(command)
       }
     }
+  }
+
+  notes.push(
+    ...(await maybeFinalizeSupabaseProvisioning({
+      targetRoot: workspaceRoot,
+      provisionedProject: provisionedSupabaseProject,
+      serverProvider: options.serverProvider,
+    })),
+  )
+  notes.push(
+    ...(await maybeFinalizeCloudflareProvisioning({
+      targetRoot: workspaceRoot,
+      provisionedWorker: provisionedCloudflareWorker,
+      serverProvider: options.serverProvider,
+    })),
+  )
+  notes.push(
+    ...(await maybeFinalizeFirebaseProvisioning({
+      targetRoot: workspaceRoot,
+      packageManager: options.packageManager,
+      provisionedProject: provisionedFirebaseProject,
+      serverProvider: options.serverProvider,
+    })),
+  )
+
+  if (shouldUseWorktreeLayout && workspaceRoot !== targetRoot) {
+    notes.unshift(
+      createWorktreeLayoutNote({
+        controlRoot: targetRoot,
+        workspaceRoot,
+      }),
+    )
   }
 
   if (!options.skipInstall) {

@@ -4,6 +4,7 @@ import { readGraniteConfigMetadata } from './patching/ast/index.js'
 import { toDefaultDisplayName } from './layout.js'
 import type { PackageManager } from './package-manager.js'
 import { detectServerProvider, type ServerProvider } from './providers/index.js'
+import { MAIN_WORKTREE_DIRECTORY } from './scaffold/worktree.js'
 import { pathExists } from './templates/index.js'
 
 type RootPackageJson = {
@@ -43,8 +44,34 @@ function parsePackageManagerField(value: string | undefined): PackageManager {
   )
 }
 
-export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspection> {
+async function hasWorkspaceMarkers(rootDir: string) {
+  return (
+    (await pathExists(path.join(rootDir, 'package.json'))) &&
+    (await pathExists(path.join(rootDir, 'frontend', 'granite.config.ts')))
+  )
+}
+
+export async function resolveWorkspaceRoot(rootDir: string) {
   const resolvedRootDir = path.resolve(rootDir)
+
+  if (await hasWorkspaceMarkers(resolvedRootDir)) {
+    return resolvedRootDir
+  }
+
+  const mainWorktreeRoot = path.join(resolvedRootDir, MAIN_WORKTREE_DIRECTORY)
+  const looksLikeWorktreeControlRoot =
+    (await pathExists(path.join(resolvedRootDir, '.git'))) ||
+    (await pathExists(path.join(resolvedRootDir, '.bare')))
+
+  if (looksLikeWorktreeControlRoot && (await hasWorkspaceMarkers(mainWorktreeRoot))) {
+    return mainWorktreeRoot
+  }
+
+  return resolvedRootDir
+}
+
+export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspection> {
+  const resolvedRootDir = await resolveWorkspaceRoot(rootDir)
   const packageJsonPath = path.join(resolvedRootDir, 'package.json')
   const graniteConfigPath = path.join(resolvedRootDir, 'frontend', 'granite.config.ts')
 
