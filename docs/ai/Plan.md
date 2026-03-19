@@ -1,3 +1,38 @@
+## 다음 작업: 기존 provider 프로젝트 연결 시 원격 초기화 여부를 먼저 묻게 바꾸기
+1. 문제
+   - 지금은 기존 provider 프로젝트를 고른 뒤에도 원격 반영 동작이 provider마다 제각각이고, 일부는 바로 deploy나 원격 상태 변경으로 이어진다.
+   - 사용자 입장에서는 "기존 프로젝트"에 붙는 것과 "원격 내용을 스캐폴드 기본값으로 초기화하는 것"이 다른데, 이 선택이 provisioning UI에 드러나지 않는다.
+2. 방향
+   - 기존 `supabase`, `firebase`, `cloudflare` 프로젝트/Worker를 고른 경우에는 공통으로 `원격에 있는 내용을 초기화할까요?`를 먼저 묻는다.
+   - `건너뛸게요`를 고르면 provider별 deploy/init 단계는 수행하지 않고, local env와 문서만 준비한다.
+   - `초기화할게요`를 고르면 지금처럼 공식 CLI 경로를 통해 원격 반영을 진행한다.
+   - 마지막 note와 README/provider guide/generated server README에도 이번 실행에서 원격 초기화를 건너뛰었는지 남긴다.
+3. 테스트
+   - 공통 prompt helper를 테스트로 고정한다.
+   - provider별 finalize note가 skip/apply 결과를 반영하는지 테스트한다.
+   - `pnpm verify`를 통과한다.
+4. 완료 기준
+   - 기존 provider 프로젝트를 고르면 원격 초기화 여부를 먼저 선택할 수 있다.
+   - `건너뛸게요`를 고르면 불필요한 원격 deploy/init가 발생하지 않는다.
+   - `pnpm verify` 통과
+
+## 다음 작업: 기존 Supabase 프로젝트 연결 시 원격 DB/Edge Function 자동 반영을 건너뛰고 안내 노트를 남기기
+1. 문제
+   - 현재 Supabase provisioning은 새 프로젝트와 기존 프로젝트를 같은 흐름으로 처리해서, 기존 프로젝트를 고르면 `supabase db push --include-all`과 기본 Edge Function deploy까지 바로 실행한다.
+   - 기존 프로젝트는 이미 원격 migration history가 있을 수 있어서 `db push`가 실패하기 쉽고, `api` 함수가 이미 있으면 기본 Edge Function deploy도 덮어쓰기 위험이 있다.
+2. 방향
+   - 새 Supabase 프로젝트를 만든 경우에만 원격 `db push`와 기본 Edge Function deploy를 자동으로 적용한다.
+   - 기존 프로젝트를 고른 경우에는 `link`만 진행하고, 원격 DB/Edge Function 반영은 자동으로 건너뛴다.
+   - 마지막 note와 README에 기존 프로젝트 경로에서는 `db:apply`, `functions:deploy`를 직접 하도록 짧게 안내한다.
+3. 테스트
+   - `mode: existing`일 때 원격 DB/Edge Function 자동 반영이 꺼지는 분기 로직을 테스트로 고정한다.
+   - finalize note에 기존 프로젝트용 DB/함수 반영 안내가 들어가는지 테스트한다.
+   - `pnpm verify`를 통과한다.
+4. 완료 기준
+   - 기존 Supabase 프로젝트를 골라도 스캐폴딩이 `db push`나 기본 함수 배포 단계에서 실패하지 않는다.
+   - 새 프로젝트와 기존 프로젝트의 원격 DB/함수 반영 동작 차이가 문서와 note에 반영된다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: Granite/TDS 문서 보강분을 두 패키지 patch release로 올리고 한글 PR을 생성하기
 1. 문제
    - 방금 정리한 Granite 하네스 문서, MiniApp framework 인덱스, TDS 인덱스 보강분을 릴리스 대상으로 묶어야 한다.

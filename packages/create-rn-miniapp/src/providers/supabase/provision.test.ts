@@ -10,6 +10,8 @@ import {
   formatSupabaseManualSetupNote,
   pollForNewSupabaseProject,
   resolveSupabaseClientApiKey,
+  shouldAutoApplySupabaseRemoteDatabase,
+  shouldAutoDeploySupabaseEdgeFunctions,
   writeSupabaseServerLocalEnvFile,
   writeSupabaseLocalEnvFiles,
 } from './provision.js'
@@ -56,8 +58,6 @@ test('formatSupabaseManualSetupNote includes frontend and backoffice env guidanc
   )
   assert.match(note.body, /dashboard\/account\/tokens/)
   assert.match(note.body, /dashboard\/project\/abc123\/database\/settings/)
-  assert.doesNotMatch(note.body, /functions:deploy/)
-  assert.doesNotMatch(note.body, /db:apply/)
 })
 
 test('extractJsonPayload strips package-manager log lines around JSON output', () => {
@@ -81,6 +81,20 @@ test('buildCreateSupabaseProjectArgs appends only the project name positional ar
     'create',
     'test-project',
   ])
+})
+
+test('shouldAutoApplySupabaseRemoteDatabase only enables remote db push for new projects', () => {
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('create'), true)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing'), false)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', true), true)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', false), false)
+})
+
+test('shouldAutoDeploySupabaseEdgeFunctions only enables auto deploy for new projects', () => {
+  assert.equal(shouldAutoDeploySupabaseEdgeFunctions('create'), true)
+  assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing'), false)
+  assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing', true), true)
+  assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing', false), false)
 })
 
 test('pollForNewSupabaseProject waits 1, 2, 4, 5 seconds and stops when a new project appears', async () => {
@@ -230,6 +244,8 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
         projectRef: 'abc123',
         publishableKey: 'sb_publishable_123',
         dbPassword: null,
+        didApplyRemoteDb: false,
+        didDeployEdgeFunctions: false,
         mode: 'existing',
       },
     })
@@ -256,8 +272,16 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
     )
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
-    assert.doesNotMatch(notes[0]?.body ?? '', /functions:deploy/)
-    assert.doesNotMatch(notes[0]?.body ?? '', /db:apply/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+    )
+    assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `db:apply`/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 기본 Edge Function 배포도 자동으로 건너뛰었어요\./,
+    )
+    assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `functions:deploy`/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -289,6 +313,8 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
         projectRef: 'abc123',
         publishableKey: 'sb_publishable_123',
         dbPassword: null,
+        didApplyRemoteDb: false,
+        didDeployEdgeFunctions: false,
         mode: 'existing',
       },
     })
@@ -298,8 +324,14 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
     assert.match(serverEnv, /^SUPABASE_DB_PASSWORD=secret-password$/m)
     assert.doesNotMatch(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /SUPABASE_ACCESS_TOKEN`은 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+    )
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 기본 Edge Function 배포도 자동으로 건너뛰었어요\./,
+    )
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }
@@ -315,6 +347,8 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
         projectRef: 'abc123',
         publishableKey: null,
         dbPassword: null,
+        didApplyRemoteDb: false,
+        didDeployEdgeFunctions: false,
         mode: 'existing',
       },
     })
@@ -331,8 +365,16 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     )
     assert.match(notes[0]?.body ?? '', /dashboard\/account\/tokens/)
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
-    assert.doesNotMatch(notes[0]?.body ?? '', /functions:deploy/)
-    assert.doesNotMatch(notes[0]?.body ?? '', /db:apply/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+    )
+    assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `db:apply`/)
+    assert.match(
+      notes[0]?.body ?? '',
+      /기존 Supabase 프로젝트를 골라서 기본 Edge Function 배포도 자동으로 건너뛰었어요\./,
+    )
+    assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `functions:deploy`/)
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
