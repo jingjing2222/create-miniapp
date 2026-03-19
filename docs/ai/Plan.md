@@ -1,3 +1,20 @@
+## 다음 작업: Granite/TDS 문서 보강분을 두 패키지 patch release로 올리고 한글 PR을 생성하기
+1. 문제
+   - 방금 정리한 Granite 하네스 문서, MiniApp framework 인덱스, TDS 인덱스 보강분을 릴리스 대상으로 묶어야 한다.
+   - 두 publish 패키지(`create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates`) 모두 문서/템플릿 변경 영향을 받으므로 함께 patch release 대상으로 올리는 편이 맞다.
+2. 방향
+   - `.changeset`에 두 패키지를 모두 `patch`로 올리는 한글 changeset을 추가한다.
+   - 변경사항을 커밋하고 현재 브랜치를 원격에 푸시한다.
+   - 변경 목적과 범위를 설명하는 한글 PR 제목/본문으로 PR을 생성한다.
+3. 테스트
+   - changeset frontmatter에 두 패키지명이 정확히 들어가는지 확인한다.
+   - 커밋 전후 `git status`가 의도한 파일만 포함하는지 확인한다.
+   - PR 생성 전 브랜치 푸시와 기본 브랜치 대상 설정이 정상인지 확인한다.
+4. 완료 기준
+   - 두 패키지를 patch로 올리는 changeset이 추가된다.
+   - 관련 변경이 커밋되어 원격 브랜치에 올라간다.
+   - 한글 제목/본문의 PR이 생성된다.
+
 ## 다음 작업: TDS RN 문서를 실제 export와 공개 문서 기준으로 재정리하기
 1. 문제
    - 현재 `tds-react-native-index.md`는 과거 패키지 스캔 기준 인덱스라, 실제 export 중 문서에 빠진 컴포넌트나 문서만 있고 export 정리가 덜 된 항목이 있을 수 있다.
