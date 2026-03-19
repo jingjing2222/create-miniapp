@@ -1,3 +1,20 @@
+## 다음 작업: Supabase 기존 프로젝트 skip 경로에서 generated Biome/schema와 `.mjs` 스크립트 문법을 정상화하기
+1. 문제
+   - 기존 Supabase 프로젝트에서 원격 초기화를 건너뛴 뒤 generated root `biome.json`이 CLI `2.4.8`과 다른 `2.4.7` schema를 가리켜 root `biome check`가 깨진다.
+   - generated `server/scripts/supabase-db-apply.mjs`, `server/scripts/supabase-functions-deploy.mjs`에 TypeScript 타입 문법이 들어가 있어 Biome parse가 실패한다.
+2. 방향
+   - repo root와 generated root template의 Biome schema/version을 `2.4.8` 기준으로 맞춘다.
+   - Supabase generated `.mjs` 스크립트 문자열에서 TypeScript 타입 표기를 제거해 plain ESM으로 유지한다.
+   - 관련 README나 test fixture의 기대값도 새 기준으로 같이 갱신한다.
+3. 테스트
+   - template test에서 generated Biome 버전과 schema가 `2.4.8`인지 고정한다.
+   - generated Supabase `.mjs` 스크립트에 `: string` 같은 TS 문법이 없는지 테스트로 고정한다.
+   - `pnpm verify`를 통과한다.
+4. 완료 기준
+   - Supabase 기존 프로젝트 skip 경로로 생성한 repo가 root `biome check` 단계에서 더 이상 깨지지 않는다.
+   - generated Supabase `.mjs` 스크립트가 Biome parse를 통과한다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: 기존 provider 프로젝트 연결 시 원격 초기화 여부를 먼저 묻게 바꾸기
 1. 문제
    - 지금은 기존 provider 프로젝트를 고른 뒤에도 원격 반영 동작이 provider마다 제각각이고, 일부는 바로 deploy나 원격 상태 변경으로 이어진다.
