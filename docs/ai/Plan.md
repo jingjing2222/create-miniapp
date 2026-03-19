@@ -15,6 +15,23 @@
    - generated Supabase `.mjs` 스크립트가 Biome parse를 통과한다.
    - `pnpm verify` 통과
 
+## 다음 작업: 기존 원격 초기화 후속 보정을 별도 릴리스 PR로 분리하기
+1. 문제
+   - `#67` 본체는 이미 main에 머지됐고, 이후 follow-up 수정인 Firebase 기존 프로젝트 권한 유지와 Supabase generated Biome/스크립트 보정만 따로 릴리스해야 한다.
+   - 이 범위를 분리하지 않으면 이미 머지된 변경과 후속 수정의 릴리스 이력이 섞인다.
+2. 방향
+   - 최신 main에서 후속 커밋만 새 브랜치로 분리한다.
+   - 두 publish 패키지를 모두 patch로 올리는 한글 changeset을 추가한다.
+   - 별도 PR로 올리고 `pnpm verify`를 다시 통과시킨다.
+3. 테스트
+   - 새 브랜치 diff가 후속 수정만 담는지 확인한다.
+   - changeset frontmatter가 두 패키지를 모두 patch로 올리는지 확인한다.
+   - `pnpm verify`를 통과한다.
+4. 완료 기준
+   - Firebase/Supabase 후속 보정만 담은 새 PR이 생성된다.
+   - 두 publish 패키지 patch changeset이 포함된다.
+   - `pnpm verify` 통과
+
 ## 다음 작업: 기존 provider 프로젝트 연결 시 원격 초기화 여부를 먼저 묻게 바꾸기
 1. 문제
    - 지금은 기존 provider 프로젝트를 고른 뒤에도 원격 반영 동작이 provider마다 제각각이고, 일부는 바로 deploy나 원격 상태 변경으로 이어진다.
