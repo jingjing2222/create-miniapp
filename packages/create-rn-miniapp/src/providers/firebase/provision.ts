@@ -13,12 +13,12 @@ import { getPackageManagerAdapter, type PackageManager } from '../../package-man
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
 import { extractJsonPayload } from '../../providers/supabase/provision.js'
 import { promptShouldInitializeExistingRemoteContent } from '../shared.js'
+import { pathExists } from '../../templates/filesystem.js'
 import {
   FIREBASE_DEFAULT_FUNCTION_REGION,
   patchFirebaseFunctionRegion,
   patchFirebaseServerProjectId,
-  pathExists,
-} from '../../templates/index.js'
+} from '../../templates/server.js'
 
 type FirebaseProject = {
   projectId: string

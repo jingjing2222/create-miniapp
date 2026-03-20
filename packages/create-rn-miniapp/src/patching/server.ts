@@ -1,5 +1,4 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
@@ -11,15 +10,18 @@ import {
   type ServerScriptCatalogEntry,
 } from '../server-script-catalog.js'
 import {
+  pathExists,
+  removePathIfExists,
+  resolveTemplatesPackageRoot,
+  writeWorkspaceNpmrc,
+} from '../templates/filesystem.js'
+import {
   applyServerPackageTemplate,
   applyWorkspaceProjectTemplate,
   FIREBASE_DEFAULT_FUNCTION_REGION,
-  pathExists,
-  removePathIfExists,
   SUPABASE_DEFAULT_FUNCTION_NAME,
-  type TemplateTokens,
-  writeWorkspaceNpmrc,
-} from '../templates/index.js'
+} from '../templates/server.js'
+import type { TemplateTokens } from '../templates/types.js'
 import { createCloudflareVitestWranglerConfigSource, patchWranglerConfigSource } from './jsonc.js'
 import {
   normalizeVitestTestScript,
@@ -92,13 +94,6 @@ const FIREBASE_CLI_DOC_URL = 'https://firebase.google.com/docs/cli'
 const FIREBASE_ADMIN_SETUP_URL = 'https://firebase.google.com/docs/admin/setup'
 const GOOGLE_CLOUD_SERVICE_ACCOUNTS_CONSOLE_URL =
   'https://console.cloud.google.com/iam-admin/serviceaccounts'
-
-const require = createRequire(import.meta.url)
-
-function resolveTemplatesPackageRoot() {
-  const packageJsonPath = require.resolve('@create-rn-miniapp/scaffold-templates/package.json')
-  return path.dirname(packageJsonPath)
-}
 
 async function copyGuideAssets(
   serverRoot: string,

@@ -1,11 +1,8 @@
 import path from 'node:path'
 import type { ServerProvider } from '../providers/index.js'
-import {
-  applyWorkspaceProjectTemplate,
-  removePathIfExists,
-  type TemplateTokens,
-  writeWorkspaceNpmrc,
-} from '../templates/index.js'
+import { removePathIfExists, writeWorkspaceNpmrc } from '../templates/filesystem.js'
+import { applyWorkspaceProjectTemplate } from '../templates/server.js'
+import type { TemplateTokens } from '../templates/types.js'
 import {
   APP_ROUTER_WORKSPACE_DEPENDENCY,
   renderCloudflareTrpcClientSource,

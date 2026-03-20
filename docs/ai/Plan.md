@@ -1,3 +1,17 @@
+## 다음 작업: runtime 실분리 후 남은 barrel 우회와 duplicated resolver 정리
+1. 문제
+   - `runtime.ts`는 없어졌지만 leaf 구현 파일 일부가 아직 `templates/index.ts` 같은 public barrel을 내부에서 다시 타고 있다.
+   - `module-surface.test.ts`도 direct-import contract를 검증하지 않아 이런 우회가 테스트를 통과한다.
+   - `resolveTemplatesPackageRoot()`가 `templates/filesystem.ts`에 올라갔는데 `patching/frontend.ts`, `patching/server.ts`에 중복으로 남아 있다.
+2. 방향
+   - non-test source가 `templates/index.js`, `patching/index.js`를 내부 import하지 못하게 실패 테스트부터 추가한다.
+   - `patching/*`, `providers/*/provision.ts`, `patching/ast/granite.ts`, `templates/trpc.ts`를 concrete module import로 바꾼다.
+   - duplicated template root resolver는 `templates/filesystem.ts` export를 직접 쓰도록 정리한다.
+3. 완료 기준
+   - internal barrel import가 사라지고 regression test가 이를 고정한다.
+   - duplicated resolver helper가 제거된다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: index.ts 외 re-export 금지 규칙으로 area facade를 직접 export 모듈로 바꾸기
 1. 문제
    - 방금 쪼갠 `templates/docs.ts`, `templates/root.ts`, `patching/frontend.ts` 같은 area 모듈이 여전히 `export ... from './runtime.js'` 형태의 re-export 파일이다.

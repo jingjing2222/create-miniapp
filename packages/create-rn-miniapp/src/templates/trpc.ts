@@ -3,7 +3,7 @@ import path from 'node:path'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import type { PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
-import type { TemplateTokens } from './index.js'
+import type { TemplateTokens } from './types.js'
 
 export const APP_ROUTER_WORKSPACE_PATH = 'packages/app-router' as const
 export const APP_ROUTER_PACKAGE_NAME = '@workspace/app-router'

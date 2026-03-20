@@ -2,12 +2,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
-import {
-  getFirebaseWebSdkVersion,
-  pathExists,
-  removePathIfExists,
-  type TemplateTokens,
-} from '../templates/index.js'
+import { pathExists, removePathIfExists } from '../templates/filesystem.js'
+import { getFirebaseWebSdkVersion } from '../templates/server.js'
+import type { TemplateTokens } from '../templates/types.js'
 import {
   patchBackofficeAppSource,
   patchBackofficeMainSource,

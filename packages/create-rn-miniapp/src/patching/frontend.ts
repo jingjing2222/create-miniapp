@@ -1,14 +1,14 @@
 import { copyFile, readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { ServerProvider } from '../providers/index.js'
 import {
-  applyWorkspaceProjectTemplate,
   pathExists,
   removePathIfExists,
-  type TemplateTokens,
+  resolveTemplatesPackageRoot,
   writeWorkspaceNpmrc,
-} from '../templates/index.js'
+} from '../templates/filesystem.js'
+import { applyWorkspaceProjectTemplate } from '../templates/server.js'
+import type { TemplateTokens } from '../templates/types.js'
 import {
   APP_ROUTER_WORKSPACE_DEPENDENCY,
   renderCloudflareTrpcClientSource,
@@ -40,8 +40,6 @@ const FRONTEND_STARTER_HERO_ASSET_RELATIVE_PATH =
 const FRONTEND_STARTER_HERO_ASSET_FILE_NAME = 'miniapp-starter-hero.lottie.json'
 const FRONTEND_FIREBASE_CRYPTO_SHIM_RELATIVE_PATH = 'root/assets/frontend/firebase-crypto-shim.ts'
 const FRONTEND_FIREBASE_CRYPTO_SHIM_FILE_NAME = 'crypto.ts'
-
-const require = createRequire(import.meta.url)
 
 const FRONTEND_ENV_TYPES = [
   'interface ImportMetaEnv {',
@@ -514,11 +512,6 @@ const FRONTEND_FIREBASE_STORAGE = [
   'export const storage = getStorage(firebaseApp)',
   '',
 ].join('\n')
-
-function resolveTemplatesPackageRoot() {
-  const packageJsonPath = require.resolve('@create-rn-miniapp/scaffold-templates/package.json')
-  return path.dirname(packageJsonPath)
-}
 
 function isGraniteStarterIndexPage(source: string) {
   return (

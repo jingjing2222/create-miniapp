@@ -1,5 +1,5 @@
 import type { ServerProvider } from '../../providers/index.js'
-import type { TemplateTokens } from '../../templates/index.js'
+import type { TemplateTokens } from '../../templates/types.js'
 import {
   ensureImport,
   escapeRegExp,
