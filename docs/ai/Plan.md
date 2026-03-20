@@ -335,7 +335,7 @@
    - 실제 생성 구조에는 `CLAUDE.md`, `.github/copilot-instructions.md`, `.agents/skills`, `.claude/skills`가 없어서 agent adapter와 canonical skill corpus를 릴리스 기준으로 설명하기 어렵다.
    - 생성기 코드도 optional doc marker 삽입에 기대고 있어, skill source/mirror를 기준으로 구조를 확장하기 어렵다.
 2. 방향
-   - `/create-rn-miniapp-migration-checklist.md`를 기준 문서로 두고, 계약 문서와 skill corpus의 책임을 분리한다.
+   - 계약 문서와 skill corpus의 책임을 분리하고, 생성 결과를 기준으로 문서/테스트를 함께 갱신한다.
    - `packages/scaffold-templates`는 계약 문서와 실제 workspace asset만 남기고, `packages/scaffold-skills`를 새 canonical source로 추가한다.
    - 생성기는 contract/docs/skills/workspace asset 렌더링 책임으로 쪼개고, `.agents/skills` 정본과 `.claude/skills` mirror를 함께 생성한다.
    - `verify`에는 skills mirror drift 검사를 추가하고, README/테스트/스냅샷을 새 출력 구조 기준으로 갱신한다.
