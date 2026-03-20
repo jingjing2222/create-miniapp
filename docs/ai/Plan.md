@@ -1,3 +1,16 @@
+## 다음 작업: main 대비 diff 기준 minor changeset과 한국어 PR 초안 정리
+1. 문제
+   - 현재 브랜치는 skill 기반 scaffold 구조, dynamic docs, runtime 실분리까지 포함해 publish 대상 패키지 변경 폭이 크다.
+   - 릴리스 전에는 diff 기준으로 실제 영향 패키지를 묶어 한국어 changeset과 PR 설명을 맞춰야 한다.
+2. 방향
+   - `origin/main...HEAD` diff와 publish 대상 package manifest를 기준으로 변경 범위를 요약한다.
+   - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates`, `@create-rn-miniapp/scaffold-skills`에 minor changeset을 한국어로 추가한다.
+   - `pnpm verify`를 다시 실행한 뒤, 같은 diff 기준으로 한국어 PR 초안을 작성한다.
+3. 완료 기준
+   - minor changeset이 한국어로 추가된다.
+   - `pnpm verify`를 통과한다.
+   - PR 초안이 main 대비 변경을 정확히 반영한다.
+
 ## 다음 작업: runtime 실분리 후 남은 barrel 우회와 duplicated resolver 정리
 1. 문제
    - `runtime.ts`는 없어졌지만 leaf 구현 파일 일부가 아직 `templates/index.ts` 같은 public barrel을 내부에서 다시 타고 있다.
