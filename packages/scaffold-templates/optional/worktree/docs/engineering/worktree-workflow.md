@@ -45,11 +45,14 @@ remote 변경사항을 가져와요.
 
 ## 정리
 
+`main/`에서 `git pull` 하면 merged된 worktree가 자동으로 정리돼요 (post-merge hook). 변경사항이 남아있는 worktree는 건너뛰어요.
+
+수동으로 정리하려면:
+
 ```bash
 git worktree remove <path>
+git branch -d <branch-name>
 ```
-
-작업이 끝난 worktree를 정리해요. 브랜치도 지우려면 `git branch -d <branch-name>`을 이어서 실행하세요.
 
 ## 주의사항
 

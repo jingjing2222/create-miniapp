@@ -22,6 +22,8 @@ function createControlRootAgentsStub(workspaceDirectory: string) {
     '',
     '## Cleanup',
     '- 작업이 끝난 worktree 정리: `git worktree remove <path>`',
+    `- \`${workspaceDirectory}/\`에서 \`git pull\` 하면 merged된 worktree가 자동으로 정리돼요 (post-merge hook).`,
+    '- 변경사항이 남아있는 worktree는 건너뛰어요.',
     '',
     '## Do Not',
     '- control root에서 `git commit`',
@@ -41,6 +43,7 @@ function createControlRootReadmeStub(workspaceDirectory: string) {
     '- 상태 확인: `git worktree list`',
     `- 새 worktree 만들기: \`git worktree add -b <branch> ../<branch> ${workspaceDirectory}\``,
     '- 정리: `git worktree remove <path>`',
+    `- \`${workspaceDirectory}/\`에서 \`git pull\` 하면 merged된 worktree가 자동 정리돼요.`,
     `- 기본 브랜치에서 바로 시작하려면 \`cd ${workspaceDirectory}\``,
     '',
   ].join('\n')
@@ -106,6 +109,7 @@ export function createWorktreeLayoutNote(options: { controlRoot: string; workspa
       `main worktree: ${options.workspaceRoot}`,
       '상태 확인: `git worktree list`',
       '새 worktree 만들기: `git worktree add -b <branch> ../<branch> main`',
+      '`main/`에서 `git pull` 하면 merged된 worktree가 자동으로 정리돼요.',
       '실제 repo 작업은 `main/` 또는 추가 worktree 안에서 진행해 주세요.',
     ].join('\n'),
   } satisfies ProvisioningNote
