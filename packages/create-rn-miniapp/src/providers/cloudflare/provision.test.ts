@@ -4,19 +4,19 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
-  buildCloudflareProvisionExecutionOrder,
-  buildCloudflareWorkersDevUrl,
   buildWranglerLoginArgs,
+  buildCloudflareWorkersDevUrl,
+  buildCloudflareProvisionExecutionOrder,
   canRecoverCloudflareDeployFailure,
   finalizeCloudflareProvisioning,
   formatCloudflareDeployFailureMessage,
-  formatCloudflareManualSetupNote,
   formatCloudflareR2EnableMessage,
+  formatCloudflareManualSetupNote,
   getWranglerConfigCandidates,
   isCloudflareAuthenticationErrorMessage,
   isCloudflareR2DisabledErrorMessage,
-  writeCloudflareLocalEnvFiles,
   writeCloudflareServerLocalEnvFile,
+  writeCloudflareLocalEnvFiles,
 } from './provision.js'
 
 test('buildCloudflareWorkersDevUrl builds a workers.dev URL from worker and account subdomain', () => {

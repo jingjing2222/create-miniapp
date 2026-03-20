@@ -6,7 +6,6 @@ coverage
 .env
 .env.local
 .env.*.local
-docs/superpowers/
 frontend/.granite
 server/.temp
 server/.supabase

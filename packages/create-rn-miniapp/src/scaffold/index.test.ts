@@ -2,11 +2,10 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import test from 'node:test'
 import {
-  buildAddOptionalDocsOptions,
   buildCreateExecutionOrder,
   buildCreateLifecycleOrder,
-  buildRootFinalizePlan,
   buildRootGitSetupPlan,
+  buildRootFinalizePlan,
 } from './index.js'
 
 test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
@@ -188,22 +187,4 @@ test('buildCreateLifecycleOrder omits root git init when no-git is enabled', () 
   })
 
   assert.doesNotMatch(labels.join('\n'), /루트 git init/)
-})
-
-test('buildAddOptionalDocsOptions preserves an existing worktree policy', () => {
-  assert.deepEqual(
-    buildAddOptionalDocsOptions({
-      hasBackoffice: true,
-      existingServerProvider: 'cloudflare',
-      serverProvider: null,
-      withTrpc: true,
-      existingHasWorktreePolicy: true,
-    }),
-    {
-      hasBackoffice: true,
-      serverProvider: 'cloudflare',
-      hasTrpc: true,
-      hasWorktreePolicy: true,
-    },
-  )
 })

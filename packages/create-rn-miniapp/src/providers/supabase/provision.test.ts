@@ -12,8 +12,8 @@ import {
   resolveSupabaseClientApiKey,
   shouldAutoApplySupabaseRemoteDatabase,
   shouldAutoDeploySupabaseEdgeFunctions,
-  writeSupabaseLocalEnvFiles,
   writeSupabaseServerLocalEnvFile,
+  writeSupabaseLocalEnvFiles,
 } from './provision.js'
 
 test('resolveSupabaseClientApiKey prefers publishable keys over anon keys', () => {

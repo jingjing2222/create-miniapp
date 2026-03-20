@@ -1,10 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { readGraniteConfigMetadata } from './patching/ast/index.js'
 import { toDefaultDisplayName } from './layout.js'
 import type { PackageManager } from './package-manager.js'
-import { readGraniteConfigMetadata } from './patching/ast/index.js'
 import { detectServerProvider, type ServerProvider } from './providers/index.js'
-import { MAIN_WORKTREE_DIRECTORY } from './scaffold/worktree.js'
 import { pathExists } from './templates/index.js'
 
 type RootPackageJson = {
@@ -19,7 +18,6 @@ export type WorkspaceInspection = {
   hasServer: boolean
   hasBackoffice: boolean
   hasTrpc: boolean
-  hasWorktreePolicy: boolean
   serverProvider: ServerProvider | null
 }
 
@@ -45,45 +43,8 @@ function parsePackageManagerField(value: string | undefined): PackageManager {
   )
 }
 
-async function hasWorkspaceMarkers(rootDir: string) {
-  return (
-    (await pathExists(path.join(rootDir, 'package.json'))) &&
-    (await pathExists(path.join(rootDir, 'frontend', 'granite.config.ts')))
-  )
-}
-
-async function isWorktreeControlRoot(rootDir: string) {
-  const hasSeparatedGitDir =
-    (await pathExists(path.join(rootDir, '.gitdata'))) ||
-    (await pathExists(path.join(rootDir, '.bare')))
-
-  if (!hasSeparatedGitDir) {
-    return false
-  }
-
-  return hasWorkspaceMarkers(path.join(rootDir, MAIN_WORKTREE_DIRECTORY))
-}
-
-export async function resolveWorkspaceRoot(rootDir: string) {
-  const resolvedRootDir = path.resolve(rootDir)
-  if (await isWorktreeControlRoot(resolvedRootDir)) {
-    return path.join(resolvedRootDir, MAIN_WORKTREE_DIRECTORY)
-  }
-
-  const parentDir = path.dirname(resolvedRootDir)
-  if (parentDir !== resolvedRootDir && (await isWorktreeControlRoot(parentDir))) {
-    return path.join(parentDir, MAIN_WORKTREE_DIRECTORY)
-  }
-
-  if (await hasWorkspaceMarkers(resolvedRootDir)) {
-    return resolvedRootDir
-  }
-
-  return resolvedRootDir
-}
-
 export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspection> {
-  const resolvedRootDir = await resolveWorkspaceRoot(rootDir)
+  const resolvedRootDir = path.resolve(rootDir)
   const packageJsonPath = path.join(resolvedRootDir, 'package.json')
   const graniteConfigPath = path.join(resolvedRootDir, 'frontend', 'granite.config.ts')
 
@@ -110,9 +71,6 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
   const hasTrpc =
     (await pathExists(path.join(resolvedRootDir, 'packages', 'app-router', 'package.json'))) ||
     (await pathExists(path.join(resolvedRootDir, 'packages', 'trpc', 'package.json')))
-  const hasWorktreePolicy = await pathExists(
-    path.join(resolvedRootDir, 'docs', 'engineering', 'worktree-workflow.md'),
-  )
   const serverProvider = hasServer ? await detectServerProvider(resolvedRootDir) : null
 
   return {
@@ -123,7 +81,6 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
     hasServer,
     hasBackoffice,
     hasTrpc,
-    hasWorktreePolicy,
     serverProvider,
   }
 }
