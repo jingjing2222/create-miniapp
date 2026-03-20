@@ -21,6 +21,11 @@ import {
   FIREBASE_DEFAULT_FUNCTION_REGION,
   SUPABASE_DEFAULT_FUNCTION_NAME,
 } from '../templates/server.js'
+import {
+  TRPC_SERVER_README_API_SSOT_LINES,
+  TRPC_SERVER_README_OPERATION_NOTE,
+  TRPC_SERVER_README_WORKSPACE_LINES,
+} from '../templates/trpc.js'
 import type { TemplateTokens } from '../templates/types.js'
 import { createCloudflareVitestWranglerConfigSource, patchWranglerConfigSource } from './jsonc.js'
 import {
@@ -364,27 +369,12 @@ function renderCloudflareServerReadme(options?: {
     '- provisioning이 성공하면 frontend/backoffice `.env.local`에 Worker URL이 자동으로 기록돼요.',
     `- Worker 코드는 \`${CLOUDFLARE_D1_BINDING_NAME}\` D1 binding과 \`${CLOUDFLARE_R2_BINDING_NAME}\` R2 binding을 사용할 수 있어요.`,
     ...(trpcEnabled
-      ? [
-          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary schema의 source of truth이고, `packages/app-router`가 router와 `AppRouter` 타입의 source of truth예요.',
-          '- miniapp frontend는 `frontend/src/lib/trpc.ts`, backoffice는 `backoffice/src/lib/trpc.ts`에서 Worker `/trpc` endpoint를 호출해요.',
-          '- Worker runtime은 `@workspace/app-router`를 직접 import해서 같은 router를 바로 써요.',
-          '- `GET /` 는 ready JSON을 반환하고, 실제 tRPC 호출은 `/trpc` endpoint로 들어가요.',
-        ]
+      ? TRPC_SERVER_README_WORKSPACE_LINES
       : [
           '- miniapp frontend는 `frontend/src/lib/api.ts`에서 API helper를 만들고 `MINIAPP_API_BASE_URL`을 사용해요.',
           '- backoffice가 있으면 `backoffice/src/lib/api.ts`에서 `VITE_API_BASE_URL` 기반 helper를 사용해요.',
         ]),
-    ...(trpcEnabled
-      ? [
-          '',
-          '## API SSOT',
-          '',
-          '- tRPC를 같이 골랐다면 `packages/contracts`가 boundary type과 schema의 source of truth예요.',
-          '- 같은 경우 `packages/app-router`가 route shape와 `AppRouter` 타입의 source of truth예요.',
-          '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
-          '- runtime verify는 `GET /`, 실제 router entry는 `/trpc` endpoint를 기준으로 보면 돼요.',
-        ]
-      : []),
+    ...(trpcEnabled ? ['', '## API SSOT', '', ...TRPC_SERVER_README_API_SSOT_LINES] : []),
     '',
     '## 운영 메모',
     '',
@@ -392,11 +382,7 @@ function renderCloudflareServerReadme(options?: {
     '- `server/.env.local`은 Cloudflare account/worker/D1/R2 메타데이터를 기록해요.',
     '- 기존 Worker에 연결하면 먼저 원격 초기화 여부를 물어봐요. 원격 초기화를 건너뛰면 Worker 재배포와 `workers.dev` 활성화는 자동으로 하지 않아요.',
     '- `wrangler.jsonc`는 원격 deploy 기준 설정이고, `wrangler.vitest.jsonc`는 local D1/R2 binding으로 테스트를 돌리기 위한 설정이에요.',
-    ...(trpcEnabled
-      ? [
-          '- tRPC를 같이 썼다면 boundary contract은 `packages/contracts`, router는 `packages/app-router`만 수정하고 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
-        ]
-      : []),
+    ...(trpcEnabled ? [TRPC_SERVER_README_OPERATION_NOTE] : []),
     '',
     '## Cloudflare API token',
     '',

@@ -7,6 +7,7 @@ import {
   FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS,
   FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES,
   FRONTEND_POLICY_REACT_NATIVE_MESSAGE,
+  renderFrontendPolicyVerifierSource,
 } from './frontend-policy.js'
 import {
   copyFileWithTokens,
@@ -186,7 +187,6 @@ export async function applyRootTemplates(
 
   const fileMappings = [
     ['nx.json', 'nx.json'],
-    ['verify-frontend-routes.mjs', 'scripts/verify-frontend-routes.mjs'],
     ['sync-skills.mjs', 'scripts/sync-skills.mjs'],
     ['check-skills.mjs', 'scripts/check-skills.mjs'],
   ] as const
@@ -199,6 +199,13 @@ export async function applyRootTemplates(
       extraTokens,
     )
   }
+
+  await mkdir(path.join(targetRoot, 'scripts'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs'),
+    renderFrontendPolicyVerifierSource(),
+    'utf8',
+  )
 
   for (const rootTemplateFile of packageManager.rootTemplateFiles) {
     await copyFileWithTokens(

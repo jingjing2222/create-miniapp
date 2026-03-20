@@ -191,6 +191,61 @@ test('docs and skills modules do not keep separate optional feature manifests', 
   assert.match(sharedFeatureSource, /optional\/trpc-boundary/)
 })
 
+test('frontend policy derives core skill references from the core skill catalog', async () => {
+  const frontendPolicySource = await readFile(
+    fileURLToPath(new URL('./frontend-policy.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.doesNotMatch(frontendPolicySource, /\.agents\/skills\/core\/miniapp\/SKILL\.md/)
+  assert.doesNotMatch(frontendPolicySource, /\.agents\/skills\/core\/granite\/SKILL\.md/)
+  assert.doesNotMatch(frontendPolicySource, /\.agents\/skills\/core\/tds\/SKILL\.md/)
+  assert.doesNotMatch(frontendPolicySource, /\.agents\/skills\/core\/tds\/references\/catalog\.md/)
+})
+
+test('frontend route verifier is rendered from frontend policy metadata instead of template source', async () => {
+  assert.equal(
+    await pathExists(
+      fileURLToPath(
+        new URL('../../../scaffold-templates/root/verify-frontend-routes.mjs', import.meta.url),
+      ),
+    ),
+    false,
+  )
+
+  const frontendPolicySource = await readFile(
+    fileURLToPath(new URL('./frontend-policy.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(frontendPolicySource, /renderFrontendPolicyVerifierSource/)
+})
+
+test('docs module keeps code-owned doc definitions in a single manifest', async () => {
+  const docsSource = await readFile(fileURLToPath(new URL('./docs.ts', import.meta.url)), 'utf8')
+
+  assert.match(docsSource, /const CODE_OWNED_DOC_DEFINITIONS/)
+  assert.match(docsSource, /for \(const definition of CODE_OWNED_DOC_DEFINITIONS\)/)
+  assert.doesNotMatch(docsSource, /const CODE_OWNED_DOCS_INSIDE_DOCS/)
+})
+
+test('tRPC workspace descriptors come from templates/trpc metadata', async () => {
+  const featureCatalogSource = await readFile(
+    fileURLToPath(new URL('./feature-catalog.ts', import.meta.url)),
+    'utf8',
+  )
+  const patchingServerSource = await readFile(
+    fileURLToPath(new URL('../patching/server.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(featureCatalogSource, /from '\.\/trpc\.js'/)
+  assert.doesNotMatch(featureCatalogSource, /`packages\/contracts`/)
+  assert.doesNotMatch(featureCatalogSource, /`packages\/app-router`/)
+  assert.doesNotMatch(patchingServerSource, /boundary schema의 source of truth예요/)
+  assert.doesNotMatch(patchingServerSource, /route shape와 `AppRouter` 타입의 source of truth예요/)
+})
+
 test('verify docs templates source uses the shared verify token', async () => {
   const verifyTemplateSections = [
     {
@@ -274,6 +329,22 @@ test('root package template keeps generated scripts out of template source', asy
   }
 
   assert.equal(templatePackageJson.scripts, undefined)
+})
+
+test('AGENTS markdown delegates detailed repository contract rules to repo-contract doc', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints())
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+
+  assert.match(agents, /docs\/engineering\/repo-contract\.md/)
+  assert.doesNotMatch(agents, /Plan first:/)
+  assert.doesNotMatch(agents, /TDD first:/)
+  assert.doesNotMatch(agents, /Self-verify first:/)
+  assert.doesNotMatch(agents, /No secrets:/)
+  assert.doesNotMatch(agents, /Official scaffold first:/)
 })
 
 test('resolveGeneratedWorkspaceOptions derives optional docs state from the actual workspace tree', async (t) => {

@@ -1,10 +1,33 @@
+import { getCoreSkillDefinition } from './skills.js'
+
 type NativeImportPatternRule = {
   group: string[]
   message: string
 }
 
+const MINIAPP_CORE_SKILL = getCoreSkillDefinition('miniapp')
+const GRANITE_CORE_SKILL = getCoreSkillDefinition('granite')
+const TDS_CORE_SKILL = getCoreSkillDefinition('tds')
+
+const FRONTEND_POLICY_SOURCE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.mts',
+  '.cts',
+]
+const ROUTE_DYNAMIC_SEGMENT_DOLLAR_RULE_ID = 'route-dynamic-segment-dollar'
+const FILENAME_DOLLAR_PATTERN_RULE_ID = 'filename-dollar-pattern'
+const ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX_SOURCE = '\\/\\$[a-zA-Z][a-zA-Z0-9_]*'
+const FILENAME_DOLLAR_PATTERN_REGEX_SOURCE =
+  '(?:^|[\\\\/])(?:\\$[a-zA-Z][a-zA-Z0-9_]*\\.[^.]+|[^\\\\/]+\\.\\$[a-zA-Z][a-zA-Z0-9_]*)'
+
 export const FRONTEND_POLICY_DOC_PATH = 'docs/engineering/frontend-policy.md'
-export const FRONTEND_POLICY_TDS_REFERENCE_PATH = '.agents/skills/core/tds/references/catalog.md'
+export const FRONTEND_POLICY_TDS_REFERENCE_PATH =
+  TDS_CORE_SKILL.referenceCatalogPath ?? TDS_CORE_SKILL.frontendPolicyReferencePath
 
 export const FRONTEND_POLICY_ROUTE_RULES = [
   'App Router 스타일 동적 세그먼트(`/$param`)는 금지한다.',
@@ -36,16 +59,16 @@ export const FRONTEND_POLICY_NATIVE_UI_RULES = [
 
 export const FRONTEND_POLICY_REFERENCE_PATHS = [
   {
-    label: '기능 축과 공식 문서 진입',
-    path: '.agents/skills/core/miniapp/SKILL.md',
+    label: MINIAPP_CORE_SKILL.frontendPolicyReferenceLabel,
+    path: MINIAPP_CORE_SKILL.frontendPolicyReferencePath,
   },
   {
-    label: 'route / navigation 패턴',
-    path: '.agents/skills/core/granite/SKILL.md',
+    label: GRANITE_CORE_SKILL.frontendPolicyReferenceLabel,
+    path: GRANITE_CORE_SKILL.frontendPolicyReferencePath,
   },
   {
-    label: 'TDS component 선택',
-    path: '.agents/skills/core/tds/SKILL.md',
+    label: TDS_CORE_SKILL.frontendPolicyReferenceLabel,
+    path: TDS_CORE_SKILL.frontendPolicyReferencePath,
   },
 ]
 
@@ -73,8 +96,7 @@ export const FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES = [
   'Pressable',
 ]
 
-export const FRONTEND_POLICY_REACT_NATIVE_MESSAGE =
-  '`react-native` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS나 Granite가 제공하는 컴포넌트를 먼저 써 주세요. 특히 `Text` 대신 TDS `Txt`를 써 주세요. `Pressable`이 정말 필요하면 `biome-ignore`에 이유를 같이 남겨 주세요. 먼저 `.agents/skills/core/tds/references/catalog.md`와 `docs/engineering/frontend-policy.md`를 확인해 주세요.'
+export const FRONTEND_POLICY_REACT_NATIVE_MESSAGE = `\`react-native\` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS나 Granite가 제공하는 컴포넌트를 먼저 써 주세요. 특히 \`Text\` 대신 TDS \`Txt\`를 써 주세요. \`Pressable\`이 정말 필요하면 \`biome-ignore\`에 이유를 같이 남겨 주세요. 먼저 \`${FRONTEND_POLICY_TDS_REFERENCE_PATH}\`와 \`${FRONTEND_POLICY_DOC_PATH}\`를 확인해 주세요.`
 
 export const FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS: NativeImportPatternRule[] = [
   {
@@ -98,6 +120,170 @@ export const FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS: NativeImportPatternRule[] =
       '이 네이티브 모듈은 직접 import하지 말고 `@granite-js/native` 경로를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
   },
 ]
+
+const FRONTEND_POLICY_FILENAME_DOLLAR_GUIDANCE =
+  "파일명에 $param 세그먼트를 쓰면 안 돼요. 대신 '/book-detail'이나 '/book/:bookId'처럼 Granite가 이해하는 경로 기준으로 바꿔 주세요."
+
+const FRONTEND_POLICY_ROUTE_DYNAMIC_SEGMENT_GUIDANCE =
+  "같은 $param 라우트는 쓰면 안 돼요. 대신 '/book-detail', '/book/:bookId', validateParams 조합으로 바꿔 주세요."
+
+const FRONTEND_POLICY_ROUTE_SUMMARY_GUIDANCE =
+  "MiniApp 라우트에서는 $param 대신 Granite가 지원하는 '/book/:bookId'나 `createRoute(... validateParams ...)` 조합을 써 주세요."
+
+export function renderFrontendPolicyVerifierSource() {
+  const placeholder = (identifier: string) => `$` + `{${identifier}}`
+  const displayPathExpr = placeholder('displayPath')
+  const filenameRuleIdExpr = placeholder('FILENAME_DOLLAR_PATTERN_RULE_ID')
+  const filenameGuidanceExpr = placeholder('FILENAME_DOLLAR_GUIDANCE')
+  const routeRuleIdExpr = placeholder('ROUTE_DYNAMIC_SEGMENT_DOLLAR_RULE_ID')
+  const matchedValueExpr = placeholder('matchedValue')
+  const routeGuidanceExpr = placeholder('ROUTE_DYNAMIC_SEGMENT_GUIDANCE')
+  const graniteRouteDocPathExpr = placeholder('GRANITE_ROUTE_DOC_PATH')
+  const errorExpr = placeholder('error')
+  const routeSummaryExpr = placeholder('ROUTE_SUMMARY_GUIDANCE')
+
+  return [
+    "import { readFile, readdir, stat } from 'node:fs/promises'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    '',
+    "const FRONTEND_ROOT = path.resolve(process.cwd(), 'frontend')",
+    "const FRONTEND_ENTRY_ROOT = path.join(FRONTEND_ROOT, 'pages')",
+    "const FRONTEND_SOURCE_ROOT = path.join(FRONTEND_ROOT, 'src')",
+    "const FRONTEND_SOURCE_PAGES_ROOT = path.join(FRONTEND_SOURCE_ROOT, 'pages')",
+    `const SOURCE_EXTENSIONS = new Set(${JSON.stringify(FRONTEND_POLICY_SOURCE_EXTENSIONS)})`,
+    `const ROUTE_DYNAMIC_SEGMENT_DOLLAR_RULE_ID = ${JSON.stringify(ROUTE_DYNAMIC_SEGMENT_DOLLAR_RULE_ID)}`,
+    `const FILENAME_DOLLAR_PATTERN_RULE_ID = ${JSON.stringify(FILENAME_DOLLAR_PATTERN_RULE_ID)}`,
+    `const ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX = new RegExp(${JSON.stringify(
+      ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX_SOURCE,
+    )}, 'g')`,
+    `const FILENAME_DOLLAR_PATTERN_REGEX = new RegExp(${JSON.stringify(
+      FILENAME_DOLLAR_PATTERN_REGEX_SOURCE,
+    )})`,
+    `const GRANITE_ROUTE_DOC_PATH = ${JSON.stringify(FRONTEND_POLICY_DOC_PATH)}`,
+    `const FILENAME_DOLLAR_GUIDANCE = ${JSON.stringify(FRONTEND_POLICY_FILENAME_DOLLAR_GUIDANCE)}`,
+    `const ROUTE_DYNAMIC_SEGMENT_GUIDANCE = ${JSON.stringify(
+      FRONTEND_POLICY_ROUTE_DYNAMIC_SEGMENT_GUIDANCE,
+    )}`,
+    `const ROUTE_SUMMARY_GUIDANCE = ${JSON.stringify(FRONTEND_POLICY_ROUTE_SUMMARY_GUIDANCE)}`,
+    '',
+    'async function pathExists(targetPath) {',
+    '  try {',
+    '    await stat(targetPath)',
+    '    return true',
+    '  } catch {',
+    '    return false',
+    '  }',
+    '}',
+    '',
+    'async function listSourceFiles(rootDir) {',
+    '  const files = []',
+    '',
+    '  if (!(await pathExists(rootDir))) {',
+    '    return files',
+    '  }',
+    '',
+    '  const entries = await readdir(rootDir, { withFileTypes: true })',
+    '',
+    '  for (const entry of entries) {',
+    '    const entryPath = path.join(rootDir, entry.name)',
+    '',
+    '    if (entry.isDirectory()) {',
+    '      files.push(...(await listSourceFiles(entryPath)))',
+    '      continue',
+    '    }',
+    '',
+    '    if (SOURCE_EXTENSIONS.has(path.extname(entry.name))) {',
+    '      files.push(entryPath)',
+    '    }',
+    '  }',
+    '',
+    '  return files',
+    '}',
+    '',
+    'function formatPathForDisplay(filePath) {',
+    '  return path.relative(process.cwd(), filePath)',
+    '}',
+    '',
+    'async function main() {',
+    '  const errors = []',
+    '  const fileRoots = [FRONTEND_ENTRY_ROOT, FRONTEND_SOURCE_ROOT]',
+    '  const files = []',
+    '',
+    '  for (const rootDir of fileRoots) {',
+    '    files.push(...(await listSourceFiles(rootDir)))',
+    '  }',
+    '',
+    '  const uniqueFiles = [...new Set(files)]',
+    '',
+    '  for (const filePath of uniqueFiles) {',
+    '    const displayPath = formatPathForDisplay(filePath)',
+    '',
+    '    if (',
+    '      filePath.startsWith(FRONTEND_ENTRY_ROOT) ||',
+    '      filePath.startsWith(FRONTEND_SOURCE_PAGES_ROOT)',
+    '    ) {',
+    '      const filenameMatch = displayPath.match(FILENAME_DOLLAR_PATTERN_REGEX)',
+    '',
+    '      if (filenameMatch) {',
+    '        errors.push(',
+    '          `' +
+      displayPathExpr +
+      ': ' +
+      filenameRuleIdExpr +
+      ' - ' +
+      filenameGuidanceExpr +
+      ' 자세한 기준은 \\`' +
+      graniteRouteDocPathExpr +
+      '\\`를 봐 주세요.`',
+    '        )',
+    '      }',
+    '    }',
+    '',
+    "    const source = await readFile(filePath, 'utf8')",
+    '',
+    '    for (const match of source.matchAll(ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX)) {',
+    '      const matchedValue = match[0]',
+    '      errors.push(',
+    '        `' +
+      displayPathExpr +
+      ': ' +
+      routeRuleIdExpr +
+      ' - "' +
+      matchedValueExpr +
+      '" ' +
+      routeGuidanceExpr +
+      ' 자세한 기준은 \\`' +
+      graniteRouteDocPathExpr +
+      '\\`를 봐 주세요.`',
+    '      )',
+    '    }',
+    '  }',
+    '',
+    '  if (errors.length === 0) {',
+    '    process.exit(0)',
+    '  }',
+    '',
+    '  const normalizedErrors = [...new Set(errors)].sort((left, right) => left.localeCompare(right))',
+    '',
+    "  console.error('[frontend policy] frontend 라우트에서 $param 패턴을 찾았어요.')",
+    '  for (const error of normalizedErrors) {',
+    '    console.error(`- ' + errorExpr + '`)',
+    '  }',
+    '  console.error(',
+    '    `- ' +
+      routeSummaryExpr +
+      ' 자세한 기준은 \\`' +
+      graniteRouteDocPathExpr +
+      '\\`를 봐 주세요.`',
+    '  )',
+    '  process.exit(1)',
+    '}',
+    '',
+    'await main()',
+    '',
+  ].join('\n')
+}
 
 export function renderFrontendPolicyMarkdown(packageManagerRunCommand: string) {
   return [

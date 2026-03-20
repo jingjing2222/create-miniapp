@@ -24,6 +24,49 @@ type ApplyTrpcWorkspaceTemplateOptions = {
   serverProvider: SupportedTrpcProvider
 }
 
+export const TRPC_WORKSPACE_AGENTS_LINE = `\`${CONTRACTS_WORKSPACE_PATH}\`, \`${APP_ROUTER_WORKSPACE_PATH}\`: optional shared tRPC boundary packages`
+
+export const TRPC_WORKSPACE_TOPOLOGY_ROOT_LINES = [
+  `\`${CONTRACTS_WORKSPACE_PATH}\`: optional tRPC boundary schema / type source`,
+  `\`${APP_ROUTER_WORKSPACE_PATH}\`: optional tRPC router / \`AppRouter\` source`,
+]
+
+export const TRPC_CONTRACTS_WORKSPACE_ROLE_SECTION = {
+  heading: CONTRACTS_WORKSPACE_PATH,
+  lines: [
+    '- boundary input/output schema와 경계 타입의 source of truth다.',
+    '- consumer는 root import만 사용하고 src 상대 경로를 내려가지 않는다.',
+  ],
+}
+
+export const TRPC_APP_ROUTER_WORKSPACE_ROLE_SECTION = {
+  heading: APP_ROUTER_WORKSPACE_PATH,
+  lines: [
+    '- route shape와 `AppRouter` 타입의 source of truth다.',
+    '- Worker runtime과 client는 이 package를 기준으로 타입을 맞춘다.',
+  ],
+}
+
+export const TRPC_WORKSPACE_IMPORT_BOUNDARY_RULES = [
+  `shared contract가 필요하면 \`${CONTRACTS_WORKSPACE_PATH}\`, \`${APP_ROUTER_WORKSPACE_PATH}\`로 올린다.`,
+]
+
+export const TRPC_SERVER_README_WORKSPACE_LINES = [
+  `- tRPC를 같이 골랐다면 \`${CONTRACTS_WORKSPACE_PATH}\`가 boundary schema의 source of truth이고, \`${APP_ROUTER_WORKSPACE_PATH}\`가 router와 \`AppRouter\` 타입의 source of truth예요.`,
+  '- miniapp frontend는 `frontend/src/lib/trpc.ts`, backoffice는 `backoffice/src/lib/trpc.ts`에서 Worker `/trpc` endpoint를 호출해요.',
+  '- Worker runtime은 `@workspace/app-router`를 직접 import해서 같은 router를 바로 써요.',
+  '- `GET /` 는 ready JSON을 반환하고, 실제 tRPC 호출은 `/trpc` endpoint로 들어가요.',
+]
+
+export const TRPC_SERVER_README_API_SSOT_LINES = [
+  `- tRPC를 같이 골랐다면 \`${CONTRACTS_WORKSPACE_PATH}\`가 boundary type과 schema의 source of truth예요.`,
+  `- 같은 경우 \`${APP_ROUTER_WORKSPACE_PATH}\`가 route shape와 \`AppRouter\` 타입의 source of truth예요.`,
+  '- route shape를 바꾸고 싶으면 먼저 shared package 두 개를 수정한 뒤 `dev`, `build`, `deploy`를 다시 실행하면 돼요.',
+  '- runtime verify는 `GET /`, 실제 router entry는 `/trpc` endpoint를 기준으로 보면 돼요.',
+]
+
+export const TRPC_SERVER_README_OPERATION_NOTE = `- tRPC를 같이 썼다면 boundary contract은 \`${CONTRACTS_WORKSPACE_PATH}\`, router는 \`${APP_ROUTER_WORKSPACE_PATH}\`만 수정하고 \`dev\`, \`build\`, \`deploy\`를 다시 실행하면 돼요.`
+
 async function writeJsonFile(targetPath: string, value: unknown) {
   await mkdir(path.dirname(targetPath), { recursive: true })
   await writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
@@ -156,7 +199,7 @@ function renderSharedWorkspaceProjectJson(
 
 function renderContractsReadme() {
   return [
-    '# packages/contracts',
+    `# ${CONTRACTS_WORKSPACE_PATH}`,
     '',
     '이 워크스페이스는 client-server boundary contract의 source of truth예요.',
     '',
@@ -167,7 +210,7 @@ function renderContractsReadme() {
     '## 구조',
     '',
     '```text',
-    'packages/contracts/',
+    `${CONTRACTS_WORKSPACE_PATH}/`,
     '  src/example.ts',
     '  src/index.ts',
     '```',
@@ -183,18 +226,18 @@ function renderContractsReadme() {
 
 function renderAppRouterReadme(_options: ApplyTrpcWorkspaceTemplateOptions) {
   return [
-    '# packages/app-router',
+    `# ${APP_ROUTER_WORKSPACE_PATH}`,
     '',
     '이 워크스페이스는 tRPC router와 `AppRouter` 타입의 source of truth예요.',
     '',
-    '- `packages/contracts`의 schema를 써서 procedure input/output을 맞춰요.',
+    `- \`${CONTRACTS_WORKSPACE_PATH}\`의 schema를 써서 procedure input/output을 맞춰요.`,
     '- `frontend`와 `backoffice`는 server를 직접 참조하지 않고 여기서 `AppRouter` 타입만 가져와요.',
     '- 지금 선택한 provider는 `cloudflare`라서, Worker runtime이 이 워크스페이스를 직접 import해요.',
     '',
     '## 구조',
     '',
     '```text',
-    'packages/app-router/',
+    `${APP_ROUTER_WORKSPACE_PATH}/`,
     '  src/context.ts',
     '  src/init.ts',
     '  src/routers/example.ts',
@@ -204,7 +247,7 @@ function renderAppRouterReadme(_options: ApplyTrpcWorkspaceTemplateOptions) {
     '',
     '## 운영 메모',
     '',
-    '- route shape를 바꾸고 싶으면 먼저 `packages/contracts`와 `packages/app-router`를 확인해요.',
+    `- route shape를 바꾸고 싶으면 먼저 \`${CONTRACTS_WORKSPACE_PATH}\`와 \`${APP_ROUTER_WORKSPACE_PATH}\`를 확인해요.`,
     '- package root import는 `dist`를 보게 하니 `src` 상대 경로로 내려가지 말고 `@workspace/app-router`를 그대로 써요.',
     '- provider-specific runtime adapter는 각 `server` workspace 안에 남겨요.',
     '',

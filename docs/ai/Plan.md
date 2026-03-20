@@ -1,3 +1,22 @@
+## 다음 작업: 남은 repo contract / frontend policy / tRPC metadata 중복 정리
+1. 문제
+   - frontend policy는 문서 renderer와 route verify script가 같은 규칙을 따로 들고 있고, core skill entrypoint도 policy module에 다시 하드코딩돼 있다.
+   - code-owned `AGENTS.md`가 `repo-contract.md`와 같은 hard rule / done 기준을 다시 적고 있어 generated contract가 둘로 나뉜다.
+   - tRPC workspace identity가 `feature-catalog.ts`, `templates/trpc.ts`, `patching/server.ts`에 흩어져 있고, `docs.ts` 안에서도 code-owned doc inventory를 skip set과 write 호출로 두 번 관리한다.
+2. 방향
+   - core skill reference path와 frontend route verifier source를 shared metadata에서 파생시키고, `verify-frontend-routes.mjs`는 template 복사가 아니라 code-owned renderer로 생성한다.
+   - `AGENTS.md`는 repo-contract를 요약/참조만 하게 줄여서 detailed contract는 `docs/engineering/repo-contract.md` 한 곳이 소유하게 만든다.
+   - tRPC workspace 문구와 source-of-truth 설명은 `templates/trpc.ts`의 shared descriptor에서 feature catalog와 server README가 같이 가져오게 바꾼다.
+   - code-owned docs는 단일 definition manifest에서 skip 대상과 write 대상을 함께 계산한다.
+3. 테스트
+   - `src/templates/index.test.ts`에 core skill path, route verifier ownership, AGENTS contract delegation, tRPC descriptor import, code-owned docs manifest 회귀 테스트를 먼저 추가한다.
+   - red를 확인한 뒤 구현하고 `pnpm verify`까지 통과한다.
+4. 완료 기준
+   - frontend policy / verifier / core skill reference path가 단일 source를 가진다.
+   - repo contract detailed rules는 `repo-contract.md` 한 곳이 소유한다.
+   - tRPC workspace identity를 바꿀 때 docs/README/server patch를 여러 파일에서 따로 수정하지 않아도 된다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: code-owned docs와 feature catalog를 단일 source로 정리
 1. 문제
    - `AGENTS.md`, `docs/index.md`, `workspace-topology.md`, `frontend-policy.md`가 template markdown와 renderer code 사이에 반쯤 걸쳐 있어 section identity와 정책 wording이 둘 이상에서 관리된다.

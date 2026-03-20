@@ -8,26 +8,55 @@ import {
 import { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
 import type { GeneratedWorkspaceOptions, GeneratedWorkspaceHints, TemplateTokens } from './types.js'
 
-export const CORE_SKILL_DEFINITIONS: SkillReferenceDefinition[] = [
+export type CoreSkillId = 'miniapp' | 'granite' | 'tds'
+
+export type CoreSkillDefinition = SkillReferenceDefinition & {
+  id: CoreSkillId
+  frontendPolicyReferenceLabel: string
+  frontendPolicyReferencePath: string
+  referenceCatalogPath?: string
+}
+
+export const CORE_SKILL_DEFINITIONS: CoreSkillDefinition[] = [
   {
+    id: 'miniapp',
     templateDir: 'core/miniapp',
     docsPath: '.agents/skills/core/miniapp/SKILL.md',
     agentsLabel: 'MiniApp capability / 공식 API 탐색',
     topologyLabel: 'MiniApp capability',
+    frontendPolicyReferenceLabel: '기능 축과 공식 문서 진입',
+    frontendPolicyReferencePath: '.agents/skills/core/miniapp/SKILL.md',
   },
   {
+    id: 'granite',
     templateDir: 'core/granite',
     docsPath: '.agents/skills/core/granite/SKILL.md',
     agentsLabel: 'route / page / navigation 패턴',
     topologyLabel: 'Granite page/route patterns',
+    frontendPolicyReferenceLabel: 'route / navigation 패턴',
+    frontendPolicyReferencePath: '.agents/skills/core/granite/SKILL.md',
   },
   {
+    id: 'tds',
     templateDir: 'core/tds',
     docsPath: '.agents/skills/core/tds/SKILL.md',
     agentsLabel: 'TDS UI 선택과 form 패턴',
     topologyLabel: 'TDS UI selection',
+    frontendPolicyReferenceLabel: 'TDS component 선택',
+    frontendPolicyReferencePath: '.agents/skills/core/tds/SKILL.md',
+    referenceCatalogPath: '.agents/skills/core/tds/references/catalog.md',
   },
 ]
+
+export function getCoreSkillDefinition(id: CoreSkillId) {
+  const definition = CORE_SKILL_DEFINITIONS.find((skill) => skill.id === id)
+
+  if (!definition) {
+    throw new Error(`알 수 없는 core skill id입니다: ${id}`)
+  }
+
+  return definition
+}
 
 function resolveGeneratedSkillTemplates(options: GeneratedWorkspaceOptions) {
   return [

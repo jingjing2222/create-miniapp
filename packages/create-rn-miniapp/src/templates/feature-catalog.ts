@@ -1,4 +1,11 @@
 import type { GeneratedWorkspaceOptions } from './types.js'
+import {
+  TRPC_APP_ROUTER_WORKSPACE_ROLE_SECTION,
+  TRPC_CONTRACTS_WORKSPACE_ROLE_SECTION,
+  TRPC_WORKSPACE_AGENTS_LINE,
+  TRPC_WORKSPACE_IMPORT_BOUNDARY_RULES,
+  TRPC_WORKSPACE_TOPOLOGY_ROOT_LINES,
+} from './trpc.js'
 
 export type SkillReferenceDefinition = {
   templateDir: string
@@ -117,32 +124,19 @@ export const WORKSPACE_FEATURE_CATALOG: WorkspaceFeatureDefinition[] = [
   },
   {
     enabled: (options) => options.hasTrpc,
-    agentsLines: [
-      '`packages/contracts`, `packages/app-router`: optional shared tRPC boundary packages',
-    ],
-    topologyRootLines: [
-      '`packages/contracts`: optional tRPC boundary schema / type source',
-      '`packages/app-router`: optional tRPC router / `AppRouter` source',
-    ],
+    agentsLines: [TRPC_WORKSPACE_AGENTS_LINE],
+    topologyRootLines: TRPC_WORKSPACE_TOPOLOGY_ROOT_LINES,
     roleSections: [
       {
-        heading: 'packages/contracts',
-        lines: () => [
-          '- boundary input/output schema와 경계 타입의 source of truth다.',
-          '- consumer는 root import만 사용하고 src 상대 경로를 내려가지 않는다.',
-        ],
+        heading: TRPC_CONTRACTS_WORKSPACE_ROLE_SECTION.heading,
+        lines: () => TRPC_CONTRACTS_WORKSPACE_ROLE_SECTION.lines,
       },
       {
-        heading: 'packages/app-router',
-        lines: () => [
-          '- route shape와 `AppRouter` 타입의 source of truth다.',
-          '- Worker runtime과 client는 이 package를 기준으로 타입을 맞춘다.',
-        ],
+        heading: TRPC_APP_ROUTER_WORKSPACE_ROLE_SECTION.heading,
+        lines: () => TRPC_APP_ROUTER_WORKSPACE_ROLE_SECTION.lines,
       },
     ],
-    importBoundaryRules: () => [
-      'shared contract가 필요하면 `packages/contracts`, `packages/app-router`로 올린다.',
-    ],
+    importBoundaryRules: () => TRPC_WORKSPACE_IMPORT_BOUNDARY_RULES,
     optionalSkill: {
       templateDir: 'optional/trpc-boundary',
       docsPath: '.agents/skills/optional/trpc-boundary/SKILL.md',
