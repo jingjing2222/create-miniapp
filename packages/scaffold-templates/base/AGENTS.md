@@ -25,9 +25,9 @@
 4. `docs/index.md`
 5. `docs/product/기능명세서.md`
 
-## Workspace Model
+## {{agentsWorkspaceModelHeading}}
 
-## Skill Routing
+## {{agentsSkillRoutingHeading}}
 
 ## Done
 - `Plan`과 필요 시 `Status`, `Decisions`가 최신이다.

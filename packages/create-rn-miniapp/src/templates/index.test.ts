@@ -10,6 +10,7 @@ import {
   PACKAGE_MANAGERS,
   type PackageManager,
 } from '../package-manager.js'
+import { getTestPackageManagerField } from '../test-support/package-manager.js'
 import * as templateModule from './index.js'
 import {
   applyDocsTemplates,
@@ -20,6 +21,7 @@ import {
   applyWorkspaceProjectTemplate,
   FIREBASE_DEFAULT_FUNCTION_REGION,
   pathExists,
+  renderRootVerifyScript,
   resolveGeneratedWorkspaceOptions,
   syncGeneratedSkills,
   syncRootWorkspaceManifest,
@@ -71,6 +73,7 @@ function createTokens(packageManager: PackageManager): TemplateTokens {
     appName: 'ebook-miniapp',
     displayName: '전자책 미니앱',
     packageManager,
+    packageManagerField: adapter.packageManagerField,
     packageManagerCommand: packageManager,
     packageManagerRunCommand: adapter.runCommandPrefix,
     packageManagerExecCommand: adapter.execCommandPrefix,
@@ -96,12 +99,19 @@ function escapeRegExp(source: string) {
 }
 
 function getMarkdownSectionBody(source: string, heading: string) {
-  const headingPattern = new RegExp(`^## ${escapeRegExp(heading)}\\n([\\s\\S]*?)(?=^## |$)`, 'm')
-  const match = source.match(headingPattern)
+  const headingPattern = new RegExp(`^## ${escapeRegExp(heading)}\\n`, 'm')
+  const match = headingPattern.exec(source)
 
   assert.ok(match, `missing section: ${heading}`)
 
-  return match[1]?.trim() ?? ''
+  const sectionStart = (match.index ?? 0) + match[0].length
+  const nextHeadingMatch = /^## /m.exec(source.slice(sectionStart))
+  const sectionEnd =
+    nextHeadingMatch && typeof nextHeadingMatch.index === 'number'
+      ? sectionStart + nextHeadingMatch.index
+      : source.length
+
+  return source.slice(sectionStart, sectionEnd).trim()
 }
 
 test('template module does not expose the legacy optional docs sync entrypoint', () => {
@@ -121,19 +131,24 @@ test('docs templates keep markdown source free of optional marker comments', asy
   }
 })
 
-test('dynamic docs templates keep generated sections empty in source', async () => {
+test('dynamic docs templates keep generated sections empty behind shared heading tokens', async () => {
   const dynamicTemplateSections = [
     {
       templateFile: 'AGENTS.md',
-      headings: ['Workspace Model', 'Skill Routing'],
+      headingTokens: ['{{agentsWorkspaceModelHeading}}', '{{agentsSkillRoutingHeading}}'],
     },
     {
       templateFile: 'docs/index.md',
-      headings: ['Skill 구조'],
+      headingTokens: ['{{docsIndexSkillStructureHeading}}'],
     },
     {
       templateFile: 'docs/engineering/workspace-topology.md',
-      headings: ['루트 구조', '역할 분리', 'ownership', '참고 Skill'],
+      headingTokens: [
+        '{{workspaceTopologyRootHeading}}',
+        '{{workspaceTopologyRolesHeading}}',
+        '{{workspaceTopologyOwnershipHeading}}',
+        '{{workspaceTopologySkillsHeading}}',
+      ],
     },
   ]
 
@@ -145,10 +160,48 @@ test('dynamic docs templates keep generated sections empty in source', async () 
       'utf8',
     )
 
-    for (const heading of template.headings) {
-      assert.equal(getMarkdownSectionBody(templateSource, heading), '')
+    for (const headingToken of template.headingTokens) {
+      assert.match(templateSource, new RegExp(`^## ${escapeRegExp(headingToken)}$`, 'm'))
+      assert.match(templateSource, new RegExp(`^## ${escapeRegExp(headingToken)}\\n(?:\\n|$)`, 'm'))
     }
   }
+})
+
+test('verify docs templates source uses the shared verify token', async () => {
+  const verifyTemplateSections = [
+    {
+      templateFile: 'docs/index.md',
+      heading: 'verify',
+    },
+    {
+      templateFile: 'docs/engineering/repo-contract.md',
+      heading: 'Verify 정의',
+    },
+  ]
+
+  for (const template of verifyTemplateSections) {
+    const templateSource = await readFile(
+      fileURLToPath(
+        new URL(`../../../scaffold-templates/base/${template.templateFile}`, import.meta.url),
+      ),
+      'utf8',
+    )
+
+    assert.equal(
+      getMarkdownSectionBody(templateSource, template.heading),
+      '{{rootVerifyStepsMarkdown}}',
+    )
+  }
+})
+
+test('root package template keeps packageManager field tokenized', async () => {
+  const templateSource = await readFile(
+    fileURLToPath(new URL('../../../scaffold-templates/root/package.json', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(templateSource, /"packageManager": "\{\{packageManagerField\}\}"/)
+  assert.doesNotMatch(templateSource, /pnpm@\d/)
 })
 
 test('root package template keeps generated scripts out of template source', async () => {
@@ -221,7 +274,7 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   const gitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
   const biomeJson = await readFile(path.join(targetRoot, 'biome.json'), 'utf8')
 
-  assert.equal(packageJson.packageManager, 'pnpm@10.32.1')
+  assert.equal(packageJson.packageManager, getTestPackageManagerField('pnpm'))
   assert.equal(packageJson.workspaces, undefined)
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), true)
   assert.equal(await pathExists(path.join(targetRoot, '.yarnrc.yml')), false)
@@ -232,10 +285,7 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   )
   assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'sync-skills.mjs')), true)
   assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'check-skills.mjs')), true)
-  assert.equal(
-    packageJson.scripts?.verify,
-    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check',
-  )
+  assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('pnpm'))
   assert.equal(
     packageJson.scripts?.['frontend:policy:check'],
     'node ./scripts/verify-frontend-routes.mjs',
@@ -472,15 +522,39 @@ test('applyRootTemplates wires frontend route checker into root verify', async (
   )
   assert.equal(rootPackageJson.scripts?.['skills:sync'], 'node ./scripts/sync-skills.mjs')
   assert.equal(rootPackageJson.scripts?.['skills:check'], 'node ./scripts/check-skills.mjs')
-  assert.equal(
-    rootPackageJson.scripts?.verify,
-    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check',
-  )
+  assert.equal(rootPackageJson.scripts?.verify, renderRootVerifyScript('pnpm'))
   assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'sync-skills.mjs')), true)
   assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'check-skills.mjs')), true)
   assert.match(scriptSource, /route-dynamic-segment-dollar/)
   assert.match(scriptSource, /FRONTEND_ENTRY_ROOT/)
   assert.match(scriptSource, /FRONTEND_SOURCE_PAGES_ROOT/)
+})
+
+test('applyDocsTemplates renders verify sections from the shared root verify metadata', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints())
+
+  const rootPackageJson = JSON.parse(
+    await readFile(path.join(targetRoot, 'package.json'), 'utf8'),
+  ) as {
+    scripts?: Record<string, string>
+  }
+  const docsIndexSource = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+  const repoContractSource = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'repo-contract.md'),
+    'utf8',
+  )
+  const expectedVerifySection = renderRootVerifyScript('pnpm')
+    .split(' && ')
+    .map((command) => `- \`${command}\``)
+    .join('\n')
+
+  assert.equal(rootPackageJson.scripts?.verify, renderRootVerifyScript('pnpm'))
+  assert.equal(getMarkdownSectionBody(docsIndexSource, 'verify'), expectedVerifySection)
+  assert.equal(getMarkdownSectionBody(repoContractSource, 'Verify 정의'), expectedVerifySection)
 })
 
 test('generated frontend route checker allows fixed path routes', async (t) => {
@@ -882,13 +956,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     'utf8',
   )
 
-  assert.equal(packageJson.packageManager, 'yarn@4.13.0')
+  assert.equal(packageJson.packageManager, getTestPackageManagerField('yarn'))
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
-  assert.equal(
-    packageJson.scripts?.verify,
-    'yarn format:check && yarn lint && yarn typecheck && yarn test && yarn frontend:policy:check && yarn skills:check',
-  )
+  assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('yarn'))
   assert.ok(
     packageJsonSource.indexOf('"packageManager"') < packageJsonSource.indexOf('"workspaces"'),
   )
@@ -983,7 +1054,7 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
     'utf8',
   )
 
-  assert.equal(packageJson.packageManager, 'npm@11.11.1')
+  assert.equal(packageJson.packageManager, getTestPackageManagerField('npm'))
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
   assert.equal(npmrc, 'legacy-peer-deps=true\n')
@@ -1002,10 +1073,7 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
     serverPackageJson.scripts?.typecheck,
     'node ./scripts/supabase-functions-typecheck.mjs',
   )
-  assert.equal(
-    packageJson.scripts?.verify,
-    'npm run format:check && npm run lint && npm run typecheck && npm run test && npm run frontend:policy:check && npm run skills:check',
-  )
+  assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('npm'))
   assert.equal(
     await readFile(path.join(targetRoot, 'server', '.npmrc'), 'utf8'),
     'legacy-peer-deps=true\n',
@@ -1049,7 +1117,7 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
     'utf8',
   )
 
-  assert.equal(packageJson.packageManager, 'bun@1.3.4')
+  assert.equal(packageJson.packageManager, getTestPackageManagerField('bun'))
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
   assert.equal(frontendProject.targets?.build.command, 'bun run --cwd frontend build')
   assert.equal(serverPackageJson.scripts?.dev, 'bunx supabase start --workdir .')
@@ -1066,10 +1134,7 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
     serverPackageJson.scripts?.typecheck,
     'node ./scripts/supabase-functions-typecheck.mjs',
   )
-  assert.equal(
-    packageJson.scripts?.verify,
-    'bun run format:check && bun run lint && bun run typecheck && bun run test && bun run frontend:policy:check && bun run skills:check',
-  )
+  assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('bun'))
   assert.match(serverDbApplyScript, /bunx/)
   assert.match(serverTypecheckScript, /const denoCommand =/)
   assert.match(serverTypecheckScript, /\['check'/)

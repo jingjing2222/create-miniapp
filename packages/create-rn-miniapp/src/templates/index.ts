@@ -27,6 +27,7 @@ export type TemplateTokens = {
   appName: string
   displayName: string
   packageManager: PackageManager
+  packageManagerField?: string
   packageManagerCommand: string
   packageManagerRunCommand: string
   packageManagerExecCommand: string
@@ -56,8 +57,8 @@ type MarkdownRoot = MarkdownNode & {
 }
 
 type MarkdownSectionDefinition = {
+  headingToken: string
   heading: string
-  depth: number
   render: (options: GeneratedWorkspaceOptions) => string
 }
 
@@ -127,6 +128,15 @@ const NPMRC_SOURCE = 'legacy-peer-deps=true\n'
 const FRONTEND_POLICY_CHECK_SCRIPT = 'node ./scripts/verify-frontend-routes.mjs'
 const SKILLS_SYNC_SCRIPT = 'node ./scripts/sync-skills.mjs'
 const SKILLS_CHECK_SCRIPT = 'node ./scripts/check-skills.mjs'
+const ROOT_VERIFY_STEP_SCRIPT_NAMES = [
+  'format:check',
+  'lint',
+  'typecheck',
+  'test',
+  'frontend:policy:check',
+  'skills:check',
+] as const
+const ROOT_VERIFY_STEPS_TOKEN = '{{rootVerifyStepsMarkdown}}'
 const BINARY_TEMPLATE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 const MARKDOWN_RENDERER = unified().use(remarkParse).use(remarkStringify, {
   bullet: '-',
@@ -295,25 +305,63 @@ const WORKSPACE_FEATURE_DEFINITIONS: WorkspaceFeatureDefinition[] = [
   },
 ]
 
+const AGENTS_WORKSPACE_MODEL_HEADING_TOKEN = '{{agentsWorkspaceModelHeading}}'
+const AGENTS_SKILL_ROUTING_HEADING_TOKEN = '{{agentsSkillRoutingHeading}}'
+const DOCS_INDEX_SKILL_STRUCTURE_HEADING_TOKEN = '{{docsIndexSkillStructureHeading}}'
+const WORKSPACE_TOPOLOGY_ROOT_HEADING_TOKEN = '{{workspaceTopologyRootHeading}}'
+const WORKSPACE_TOPOLOGY_ROLES_HEADING_TOKEN = '{{workspaceTopologyRolesHeading}}'
+const WORKSPACE_TOPOLOGY_OWNERSHIP_HEADING_TOKEN = '{{workspaceTopologyOwnershipHeading}}'
+const WORKSPACE_TOPOLOGY_SKILLS_HEADING_TOKEN = '{{workspaceTopologySkillsHeading}}'
+
 const DYNAMIC_DOC_DEFINITIONS: DynamicDocDefinition[] = [
   {
     relativePath: 'AGENTS.md',
     sections: [
-      { heading: 'Workspace Model', depth: 2, render: renderAgentsWorkspaceModelSection },
-      { heading: 'Skill Routing', depth: 2, render: renderAgentsSkillRoutingSection },
+      {
+        headingToken: AGENTS_WORKSPACE_MODEL_HEADING_TOKEN,
+        heading: 'Workspace Model',
+        render: renderAgentsWorkspaceModelSection,
+      },
+      {
+        headingToken: AGENTS_SKILL_ROUTING_HEADING_TOKEN,
+        heading: 'Skill Routing',
+        render: renderAgentsSkillRoutingSection,
+      },
     ],
   },
   {
     relativePath: 'docs/index.md',
-    sections: [{ heading: 'Skill 구조', depth: 2, render: renderDocsIndexSkillStructureSection }],
+    sections: [
+      {
+        headingToken: DOCS_INDEX_SKILL_STRUCTURE_HEADING_TOKEN,
+        heading: 'Skill 구조',
+        render: renderDocsIndexSkillStructureSection,
+      },
+    ],
   },
   {
     relativePath: 'docs/engineering/workspace-topology.md',
     sections: [
-      { heading: '루트 구조', depth: 2, render: renderTopologyRootSection },
-      { heading: '역할 분리', depth: 2, render: renderTopologyRolesSection },
-      { heading: 'ownership', depth: 2, render: renderTopologyOwnershipSection },
-      { heading: '참고 Skill', depth: 2, render: renderTopologySkillsSection },
+      {
+        headingToken: WORKSPACE_TOPOLOGY_ROOT_HEADING_TOKEN,
+        heading: '루트 구조',
+        render: renderTopologyRootSection,
+      },
+      {
+        headingToken: WORKSPACE_TOPOLOGY_ROLES_HEADING_TOKEN,
+        heading: '역할 분리',
+        render: renderTopologyRolesSection,
+      },
+      {
+        headingToken: WORKSPACE_TOPOLOGY_OWNERSHIP_HEADING_TOKEN,
+        heading: 'ownership',
+        render: renderTopologyOwnershipSection,
+      },
+      {
+        headingToken: WORKSPACE_TOPOLOGY_SKILLS_HEADING_TOKEN,
+        heading: '참고 Skill',
+        render: renderTopologySkillsSection,
+      },
     ],
   },
 ]
@@ -334,20 +382,43 @@ function resolveSkillsPackageRoot() {
   return path.dirname(packageJsonPath)
 }
 
-function renderRootVerifyScript(packageManager: PackageManager) {
+function resolveRootVerifyStepCommands(packageManager: PackageManager) {
   const adapter = getPackageManagerAdapter(packageManager)
-  return `${adapter.rootVerifyScript()} && ${adapter.runScript('frontend:policy:check')} && ${adapter.runScript('skills:check')}`
+  return ROOT_VERIFY_STEP_SCRIPT_NAMES.map((scriptName) => adapter.runScript(scriptName))
+}
+
+export function renderRootVerifyScript(packageManager: PackageManager) {
+  return resolveRootVerifyStepCommands(packageManager).join(' && ')
+}
+
+function renderRootVerifyStepsMarkdown(packageManager: PackageManager) {
+  return resolveRootVerifyStepCommands(packageManager)
+    .map((command) => `- \`${command}\``)
+    .join('\n')
 }
 
 function replaceTemplateTokens(source: string, tokens: TemplateTokens) {
-  return source
+  const packageManagerField =
+    tokens.packageManagerField ??
+    getPackageManagerAdapter(tokens.packageManager).packageManagerField
+
+  let renderedSource = source
+  for (const definition of DYNAMIC_DOC_DEFINITIONS) {
+    for (const section of definition.sections) {
+      renderedSource = renderedSource.replaceAll(section.headingToken, section.heading)
+    }
+  }
+
+  return renderedSource
     .replaceAll('{{appName}}', tokens.appName)
     .replaceAll('{{displayName}}', tokens.displayName)
     .replaceAll('{{packageManager}}', tokens.packageManager)
+    .replaceAll('{{packageManagerField}}', packageManagerField)
     .replaceAll('{{packageManagerCommand}}', tokens.packageManagerCommand)
     .replaceAll('{{packageManagerRunCommand}}', tokens.packageManagerRunCommand)
     .replaceAll('{{packageManagerExecCommand}}', tokens.packageManagerExecCommand)
     .replaceAll('{{verifyCommand}}', tokens.verifyCommand)
+    .replaceAll(ROOT_VERIFY_STEPS_TOKEN, renderRootVerifyStepsMarkdown(tokens.packageManager))
 }
 
 function getMarkdownNodeText(node: MarkdownNode) {
@@ -483,25 +554,25 @@ function replaceSectionBody(
   options: GeneratedWorkspaceOptions,
 ) {
   const startIndex = root.children.findIndex(
-    (node) =>
-      node.type === 'heading' &&
-      node.depth === definition.depth &&
-      getMarkdownNodeText(node) === definition.heading,
+    (node) => node.type === 'heading' && getMarkdownNodeText(node) === definition.heading,
   )
 
   if (startIndex === -1) {
-    throw new Error(`동적 문서 섹션을 찾지 못했습니다: ${definition.heading} (${definition.depth})`)
+    throw new Error(`동적 문서 섹션을 찾지 못했습니다: ${definition.heading}`)
+  }
+
+  const startNode = root.children[startIndex]
+  const startDepth = startNode?.type === 'heading' ? startNode.depth : undefined
+
+  if (typeof startDepth !== 'number') {
+    throw new Error(`동적 문서 섹션 depth를 읽지 못했습니다: ${definition.heading}`)
   }
 
   let endIndex = startIndex + 1
   while (endIndex < root.children.length) {
     const node = root.children[endIndex]
 
-    if (
-      node.type === 'heading' &&
-      typeof node.depth === 'number' &&
-      node.depth <= definition.depth
-    ) {
+    if (node.type === 'heading' && typeof node.depth === 'number' && node.depth <= startDepth) {
       break
     }
 

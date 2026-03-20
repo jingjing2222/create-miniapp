@@ -1,3 +1,24 @@
+## 다음 작업: verify/doc anchor/package manager source를 다시 단일화하기
+1. 문제
+   - root verify 파이프라인은 generator code가 소유하지만, `docs/index.md`와 `docs/engineering/repo-contract.md`가 같은 단계 목록을 별도로 열거해 관리 포인트가 둘 이상이다.
+   - dynamic markdown 문서는 visible heading 문자열을 code와 template 양쪽에서 같이 들고 있어, 섹션 이름이나 depth를 바꾸면 둘을 동시에 수정해야 한다.
+   - root template `package.json`은 실제 source of truth가 아닌 pnpm version literal을 들고 있고, package manager/version/verify 기대값도 여러 테스트 파일에 하드코딩되어 있다.
+2. 방향
+   - verify 단계 목록을 공통 metadata로 올리고, root `package.json` scripts와 verify 관련 문서가 같은 metadata에서 렌더되게 만든다.
+   - dynamic doc section heading은 template literal이 아니라 공통 anchor metadata에서 token으로 주입해, visible heading wording을 한 군데서만 관리한다.
+   - root template `package.json`은 package manager version literal을 제거하고 generator patch 단계 또는 token으로만 채운다.
+   - 테스트는 package manager adapter와 shared helper를 써서 version/verify/user-agent 기대값을 조합하고, raw literal 반복을 줄인다.
+3. 테스트
+   - verify 문서 섹션과 generated root verify script가 같은 source를 공유하는 실패 테스트를 먼저 추가한다.
+   - dynamic doc template heading이 hardcoded literal이 아니라 shared anchor token으로 유지되는지 실패 테스트를 추가한다.
+   - root package template에 concrete package manager version이 남아 있지 않은지, package-manager 관련 테스트가 shared helper를 통해 기대값을 계산하는지 확인한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - verify 단계 정의가 code와 generated docs 사이에서 한 군데만 관리된다.
+   - dynamic doc heading wording을 바꿀 때 template와 renderer를 각각 손보지 않아도 된다.
+   - root template와 테스트에서 package manager version/verify literal 중복이 줄어든다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: scaffold metadata를 단일 source로 더 끌어올리기
 1. 문제
    - dynamic doc section body가 renderer 코드와 markdown template 양쪽에 남아 있어 wording drift가 생길 수 있다.

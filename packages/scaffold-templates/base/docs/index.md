@@ -12,15 +12,10 @@
 - `engineering/frontend-policy.md`
 - `engineering/workspace-topology.md`
 
-## Skill 구조
+## {{docsIndexSkillStructureHeading}}
 
 ## verify
-- `{{packageManagerRunCommand}} format:check`
-- `{{packageManagerRunCommand}} lint`
-- `{{packageManagerRunCommand}} typecheck`
-- `{{packageManagerRunCommand}} test`
-- `{{packageManagerRunCommand}} frontend:policy:check`
-- `{{packageManagerRunCommand}} skills:check`
+{{rootVerifyStepsMarkdown}}
 
 ## 운영 메모
 - 새 규칙은 먼저 `engineering/*`에 들어갈지, Skill로 분리할지 구분한다.

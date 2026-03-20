@@ -22,6 +22,7 @@ export function createTemplateTokens(options: {
     appName: options.appName,
     displayName: options.displayName,
     packageManager: options.packageManager,
+    packageManagerField: packageManager.packageManagerField,
     packageManagerCommand: options.packageManager,
     packageManagerRunCommand: packageManager.runCommandPrefix,
     packageManagerExecCommand: packageManager.execCommandPrefix,

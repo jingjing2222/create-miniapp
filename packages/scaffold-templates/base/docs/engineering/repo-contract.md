@@ -13,12 +13,7 @@
 4. 문서와 Skill이 충돌하면 문서와 검증 스크립트를 우선한다.
 
 ## Verify 정의
-- `{{packageManagerRunCommand}} format:check`
-- `{{packageManagerRunCommand}} lint`
-- `{{packageManagerRunCommand}} typecheck`
-- `{{packageManagerRunCommand}} test`
-- `{{packageManagerRunCommand}} frontend:policy:check`
-- `{{packageManagerRunCommand}} skills:check`
+{{rootVerifyStepsMarkdown}}
 
 ## 운영 규칙
 - 변경 전 `docs/ai/Plan.md`에 목표, 범위, 검증 계획을 남긴다.

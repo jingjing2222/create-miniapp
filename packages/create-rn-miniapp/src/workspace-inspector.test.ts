@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { getTestPackageManagerField } from './test-support/package-manager.js'
 import { inspectWorkspace } from './workspace-inspector.js'
 
 async function createTempWorkspace(t: test.TestContext) {
@@ -27,7 +28,7 @@ test('inspectWorkspace reads package manager and frontend metadata from an exist
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'yarn@4.13.0',
+        packageManager: getTestPackageManagerField('yarn'),
       },
       null,
       2,
@@ -75,7 +76,7 @@ test('inspectWorkspace detects cloudflare server workspaces from wrangler config
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'pnpm@10.32.1',
+        packageManager: getTestPackageManagerField('pnpm'),
       },
       null,
       2,
@@ -125,7 +126,7 @@ test('inspectWorkspace detects firebase server workspaces from firebase config',
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'pnpm@10.32.1',
+        packageManager: getTestPackageManagerField('pnpm'),
       },
       null,
       2,
@@ -176,7 +177,7 @@ test('inspectWorkspace detects tRPC workspace from packages/app-router/package.j
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'pnpm@10.32.1',
+        packageManager: getTestPackageManagerField('pnpm'),
       },
       null,
       2,
@@ -230,7 +231,7 @@ test('inspectWorkspace still detects legacy tRPC workspace from packages/trpc/pa
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
       {
-        packageManager: 'pnpm@10.32.1',
+        packageManager: getTestPackageManagerField('pnpm'),
       },
       null,
       2,
@@ -303,8 +304,8 @@ test('inspectWorkspace accepts npm and bun packageManager fields', async (t) => 
   const bunRoot = await createTempWorkspace(t)
 
   for (const [targetRoot, packageManager] of [
-    [npmRoot, 'npm@11.11.1'],
-    [bunRoot, 'bun@1.3.4'],
+    [npmRoot, getTestPackageManagerField('npm')],
+    [bunRoot, getTestPackageManagerField('bun')],
   ] as const) {
     await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
     await writeFile(
