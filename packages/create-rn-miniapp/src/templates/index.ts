@@ -35,6 +35,7 @@ export type OptionalDocsOptions = {
   hasBackoffice: boolean
   serverProvider: OptionalDocsServerProvider | null
   hasTrpc: boolean
+  hasWorktree: boolean
 }
 
 type WorkspaceProjectJson = {
@@ -73,6 +74,9 @@ const OPTIONAL_AGENTS_START_MARKER = '<!-- optional-doc-links:start -->'
 const OPTIONAL_AGENTS_END_MARKER = '<!-- optional-doc-links:end -->'
 const OPTIONAL_DOCS_INDEX_START_MARKER = '<!-- optional-engineering-links:start -->'
 const OPTIONAL_DOCS_INDEX_END_MARKER = '<!-- optional-engineering-links:end -->'
+const OPTIONAL_WORKTREE_WORKFLOW_START_MARKER = '<!-- optional-worktree-workflow:start -->'
+const OPTIONAL_WORKTREE_WORKFLOW_END_MARKER = '<!-- optional-worktree-workflow:end -->'
+const SINGLE_ROOT_FINALIZE_LINE = '14. 브랜치 생성, 커밋, 브랜치 푸시, PR 생성 순으로 마무리한다.'
 const NPMRC_SOURCE = 'legacy-peer-deps=true\n'
 const FRONTEND_POLICY_CHECK_SCRIPT = 'node ./scripts/verify-frontend-routes.mjs'
 
@@ -1227,17 +1231,35 @@ function renderOptionalAgentsSection(options: OptionalDocsOptions) {
     )
   }
 
+  if (options.hasWorktree) {
+    lines.push(
+      '- `docs/engineering/worktree-workflow.md`',
+      '  - worktree 레이아웃에서 브랜치 생성, 동기화, 정리 흐름을 먼저 보는 문서',
+    )
+  }
+
   return lines.join('\n')
 }
 
 function renderOptionalGoldenRulesSection(options: OptionalDocsOptions) {
-  if (!options.hasTrpc) {
-    return ''
+  const lines: string[] = []
+  let ruleNumber = 8
+
+  if (options.hasTrpc) {
+    lines.push(
+      `${ruleNumber}. Boundary types from schema only: client-server 경계 타입은 Zod schema에서 \`z.infer\`로만 파생하고, 같은 DTO를 별도 type alias로 중복 정의하지 않는다.`,
+    )
+    ruleNumber++
   }
 
-  return [
-    '8. Boundary types from schema only: client-server 경계 타입은 Zod schema에서 `z.infer`로만 파생하고, 같은 DTO를 별도 type alias로 중복 정의하지 않는다.',
-  ].join('\n')
+  if (options.hasWorktree) {
+    lines.push(
+      `${ruleNumber}. Worktree discipline: 새 작업은 \`wt add\`로 worktree를 만들어 시작하고, control root에서 직접 commit하지 않는다.`,
+    )
+    ruleNumber++
+  }
+
+  return lines.join('\n')
 }
 
 function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
@@ -1263,6 +1285,10 @@ function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
 
   if (options.hasTrpc) {
     lines.push('- Server API SSOT (tRPC): `engineering/server-api-ssot-trpc.md`')
+  }
+
+  if (options.hasWorktree) {
+    lines.push('- Worktree workflow: `engineering/worktree-workflow.md`')
   }
 
   return lines.join('\n')
@@ -1315,6 +1341,12 @@ function resolveOptionalDocTemplates(options: OptionalDocsOptions): OptionalDocT
   if (options.hasTrpc) {
     templates.push({
       templateDir: 'trpc',
+    })
+  }
+
+  if (options.hasWorktree) {
+    templates.push({
+      templateDir: 'worktree',
     })
   }
 
@@ -1491,6 +1523,28 @@ export async function syncOptionalDocsTemplates(
       fallbackAnchor: '- Native modules policy: `engineering/native-modules-policy.md`',
     })
     await writeFile(docsIndexPath, nextDocsIndexSource, 'utf8')
+  }
+
+  const harnessGuidePath = path.join(targetRoot, 'docs', 'engineering', '하네스-실행가이드.md')
+  if (await pathExists(harnessGuidePath)) {
+    const harnessSource = await readFile(harnessGuidePath, 'utf8')
+    let nextHarnessSource = replaceMarkedSection(harnessSource, {
+      startMarker: OPTIONAL_WORKTREE_WORKFLOW_START_MARKER,
+      endMarker: OPTIONAL_WORKTREE_WORKFLOW_END_MARKER,
+      renderedSection: options.hasWorktree
+        ? [
+            '14. `wt add -c <branch> -b main`으로 worktree를 만들고, 그 안에서 구현, 커밋, 푸시, PR 생성.',
+            '15. 작업이 끝나면 `wt remove <branch> -b`로 정리.',
+          ].join('\n')
+        : '',
+      fallbackAnchor: SINGLE_ROOT_FINALIZE_LINE,
+    })
+
+    if (options.hasWorktree && nextHarnessSource.includes(SINGLE_ROOT_FINALIZE_LINE)) {
+      nextHarnessSource = nextHarnessSource.replace(`\n${SINGLE_ROOT_FINALIZE_LINE}`, '')
+    }
+
+    await writeFile(harnessGuidePath, nextHarnessSource, 'utf8')
   }
 }
 

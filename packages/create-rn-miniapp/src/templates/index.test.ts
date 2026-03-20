@@ -433,6 +433,7 @@ test('syncOptionalDocsTemplates copies and indexes selected backoffice and serve
     hasBackoffice: true,
     serverProvider: 'firebase',
     hasTrpc: false,
+    hasWorktree: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
@@ -476,6 +477,7 @@ test('syncOptionalDocsTemplates adds the tRPC boundary type golden rule only whe
     hasBackoffice: false,
     serverProvider: 'cloudflare',
     hasTrpc: true,
+    hasWorktree: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
@@ -522,6 +524,7 @@ test('syncOptionalDocsTemplates can patch legacy docs files without markers', as
     hasBackoffice: true,
     serverProvider: 'supabase',
     hasTrpc: true,
+    hasWorktree: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
@@ -1101,4 +1104,52 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
   assert.deepEqual(yarnPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
   assert.deepEqual(npmPackageJson.workspaces, ['frontend', 'server', 'packages/*'])
   assert.deepEqual(bunPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
+})
+
+test('syncOptionalDocsTemplates injects worktree docs and golden rule when worktree is enabled', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyDocsTemplates(targetRoot, tokens)
+  await syncOptionalDocsTemplates(targetRoot, tokens, {
+    hasBackoffice: false,
+    serverProvider: null,
+    hasTrpc: false,
+    hasWorktree: true,
+  })
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+  const harnessGuide = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', '하네스-실행가이드.md'),
+    'utf8',
+  )
+
+  assert.match(agents, /worktree-workflow\.md/)
+  assert.match(agents, /8\. Worktree discipline:/)
+  assert.match(docsIndex, /Worktree workflow/)
+  assert.match(harnessGuide, /wt add -c/)
+  assert.doesNotMatch(harnessGuide, /14\. 브랜치 생성, 커밋, 브랜치 푸시, PR 생성 순으로 마무리한다\./)
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'worktree-workflow.md')),
+    true,
+  )
+})
+
+test('syncOptionalDocsTemplates numbers worktree golden rule after trpc when both are enabled', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyDocsTemplates(targetRoot, tokens)
+  await syncOptionalDocsTemplates(targetRoot, tokens, {
+    hasBackoffice: false,
+    serverProvider: 'cloudflare',
+    hasTrpc: true,
+    hasWorktree: true,
+  })
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+
+  assert.match(agents, /8\. Boundary types from schema only:/)
+  assert.match(agents, /9\. Worktree discipline:/)
 })
