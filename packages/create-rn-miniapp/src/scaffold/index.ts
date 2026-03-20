@@ -258,6 +258,22 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     }
   }
 
+  if (useWorktree) {
+    log.step('worktree initial commit 만들기')
+    await runCommand({
+      cwd: workspaceRoot,
+      command: 'git',
+      args: ['add', '.'],
+      label: 'worktree 파일 스테이징',
+    })
+    await runCommand({
+      cwd: workspaceRoot,
+      command: 'git',
+      args: ['commit', '-m', 'chore: initial scaffold'],
+      label: 'worktree initial commit',
+    })
+  }
+
   return {
     controlRoot,
     workspaceRoot,
