@@ -168,4 +168,39 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     ),
     true,
   )
+  assert.equal(
+    packResult.files.some(
+      (file) => file.path === 'optional/worktree/scripts/worktree/post-merge-cleanup.sh',
+    ),
+    true,
+  )
+})
+
+test('README describes worktree as a control-root bootstrap workflow', () => {
+  const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8')
+  const workflow = fs.readFileSync(
+    path.join(
+      repoRoot,
+      'packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md',
+    ),
+    'utf8',
+  )
+
+  assert.match(readme, /control root/)
+  assert.match(readme, /single-root라면 `cd my-miniapp` 뒤에 `pnpm verify`/)
+  assert.match(readme, /`--worktree`라면 `cd my-miniapp\/main` 뒤에 `pnpm verify`/)
+  assert.match(readme, /mkdir my-miniapp/)
+  assert.match(readme, /cd my-miniapp/)
+  assert.match(readme, /git clone --separate-git-dir=\.gitdata <repo-url> main/)
+  assert.match(readme, /node main\/scripts\/worktree\/bootstrap-control-root\.mjs/)
+  assert.match(readme, /\.gitdata\//)
+  assert.match(readme, /main\//)
+  assert.match(readme, /git -C main worktree add -b <branch-name> \.\.\/<branch-name> main/)
+  assert.match(readme, /에이전트가 worktree를 사용하게 할까요\?/)
+  assert.match(readme, /브랜치명에는 `\/`를 쓰지 않고 1-depth kebab-case/)
+  assert.doesNotMatch(readme, /bootstrap이 끝나면 local control root에는/)
+  assert.doesNotMatch(readme, /Implement\.md/)
+  assert.match(workflow, /plain clone 상태라면 README bootstrap/)
+  assert.match(workflow, /git -C main worktree add -b <branch-name> \.\.\/<branch-name> main/)
+  assert.match(workflow, /control root 바로 아래 sibling으로/)
 })

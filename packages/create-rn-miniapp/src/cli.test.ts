@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -64,6 +64,13 @@ test('parseCliArgs parses trpc overlay flag', async () => {
 
   assert.equal(argv.serverProvider, 'cloudflare')
   assert.equal(argv.trpc, true)
+})
+
+test('parseCliArgs parses worktree opt-in flag', async () => {
+  const argv = await parseCliArgs(['--name', 'ebook-miniapp', '--worktree'], '/workspace')
+
+  assert.equal(argv.name, 'ebook-miniapp')
+  assert.equal(argv.worktree, true)
 })
 
 test('parseCliArgs rejects the removed with-server flag', async () => {
@@ -162,6 +169,7 @@ test('resolveCliOptions asks for missing values when interactive input is needed
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -217,6 +225,7 @@ test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflar
     '`server` 제공자를 골라 주세요.',
     '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -269,6 +278,7 @@ test('resolveCliOptions does not ask for trpc when firebase is selected', async 
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -455,7 +465,11 @@ test('resolveCliOptions accepts an explicit server-provider without extra server
   assert.equal(resolved.withServer, true)
   assert.equal(resolved.serverProvider, 'cloudflare')
   assert.equal(resolved.serverProjectMode, null)
-  assert.deepEqual(selectMessages, ['`tRPC`도 같이 이어드릴까요?', '`backoffice`도 같이 만들까요?'])
+  assert.deepEqual(selectMessages, [
+    '`tRPC`도 같이 이어드릴까요?',
+    '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
+  ])
 })
 
 test('resolveCliOptions rejects server-project-mode without server-provider', async () => {
@@ -503,6 +517,7 @@ test('resolveCliOptions does not create a server in yes mode without server-prov
       name: 'ebook-miniapp',
       rootDir: '/tmp/workspace',
       outputDir: '/tmp/workspace',
+      withBackoffice: true,
       skipInstall: false,
       yes: true,
       help: false,
@@ -639,6 +654,7 @@ test('resolveCliOptions skips package-manager prompt when pnpm create invoked th
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -690,6 +706,7 @@ test('resolveCliOptions skips package-manager prompt when yarn create invoked th
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -743,6 +760,7 @@ test('resolveCliOptions skips package-manager prompt when npm create invoked the
     '`server` 제공자를 골라 주세요.',
     '`tRPC`도 같이 이어드릴까요?',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -794,6 +812,7 @@ test('resolveCliOptions skips package-manager prompt when bun create invoked the
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 만들까요?',
+    '에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)',
   ])
 })
 
@@ -878,6 +897,7 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
       hasServer: false,
       hasBackoffice: false,
       hasTrpc: false,
+      hasWorktreePolicy: false,
       serverProvider: null,
     },
   )
@@ -894,10 +914,48 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
   assert.equal(resolved.existingServerProvider, null)
   assert.equal(resolved.existingHasBackoffice, false)
   assert.equal(resolved.existingHasTrpc, false)
+  assert.equal(resolved.existingHasWorktreePolicy, false)
   assert.deepEqual(selectMessages, [
     '`server` 제공자를 골라 주세요.',
     '`backoffice`도 같이 추가할까요?',
   ])
+})
+
+test('resolveAddCliOptions keeps the inspected workspace root when the input path was a control root', async () => {
+  const resolved = await resolveAddCliOptions(
+    {
+      add: true,
+      rootDir: '/tmp/existing-miniapp',
+      outputDir: '/tmp/workspace',
+      withBackoffice: true,
+      skipInstall: false,
+      yes: true,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select() {
+        throw new Error('select prompt should not be called')
+      },
+    },
+    {
+      rootDir: '/tmp/existing-miniapp/main',
+      packageManager: 'pnpm',
+      appName: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      hasServer: true,
+      hasBackoffice: false,
+      hasTrpc: false,
+      hasWorktreePolicy: true,
+      serverProvider: 'supabase',
+    },
+  )
+
+  assert.equal(resolved.rootDir, path.resolve('/tmp/existing-miniapp/main'))
+  assert.equal(resolved.existingHasWorktreePolicy, true)
 })
 
 test('resolveAddCliOptions accepts explicit server-provider in yes mode', async () => {
@@ -928,6 +986,7 @@ test('resolveAddCliOptions accepts explicit server-provider in yes mode', async 
       hasServer: false,
       hasBackoffice: false,
       hasTrpc: false,
+      hasWorktreePolicy: false,
       serverProvider: null,
     },
   )
@@ -981,6 +1040,7 @@ test('resolveAddCliOptions can add trpc to an existing cloudflare server workspa
       hasServer: true,
       hasBackoffice: false,
       hasTrpc: false,
+      hasWorktreePolicy: false,
       serverProvider: 'cloudflare',
     },
   )
@@ -1040,6 +1100,7 @@ test('resolveAddCliOptions does not ask for trpc when the existing server is sup
       hasServer: true,
       hasBackoffice: false,
       hasTrpc: false,
+      hasWorktreePolicy: false,
       serverProvider: 'supabase',
     },
   )
@@ -1101,6 +1162,7 @@ test('resolveAddCliOptions asks whether to remove existing cloudflare api helper
         hasServer: true,
         hasBackoffice: true,
         hasTrpc: false,
+        hasWorktreePolicy: false,
         serverProvider: 'cloudflare',
       },
     )
@@ -1151,6 +1213,7 @@ test('resolveAddCliOptions keeps existing cloudflare api helpers in yes mode', a
         hasServer: true,
         hasBackoffice: false,
         hasTrpc: false,
+        hasWorktreePolicy: false,
         serverProvider: 'cloudflare',
       },
     )
@@ -1198,6 +1261,7 @@ test('resolveAddCliOptions rejects server-project-mode without server-provider',
           hasServer: false,
           hasBackoffice: false,
           hasTrpc: false,
+          hasWorktreePolicy: false,
           serverProvider: null,
         },
       ),
@@ -1312,4 +1376,63 @@ test('createClackPrompter turns prompt cancellation into a user-facing error', a
     () => prompter.text({ message: 'appName을 입력해 주세요' }),
     /입력을 취소했어요\./,
   )
+})
+
+test('resolveCliOptions resolves worktree to false when yes flag is set', async () => {
+  const prompts: CliPrompter = {
+    async text() {
+      return ''
+    },
+    async select(options) {
+      return options.options[0]?.value as never
+    },
+  }
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: true,
+      help: false,
+      version: false,
+      name: 'test-app',
+      displayName: 'Test App',
+    },
+    prompts,
+    { npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64' },
+  )
+
+  assert.equal(resolved.worktree, false)
+})
+
+test('resolveCliOptions resolves worktree to true when explicit worktree flag is set', async () => {
+  const prompts: CliPrompter = {
+    async text() {
+      return ''
+    },
+    async select(options) {
+      return options.options[0]?.value as never
+    },
+  }
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: true,
+      help: false,
+      version: false,
+      name: 'test-app',
+      displayName: 'Test App',
+      worktree: true,
+    },
+    prompts,
+    { npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64' },
+  )
+
+  assert.equal(resolved.worktree, true)
 })

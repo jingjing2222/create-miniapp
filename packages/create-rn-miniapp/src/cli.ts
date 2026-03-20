@@ -3,13 +3,14 @@ import { isCancel, log, select, text } from '@clack/prompts'
 import yargs from 'yargs'
 import { assertValidAppName, toDefaultDisplayName } from './layout.js'
 import { PACKAGE_MANAGERS, type PackageManager } from './package-manager.js'
-import { SERVER_PROJECT_MODES, type ServerProjectMode } from './server-project.js'
 import {
-  SERVER_PROVIDERS,
   SERVER_PROVIDER_OPTIONS,
-  serverProviderSupportsTrpc,
+  SERVER_PROVIDERS,
   type ServerProvider,
+  serverProviderSupportsTrpc,
 } from './providers/index.js'
+import { resolveWorktreePolicySelection } from './scaffold/worktree.js'
+import { SERVER_PROJECT_MODES, type ServerProjectMode } from './server-project.js'
 import { pathExists } from './templates/index.js'
 import type { WorkspaceInspection } from './workspace-inspector.js'
 
@@ -19,6 +20,7 @@ export type ParsedCliArgs = {
   name?: string
   displayName?: string
   noGit?: boolean
+  worktree?: boolean
   serverProvider?: ServerProvider
   serverProjectMode?: ServerProjectMode
   trpc?: boolean
@@ -72,6 +74,8 @@ export type ResolvedCliOptions = {
   appName: string
   displayName: string
   noGit: boolean
+  yes: boolean
+  worktree: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean
@@ -91,6 +95,7 @@ export type ResolvedAddCliOptions = {
   existingServerProvider: ServerProvider | null
   existingHasBackoffice: boolean
   existingHasTrpc: boolean
+  existingHasWorktreePolicy: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean
@@ -134,6 +139,10 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
       type: 'boolean',
       default: true,
       describe: '생성 완료 후 루트 git init 수행',
+    })
+    .option('worktree', {
+      type: 'boolean',
+      describe: 'control root 아래 `main/` 기본 checkout과 sibling worktree 운영 구조 활성화',
     })
     .option('server-provider', {
       choices: SERVER_PROVIDERS,
@@ -189,6 +198,7 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     name: argv.name,
     displayName: argv.displayName,
     noGit: argv.git === false,
+    worktree: argv.worktree,
     serverProvider: argv.serverProvider,
     serverProjectMode: argv.serverProjectMode,
     trpc: argv.trpc,
@@ -215,6 +225,7 @@ export function formatCliHelp() {
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
     '  --no-git                       생성 완료 후 루트 git init 생략',
+    '  --worktree                     control root 아래 `main/` 기본 checkout과 sibling worktree 운영 구조 활성화',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
     '  --trpc                         `cloudflare` server provider 위에 tRPC overlay 추가',
@@ -466,12 +477,21 @@ export async function resolveCliOptions(
           initialValue: 'no',
         })) === 'yes')
 
+  const worktree = await resolveWorktreePolicySelection({
+    prompt,
+    noGit: argv.noGit ?? false,
+    yes: argv.yes,
+    explicitWorktree: argv.worktree,
+  })
+
   return {
     add: false,
     packageManager,
     appName,
     displayName,
     noGit: argv.noGit ?? false,
+    yes: argv.yes,
+    worktree,
     serverProvider: normalizedServerProvider,
     serverProjectMode,
     skipServerProvisioning,
@@ -492,7 +512,7 @@ export async function resolveAddCliOptions(
     throw new Error('`--add`에서는 기존 루트와 다른 package manager를 쓸 수 없어요.')
   }
 
-  const rootDir = path.resolve(argv.rootDir)
+  const rootDir = inspection.rootDir
   const addServerProvider = inspection.hasServer
     ? null
     : await resolveServerProviderInput(argv, prompt, {
@@ -541,6 +561,7 @@ export async function resolveAddCliOptions(
     existingServerProvider: inspection.serverProvider,
     existingHasBackoffice: inspection.hasBackoffice,
     existingHasTrpc: inspection.hasTrpc,
+    existingHasWorktreePolicy: inspection.hasWorktreePolicy,
     serverProvider: normalizedServerProvider,
     serverProjectMode,
     skipServerProvisioning,

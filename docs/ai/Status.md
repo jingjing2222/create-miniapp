@@ -1,3 +1,181 @@
+## 2026-03-20 — worktree cleanup hook 관리 포인트 단일화
+- 상태
+  - cleanup hook 본문이 `create-rn-miniapp` 생성기와 generated `bootstrap-control-root.mjs` 안에 중복돼 있었다.
+  - 이제 hook 본문은 `packages/scaffold-templates/optional/worktree/scripts/worktree/post-merge-cleanup.sh` 하나만 source of truth로 두고, 생성기와 bootstrap script가 둘 다 이 파일을 읽어 설치한다.
+- 반영한 변경
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/post-merge-cleanup.sh`
+    - shared cleanup hook 템플릿 추가
+  - `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+    - 생성기 hook 설치가 scaffold-templates 패키지의 shared hook 템플릿을 읽도록 변경
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/bootstrap-control-root.mjs`
+    - bootstrap script가 sibling `post-merge-cleanup.sh`를 읽어 hook을 설치하도록 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+    - 생성기 hook source가 shared hook 템플릿과 동일한지 검증 추가
+  - `packages/create-rn-miniapp/src/templates/index.test.ts`
+    - generated repo에 shared hook 템플릿이 같이 복사되는지 검증 추가
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - scaffold-templates tarball에 shared hook 템플릿이 포함되는지 검증 추가
+- 검증
+  - `pnpm --filter create-rn-miniapp test -- src/scaffold/worktree.test.ts src/templates/index.test.ts src/release.test.ts` ✅
+  - `pnpm verify` ✅
+
+## 2026-03-20 — plain clone bootstrap cleanup hook 누락 수정
+- 상태
+  - user 재현 기준으로 plain clone 후 `bootstrap-control-root.mjs`를 실행한 repo에서는 cleanup hook이 설치되지 않아, `main` pull 뒤 merged clean worktree가 자동 정리되지 않는 문제를 확인했다.
+  - 원인은 bootstrap script가 local stub만 만들고 `.gitdata/hooks/post-merge`는 쓰지 않는 데 있었다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+    - plain clone bootstrap script가 `.gitdata/hooks/post-merge`를 실제로 설치하고 실행 권한까지 주는지 확인하는 회귀 테스트 추가
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/bootstrap-control-root.mjs`
+    - separate git dir 포인터를 읽어 실제 git dir를 찾는 helper 추가
+    - bootstrap 시 cleanup `post-merge` hook 설치 및 실행 권한 부여 추가
+- 검증
+  - `pnpm --filter create-rn-miniapp test -- src/scaffold/worktree.test.ts` ✅
+  - `pnpm verify` ✅
+
+## 2026-03-20 — worktree control-root PR 마감 메타데이터 정리
+- 상태
+  - changeset을 최종 control-root 방향과 맞게 다시 정리했다.
+  - PR title/body에 남아 있던 single-root policy 설명을 제거하고, `.gitdata + main/ + sibling worktree` 기준으로 다시 맞췄다.
+- 반영한 변경
+  - `.changeset/worktree-scaffold-refactor.md`
+    - control-root scaffold, baseline commit, bootstrap, cleanup hook, `--add` 해석 기준을 현재 구현과 같은 방향으로 정리
+- 검증
+  - `pnpm --filter create-rn-miniapp test -- src/release.test.ts` ✅
+  - `pnpm verify` ✅
+
+## 2026-03-20 — worktree control-root PR 리뷰 회귀 정리
+- 상태
+  - worktree scaffold에서도 committed repo root인 `main/`에 `.claude/CLAUDE.md`가 다시 생성되도록 복구했다.
+  - public README는 single-root와 `--worktree`의 verify 진입 경로를 분리해 안내하고, 제거된 `Implement.md` 언급을 지웠다.
+  - 생성 직후 worktree note는 control root 기준으로 `main/AGENTS.md`, `main/docs/engineering/worktree-workflow.md`를 가리키게 수정했다.
+  - 생성 직후 worktree note가 plain clone bootstrap을 스크립트 단독 실행으로 오해하게 쓰던 문구도 README bootstrap의 전체 2단계 절차로 고쳤다.
+  - worktree 브랜치 규칙은 `/` 없는 1-depth kebab-case branch name으로 단순화했다.
+  - committed README bootstrap 섹션은 marker가 이미 아래에 있더라도 항상 맨 위로 올라가게 고쳤다.
+  - generated README bootstrap 첫 문장은 `운영해야해요` 톤으로 다시 다듬었다.
+  - generated README bootstrap 섹션은 app 이름 기준 `mkdir`/`cd`를 포함한 실제 시작 명령만 남기고, 뒤에 붙던 설명 문장은 제거했다.
+  - public README bootstrap 예시도 `mkdir my-miniapp`부터 시작하도록 맞췄다.
+  - worktree policy note는 고정 명령열 대신 `main/README.md` 맨 위 bootstrap 절차를 보라고 정리했다.
+  - `docs/superpowers/**`는 `.gitignore`에 넣고 Git 추적에서 제거해서 PR에서 더 이상 폐기된 설계를 노출하지 않게 했다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+    - repo root용 `.claude/CLAUDE.md` helper 추가
+    - worktree policy note 경로 수정
+    - worktree policy note bootstrap 문구를 실제 clone 절차에 맞게 수정
+    - bootstrap 섹션 상단 고정 처리 추가
+    - branch name 규칙을 `/` 없는 1-depth kebab-case로 정리
+    - generated README bootstrap 첫 문장 톤 조정
+    - generated README bootstrap에 app 이름 기반 `mkdir`/`cd` 단계 추가
+    - generated README bootstrap 뒤 군더더기 설명 제거
+    - worktree policy note를 `main/README.md` bootstrap 참조로 단순화
+  - `packages/create-rn-miniapp/src/scaffold/index.ts`
+    - single-root / control-root 모두 실제 repo root에 `.claude/CLAUDE.md`를 생성하도록 정리
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+    - repo root Claude guide와 note 경로 회귀 테스트 추가
+    - note가 `git clone --separate-git-dir=.gitdata ...` 절차까지 가리키는지 검증 추가
+    - bootstrap 섹션이 README 맨 위로 이동하는지 검증 추가
+    - generated README bootstrap 첫 문장 회귀 테스트 갱신
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - README quick start와 `Implement.md` 제거 회귀 테스트 추가
+    - README와 workflow 문서의 branch name 규칙 회귀 테스트 추가
+  - `packages/create-rn-miniapp/src/templates/index.ts`
+    - AGENTS golden rule과 하네스 실행가이드의 worktree branch 규칙 정리
+  - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/bootstrap-control-root.mjs`
+    - `/` 없는 branch name 규칙으로 문구 통일
+  - `README.md`
+    - quick start와 AI docs 설명 정리
+    - worktree 시작 명령과 예시를 branch name 기준으로 정리
+    - control-root bootstrap 예시를 `mkdir my-miniapp`부터 시작하도록 정리
+  - `.gitignore`
+    - `docs/superpowers/` ignore 추가
+- 검증
+  - `pnpm --filter create-rn-miniapp test -- src/scaffold/worktree.test.ts src/templates/index.test.ts src/release.test.ts` ✅
+  - `pnpm --filter create-rn-miniapp test -- src/scaffold/worktree.test.ts src/release.test.ts` ✅
+  - `pnpm verify` ✅
+
+## 2026-03-20 — control root 복귀, `.gitdata` + `main/` sibling worktree 구조로 재정의
+- 상태
+  - `--worktree`는 다시 local control-root 레이아웃을 만드는 옵션으로 되돌렸다.
+  - 생성 결과는 `root/.gitdata + root/main + root/<branch-dir>` sibling 구조를 기준으로 맞췄다.
+  - clone-visible repo 내용은 평범한 repo root로 유지하되, committed README와 bootstrap script가 control-root bootstrap 절차를 안내하게 했다.
+  - local root `AGENTS.md`, `.claude/CLAUDE.md`, `README.md`는 stub로 생성하고, 실제 committed 문서와 코드 작업 루트는 `main/`으로 분리했다.
+  - `workspace-inspector`는 control root, `main/`, sibling worktree 입력을 모두 `main/` 작업 루트로 해석하게 복구했다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+    - `.gitdata` 상수 추가
+    - `git init --separate-git-dir` 기반 control-root 초기화 helper 추가
+    - control-root stub 생성 helper 추가
+    - committed README 상단 bootstrap 섹션 주입 helper 추가
+    - worktree note를 control-root 기준 문구로 교체
+  - `packages/create-rn-miniapp/src/scaffold/index.ts`
+    - `--worktree` create 경로를 `controlRoot/main` 구조로 되돌림
+    - single-root와 control-root git 초기화 동선을 분리
+    - add 경로에서도 worktree policy repo README bootstrap 섹션을 유지
+  - `packages/create-rn-miniapp/src/workspace-inspector.ts`
+    - `.gitdata` 또는 legacy `.bare`를 가진 control root 감지 추가
+    - sibling worktree 입력도 `main/`으로 해석하도록 수정
+  - `packages/create-rn-miniapp/src/templates/index.ts`
+    - AGENTS golden rule, docs index, 하네스 실행가이드를 control-root 기준으로 갱신
+  - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
+    - control-root bootstrap, `git -C main worktree add`, `git -C main pull --ff-only` 기준으로 재작성
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/bootstrap-control-root.mjs`
+    - clone 후 local root stub를 복원하는 committed helper script 추가
+  - `README.md`
+    - `--worktree`를 control-root 구조로 설명하도록 재작성
+    - `.gitdata`, `main/`, sibling worktree 구조와 bootstrap 명령을 문서화
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+  - `packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `packages/create-rn-miniapp/src/workspace-inspector.test.ts`
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - control-root bootstrap 회귀 테스트 추가
+- 검증
+  - `pnpm verify` ✅
+
+## 2026-03-20 — control root 제거, `--worktree`는 정책 플래그로 유지
+- 상태
+  - 새 scaffold 결과는 항상 일반 single-root repo로 생성되도록 정리했다.
+  - `--worktree`를 고른 경우에는 repo 구조를 바꾸지 않고, AGENTS / 하네스 문서 / 생성 직후 note가 "새 작업은 반드시 repo root에서 worktree로 시작" 규칙을 가리키게 바꿨다.
+  - `--worktree` repo는 생성 직후 `main`에 scaffold baseline commit을 만들어, 문서가 안내하는 표준 `git worktree add -b <branch> ../<branch> main` 시작 명령이 즉시 동작하게 했다.
+  - sibling path(`../<branch-dir>`)를 의도된 표준 경로로 고정하고, 브랜치명에 `/`가 있어도 worktree path는 `feat/test -> ../feat-test`처럼 1-depth slug를 쓰게 정리했다. repo 안 `./worktrees/` 같은 nested worktree는 Biome / Nx / 에이전트의 repo root 탐색을 꼬이게 할 수 있어서 쓰지 않는다고 문서와 생성 규칙에 명시했다.
+  - merge 또는 squash merge 뒤 `main` checkout을 표준 경로인 `git pull --ff-only`로 최신화하면 main에 반영된 clean worktree를 정리하는 `post-merge` hook을 repo root 기준으로 다시 붙였다.
+  - `--add`는 기존 repo의 worktree 정책 활성화 여부를 감지해서, optional docs 동기화 시 그 규칙을 유지하도록 고쳤다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+    - control root / bare repo 초기화 로직 제거
+    - repo-root 기준 worktree note와 `post-merge` hook 설치 로직으로 재구성
+    - baseline commit 생성 로직 추가
+  - `packages/create-rn-miniapp/src/scaffold/index.ts`
+    - 생성 루트를 항상 single-root로 유지
+    - `--worktree`일 때는 일반 git init 뒤 hook 설치, baseline commit, worktree note를 추가
+  - `packages/create-rn-miniapp/src/cli.ts`
+    - `--add` 옵션 해석에 기존 worktree 정책 상태 전달 추가
+  - `packages/create-rn-miniapp/src/workspace-inspector.ts`
+    - 기존 repo의 worktree 정책 활성화 여부 감지 추가
+  - `packages/create-rn-miniapp/src/index.ts`
+    - `--worktree` 설명과 interactive 문구를 정책 의미에 맞게 변경
+  - `packages/create-rn-miniapp/src/templates/index.ts`
+    - worktree golden rule을 repo-root 기준 강제 규칙으로 변경
+    - `hasWorktree`를 `hasWorktreePolicy`로 정리하고 add 경로에서도 유지되게 수정
+    - `하네스-실행가이드.md`의 공통 PR 마무리 라인은 유지하고, worktree 단계만 앞에 추가
+  - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
+    - control root 설명 제거
+    - repo-root 기준 시작/조회/동기화/정리 절차로 재작성
+    - baseline commit과 hook 중심 정리 동선 반영
+  - `README.md`
+    - `--worktree`를 레이아웃 전환이 아니라 에이전트 workflow 정책으로 설명하도록 정리
+    - baseline commit 설명 추가
+    - `--add` 예시에서도 repo root / worktree checkout 기준 설명으로 맞춤
+  - `packages/create-rn-miniapp/src/cli.test.ts`
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+  - `packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - README에 control-root 레이아웃 설명이 재유입되지 않도록 회귀 테스트 추가
+    - 새 정책과 hook 설치 기준으로 테스트 갱신
+- 검증
+  - `pnpm test -- packages/create-rn-miniapp/src/cli.test.ts packages/create-rn-miniapp/src/templates/index.test.ts packages/create-rn-miniapp/src/scaffold/worktree.test.ts` ✅
+  - `pnpm verify` ✅
+
 ## 2026-03-19 — Implement.md 제거와 Plan 중심 하네스 정리
 - 상태
   - 생성 템플릿 문서군에서 `Implement.md`를 제거하고 구현 계획 책임을 `Plan.md`로 흡수했다.

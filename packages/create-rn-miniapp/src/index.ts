@@ -29,6 +29,18 @@ function describeWorkspaceLayout(options: {
   ].join(', ')
 }
 
+function describeWorktreeSelection(options: { noGit: boolean; worktree: boolean }) {
+  if (options.noGit) {
+    return 'git을 안 만들기 때문에 이번엔 적용하지 않을게요'
+  }
+
+  if (options.worktree) {
+    return '네, control root 아래 `main/`과 sibling worktree 구조로 만들게요'
+  }
+
+  return '아니요, 에이전트는 기본 checkout에서 시작할게요'
+}
+
 export async function main() {
   try {
     const argv = await parseCliArgs(hideBin(process.argv))
@@ -94,6 +106,7 @@ export async function main() {
         `만들 위치: ${resolved.outputDir}/${resolved.appName}`,
         `만들 구조: ${describeWorkspaceLayout(resolved)}`,
         `루트 git 초기화: ${String(!resolved.noGit)}`,
+        `worktree 규칙: ${describeWorktreeSelection(resolved)}`,
         `server 포함: ${String(resolved.withServer)}`,
         `server 제공자: ${resolved.serverProvider ?? '이번엔 안 만들어요'}`,
         `server 프로젝트 연결: ${resolved.serverProvider ? (resolved.skipServerProvisioning ? '이번엔 건너뛸게요' : (resolved.serverProjectMode ?? '목록에서 고를게요')) : '해당 없어요'}`,
@@ -112,7 +125,7 @@ export async function main() {
       note(item.body, item.title)
     }
 
-    outro(`${resolved.appName}을 만들었어요: ${result.targetRoot}`)
+    outro(`${resolved.appName}을 만들었어요: ${result.workspaceRoot}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : '알 수 없는 오류가 있었어요.'
     cancel(message)

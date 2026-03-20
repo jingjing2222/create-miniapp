@@ -4,15 +4,24 @@ import { log } from '@clack/prompts'
 import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import { patchBackofficeWorkspace, patchFrontendWorkspace } from '../patching/index.js'
+import type { ProvisioningNote } from '../server-project.js'
 import {
   applyDocsTemplates,
+  type OptionalDocsOptions,
   applyRootTemplates,
   ensureEmptyDirectory,
   pathExists,
   syncOptionalDocsTemplates,
   syncRootWorkspaceManifest,
 } from '../templates/index.js'
-import type { ProvisioningNote } from '../server-project.js'
+import {
+  createTemplateTokens,
+  maybePatchServerWorkspace,
+  maybePrepareServerWorkspace,
+  maybePrepareTrpcWorkspace,
+  maybeWriteNpmWorkspaceConfig,
+  resolveRootWorkspaces,
+} from './helpers.js'
 import { buildRootFinalizePlan, buildRootGitSetupPlan } from './orders.js'
 import {
   maybeFinalizeCloudflareProvisioning,
@@ -22,25 +31,43 @@ import {
   maybeProvisionFirebaseProject,
   maybeProvisionSupabaseProject,
 } from './provisioning.js'
-import {
-  createTemplateTokens,
-  maybePrepareTrpcWorkspace,
-  maybeWriteNpmWorkspaceConfig,
-  maybePatchServerWorkspace,
-  maybePrepareServerWorkspace,
-  resolveRootWorkspaces,
-} from './helpers.js'
 import type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
+import {
+  createControlRootStubFiles,
+  createWorktreeBaselineCommit,
+  createWorktreePolicyNote,
+  ensureWorktreeBootstrapReadme,
+  ensureWorkspaceClaudeGuide,
+  initializeWorktreeControlRoot,
+  installWorktreeHooks,
+  MAIN_WORKTREE_DIRECTORY,
+} from './worktree.js'
 
-export type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
 export {
+  buildCreateExecutionOrder,
+  buildCreateLifecycleOrder,
   buildRootFinalizePlan,
   buildRootGitSetupPlan,
 } from './orders.js'
-export { buildCreateExecutionOrder, buildCreateLifecycleOrder } from './orders.js'
+export type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
+
+export function buildAddOptionalDocsOptions(options: {
+  hasBackoffice: boolean
+  existingServerProvider: AddWorkspaceOptions['existingServerProvider']
+  serverProvider: AddWorkspaceOptions['serverProvider']
+  withTrpc: boolean
+  existingHasWorktreePolicy: boolean
+}): OptionalDocsOptions {
+  return {
+    hasBackoffice: options.hasBackoffice,
+    serverProvider: options.existingServerProvider ?? options.serverProvider,
+    hasTrpc: options.withTrpc,
+    hasWorktreePolicy: options.existingHasWorktreePolicy,
+  }
+}
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
-  const targetRoot = path.resolve(options.outputDir, options.appName)
+  const controlRoot = path.resolve(options.outputDir, options.appName)
   const notes: ProvisioningNote[] = []
   const trpcEnabled = options.withTrpc && options.serverProvider === 'cloudflare'
   const tokens = createTemplateTokens({
@@ -48,16 +75,24 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     displayName: options.displayName,
     packageManager: options.packageManager,
   })
+  const worktreePolicyEnabled = options.worktree && !options.noGit
+  const workspaceRoot = worktreePolicyEnabled
+    ? path.join(controlRoot, MAIN_WORKTREE_DIRECTORY)
+    : controlRoot
 
-  await ensureEmptyDirectory(targetRoot)
+  await ensureEmptyDirectory(controlRoot)
+
+  if (worktreePolicyEnabled) {
+    await mkdir(workspaceRoot, { recursive: true })
+  }
 
   if (options.serverProvider) {
-    await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+    await mkdir(path.join(workspaceRoot, 'server'), { recursive: true })
   }
 
   const phases = buildCreateCommandPhases({
     appName: options.appName,
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
     withBackoffice: options.withBackoffice,
@@ -68,7 +103,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   if (frontendCreateCommand) {
     log.step(frontendCreateCommand.label)
     await runCommand(frontendCreateCommand)
-    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'frontend'), options.packageManager)
+    await maybeWriteNpmWorkspaceConfig(path.join(workspaceRoot, 'frontend'), options.packageManager)
   }
 
   for (const command of frontendSetupCommands) {
@@ -82,21 +117,21 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
 
   await maybePrepareServerWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
   })
 
-  await applyRootTemplates(targetRoot, tokens, await resolveRootWorkspaces(targetRoot))
+  await applyRootTemplates(workspaceRoot, tokens, await resolveRootWorkspaces(workspaceRoot))
   await maybePrepareTrpcWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     withTrpc: trpcEnabled,
     serverProvider: trpcEnabled ? 'cloudflare' : null,
   })
   await maybePatchServerWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
@@ -105,9 +140,9 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
 
   if (trpcEnabled) {
     await syncRootWorkspaceManifest(
-      targetRoot,
+      workspaceRoot,
       options.packageManager,
-      await resolveRootWorkspaces(targetRoot),
+      await resolveRootWorkspaces(workspaceRoot),
     )
   }
 
@@ -115,14 +150,14 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     const packageManager = getPackageManagerAdapter(options.packageManager)
     log.step('루트 tRPC workspace 의존성을 먼저 설치할게요')
     await runCommand({
-      cwd: targetRoot,
+      cwd: workspaceRoot,
       ...packageManager.install(),
       label: '루트 tRPC workspace 의존성을 먼저 설치할게요',
     })
   }
 
   const provisionedSupabaseProject = await maybeProvisionSupabaseProject({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -130,7 +165,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     skipServerProvisioning: options.skipServerProvisioning,
   })
   const provisionedCloudflareWorker = await maybeProvisionCloudflareWorker({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -139,7 +174,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     skipServerProvisioning: options.skipServerProvisioning,
   })
   const provisionedFirebaseProject = await maybeProvisionFirebaseProject({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -154,33 +189,44 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await runCommand(command)
   }
 
-  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
-    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'backoffice'), options.packageManager)
+  if (options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice')))) {
+    await maybeWriteNpmWorkspaceConfig(
+      path.join(workspaceRoot, 'backoffice'),
+      options.packageManager,
+    )
   }
 
   if (options.withBackoffice || trpcEnabled) {
     await syncRootWorkspaceManifest(
-      targetRoot,
+      workspaceRoot,
       options.packageManager,
-      await resolveRootWorkspaces(targetRoot),
+      await resolveRootWorkspaces(workspaceRoot),
     )
   }
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await applyDocsTemplates(workspaceRoot, tokens)
+
+  if (worktreePolicyEnabled) {
+    await createControlRootStubFiles(controlRoot)
+    await ensureWorktreeBootstrapReadme(workspaceRoot)
+  }
+  await ensureWorkspaceClaudeGuide(workspaceRoot)
+
+  await syncOptionalDocsTemplates(workspaceRoot, tokens, {
     hasBackoffice:
-      options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
+      options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice'))),
     serverProvider: options.serverProvider,
     hasTrpc: trpcEnabled,
+    hasWorktreePolicy: worktreePolicyEnabled,
   })
-  await patchFrontendWorkspace(targetRoot, tokens, {
+  await patchFrontendWorkspace(workspaceRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
     trpc: trpcEnabled,
     removeCloudflareApiClientHelpers: trpcEnabled,
   })
 
-  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
-    await patchBackofficeWorkspace(targetRoot, tokens, {
+  if (options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice')))) {
+    await patchBackofficeWorkspace(workspaceRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: options.serverProvider,
       trpc: trpcEnabled,
@@ -188,39 +234,51 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     })
   }
 
+  if (!options.noGit) {
+    if (worktreePolicyEnabled) {
+      log.step('control root git 저장소 만들기')
+      await initializeWorktreeControlRoot({
+        controlRoot,
+        workspaceRoot,
+      })
+    } else {
+      for (const command of buildRootGitSetupPlan({ targetRoot: workspaceRoot })) {
+        log.step(command.label)
+        await runCommand(command)
+      }
+    }
+
+    if (worktreePolicyEnabled) {
+      await installWorktreeHooks(workspaceRoot)
+    }
+  }
+
   notes.push(
     ...(await maybeFinalizeSupabaseProvisioning({
-      targetRoot,
+      targetRoot: workspaceRoot,
       provisionedProject: provisionedSupabaseProject,
       serverProvider: options.serverProvider,
     })),
   )
   notes.push(
     ...(await maybeFinalizeCloudflareProvisioning({
-      targetRoot,
+      targetRoot: workspaceRoot,
       provisionedWorker: provisionedCloudflareWorker,
       serverProvider: options.serverProvider,
     })),
   )
   notes.push(
     ...(await maybeFinalizeFirebaseProvisioning({
-      targetRoot,
+      targetRoot: workspaceRoot,
       packageManager: options.packageManager,
       provisionedProject: provisionedFirebaseProject,
       serverProvider: options.serverProvider,
     })),
   )
 
-  if (!options.noGit) {
-    for (const command of buildRootGitSetupPlan({ targetRoot })) {
-      log.step(command.label)
-      await runCommand(command)
-    }
-  }
-
   if (!options.skipInstall) {
     for (const command of buildRootFinalizePlan({
-      targetRoot,
+      targetRoot: workspaceRoot,
       packageManager: options.packageManager,
     })) {
       log.step(command.label)
@@ -228,7 +286,21 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     }
   }
 
-  return { targetRoot, notes }
+  if (worktreePolicyEnabled) {
+    await createWorktreeBaselineCommit(workspaceRoot)
+    notes.unshift(
+      createWorktreePolicyNote({
+        controlRoot,
+        workspaceRoot,
+      }),
+    )
+  }
+
+  return {
+    workspaceRoot: worktreePolicyEnabled ? controlRoot : workspaceRoot,
+    notes,
+    worktree: worktreePolicyEnabled,
+  }
 }
 
 export async function addWorkspaces(options: AddWorkspaceOptions) {
@@ -351,11 +423,20 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   )
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
-    serverProvider: finalServerProvider,
-    hasTrpc: trpcEnabled,
-  })
+  await syncOptionalDocsTemplates(
+    targetRoot,
+    tokens,
+    buildAddOptionalDocsOptions({
+      hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
+      existingServerProvider: options.existingServerProvider,
+      serverProvider: options.serverProvider,
+      withTrpc: trpcEnabled,
+      existingHasWorktreePolicy: options.existingHasWorktreePolicy,
+    }),
+  )
+  if (options.existingHasWorktreePolicy) {
+    await ensureWorktreeBootstrapReadme(targetRoot)
+  }
 
   if (
     (options.withServer || trpcEnabled) &&

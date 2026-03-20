@@ -1,7 +1,7 @@
 import type { CliPrompter } from '../cli.js'
 import type { PackageManager } from '../package-manager.js'
-import type { ServerProjectMode } from '../server-project.js'
 import type { ServerProvider } from '../providers/index.js'
+import type { ServerProjectMode } from '../server-project.js'
 
 export type ScaffoldOptions = {
   prompt: CliPrompter
@@ -10,6 +10,8 @@ export type ScaffoldOptions = {
   displayName: string
   outputDir: string
   noGit: boolean
+  yes: boolean
+  worktree: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean
@@ -27,6 +29,7 @@ export type AddWorkspaceOptions = {
   existingServerProvider: ServerProvider | null
   existingHasBackoffice: boolean
   existingHasTrpc: boolean
+  existingHasWorktreePolicy: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean
