@@ -3,17 +3,6 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.32.1",
-  "scripts": {
-    "build": "nx run-many -t build --all",
-    "typecheck": "nx run-many -t typecheck --all",
-    "test": "nx run-many -t test --all",
-    "format": "pnpm exec biome format . --write",
-    "format:check": "pnpm exec biome format .",
-    "lint": "pnpm exec biome lint .",
-    "skills:sync": "node ./scripts/sync-skills.mjs",
-    "skills:check": "node ./scripts/check-skills.mjs",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
     "@types/node": "^24.10.1",

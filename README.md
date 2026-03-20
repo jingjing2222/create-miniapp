@@ -93,13 +93,12 @@ pnpm verify
   - `기능명세서.md`
   - 기능 요구사항과 제품 맥락을 정리하는 시작점이에요.
 - `.agents/skills`
-  - core: `miniapp`, `granite`, `tds`
-  - optional: `backoffice-react`, `server-cloudflare`, `server-supabase`, `server-firebase`, `trpc-boundary`
-  - 반복 작업법, 외부 플랫폼 가이드, API 카탈로그를 담아요.
+  - core MiniApp/Granite/TDS skills와 선택한 workspace에 맞는 optional skills가 생성돼요.
+  - 정확한 생성 목록은 scaffold 결과물의 `AGENTS.md`, `docs/index.md`가 source of truth예요.
 - `.claude/skills`
   - 스캐폴딩 시점에 `.agents/skills`에서 자동으로 같이 생성되는 Claude 호환 mirror예요.
 - `scripts`
-  - `verify-frontend-routes.mjs`, `sync-skills.mjs`, `check-skills.mjs`가 함께 생성돼요.
+  - route policy 검증과 skill mirror drift 확인/복구용 보조 스크립트가 함께 생성돼요.
   - 평소에는 scaffold가 `.claude/skills`까지 같이 넣어주고, 이후 수동 수정으로 drift가 생겼을 때만 `skills:sync` 또는 `skills:check`를 써요.
 
 즉 이 저장소가 만드는 건 단순 폴더 구조가 아니라, MiniApp이 Granite, `@apps-in-toss/framework`, TDS를 원활하게 사용할 수 있도록 계약 문서, Skill, adapter, 설정까지 포함한 작업 컨텍스트예요.

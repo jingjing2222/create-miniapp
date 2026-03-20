@@ -74,10 +74,18 @@ type SkillReferenceDefinition = {
   enabled?: (options: GeneratedWorkspaceOptions) => boolean
 }
 
-type WorkspaceEntryDefinition = {
+type WorkspaceRoleSectionDefinition = {
+  heading: string
+  lines: (options: GeneratedWorkspaceOptions) => string[]
+}
+
+type WorkspaceFeatureDefinition = {
   enabled: (options: GeneratedWorkspaceOptions) => boolean
-  agentsLine?: string
-  topologyLine?: string
+  agentsLines?: string[]
+  topologyRootLines?: string[]
+  roleSections?: WorkspaceRoleSectionDefinition[]
+  ownershipLines?: (options: GeneratedWorkspaceOptions) => string[]
+  importBoundaryRules?: (options: GeneratedWorkspaceOptions) => string[]
 }
 
 type CopyDirectoryWithTokensOptions = {
@@ -124,6 +132,8 @@ const MARKDOWN_RENDERER = unified().use(remarkParse).use(remarkStringify, {
   bullet: '-',
   listItemIndent: 'one',
 })
+const ROOT_BIOME_REACT_NATIVE_MESSAGE =
+  '`react-native` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS나 Granite가 제공하는 컴포넌트를 먼저 써 주세요. 특히 `Text` 대신 TDS `Txt`를 써 주세요. `Pressable`이 정말 필요하면 `biome-ignore`에 이유를 같이 남겨 주세요. 먼저 `.agents/skills/core/tds/references/catalog.md`와 `docs/engineering/frontend-policy.md`를 확인해 주세요.'
 
 const require = createRequire(import.meta.url)
 const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
@@ -194,50 +204,94 @@ const OPTIONAL_SKILL_DEFINITIONS: SkillReferenceDefinition[] = [
   },
 ]
 
-const AGENTS_WORKSPACE_ENTRIES: WorkspaceEntryDefinition[] = [
+const WORKSPACE_FEATURE_DEFINITIONS: WorkspaceFeatureDefinition[] = [
   {
     enabled: () => true,
-    agentsLine: '`frontend`: AppInToss + Granite 기반 MiniApp',
+    agentsLines: ['`frontend`: AppInToss + Granite 기반 MiniApp'],
+    topologyRootLines: ['`frontend`: AppInToss + Granite 기반 MiniApp'],
+    roleSections: [
+      {
+        heading: 'frontend',
+        lines: (options) => [
+          '- MiniApp UI, route, client integration을 담당한다.',
+          ...(options.serverProvider !== null
+            ? [
+                '- provider 연결값은 각 workspace의 `.env.local`에서 읽는다.',
+                '- server runtime 구현을 직접 import하지 않는다.',
+              ]
+            : []),
+        ],
+      },
+    ],
+    importBoundaryRules: (options) =>
+      options.serverProvider !== null ? ['`frontend` ↔ `server` 직접 import 금지'] : [],
   },
   {
     enabled: (options) => options.serverProvider !== null,
-    agentsLine: '`server`: optional provider workspace',
+    agentsLines: ['`server`: optional provider workspace'],
+    topologyRootLines: ['`server`: optional provider workspace'],
+    roleSections: [
+      {
+        heading: 'server',
+        lines: (options) => [
+          '- provider별 원격 리소스 운영과 server-side runtime을 담당한다.',
+          '- deploy, db/functions, rules/indexes 같은 운영 스크립트의 source다.',
+          '- frontend가 기대하는 env와 연결값을 제공한다.',
+          ...(options.hasBackoffice ? ['- backoffice가 기대하는 env와 연결값을 제공한다.'] : []),
+        ],
+      },
+    ],
+    ownershipLines: () => [
+      '- API / base URL ownership: provider workspace가 값을 정의하고 consumer workspace가 읽는다.',
+    ],
   },
   {
     enabled: (options) => options.hasBackoffice,
-    agentsLine: '`backoffice`: optional Vite 기반 운영 도구',
+    agentsLines: ['`backoffice`: optional Vite 기반 운영 도구'],
+    topologyRootLines: ['`backoffice`: optional Vite + React 운영 도구'],
+    roleSections: [
+      {
+        heading: 'backoffice',
+        lines: (options) => [
+          '- 브라우저 기반 운영 화면을 담당한다.',
+          '- MiniApp 전용 runtime 대신 browser/client 패턴을 따른다.',
+          ...(options.serverProvider !== null
+            ? ['- server runtime 구현을 직접 import하지 않는다.']
+            : []),
+        ],
+      },
+    ],
+    importBoundaryRules: (options) =>
+      options.serverProvider !== null ? ['`backoffice` ↔ `server` 직접 import 금지'] : [],
   },
   {
     enabled: (options) => options.hasTrpc,
-    agentsLine:
+    agentsLines: [
       '`packages/contracts`, `packages/app-router`: optional shared tRPC boundary packages',
-  },
-  {
-    enabled: () => true,
-    agentsLine: '`docs`: 계약, 정책, 제품, 상태 문서',
-  },
-]
-
-const TOPOLOGY_ROOT_WORKSPACE_ENTRIES: WorkspaceEntryDefinition[] = [
-  {
-    enabled: () => true,
-    topologyLine: '`frontend`: AppInToss + Granite 기반 MiniApp',
-  },
-  {
-    enabled: (options) => options.serverProvider !== null,
-    topologyLine: '`server`: optional provider workspace',
-  },
-  {
-    enabled: (options) => options.hasBackoffice,
-    topologyLine: '`backoffice`: optional Vite + React 운영 도구',
-  },
-  {
-    enabled: (options) => options.hasTrpc,
-    topologyLine: '`packages/contracts`: optional tRPC boundary schema / type source',
-  },
-  {
-    enabled: (options) => options.hasTrpc,
-    topologyLine: '`packages/app-router`: optional tRPC router / `AppRouter` source',
+    ],
+    topologyRootLines: [
+      '`packages/contracts`: optional tRPC boundary schema / type source',
+      '`packages/app-router`: optional tRPC router / `AppRouter` source',
+    ],
+    roleSections: [
+      {
+        heading: 'packages/contracts',
+        lines: () => [
+          '- boundary input/output schema와 경계 타입의 source of truth다.',
+          '- consumer는 root import만 사용하고 src 상대 경로를 내려가지 않는다.',
+        ],
+      },
+      {
+        heading: 'packages/app-router',
+        lines: () => [
+          '- route shape와 `AppRouter` 타입의 source of truth다.',
+          '- Worker runtime과 client는 이 package를 기준으로 타입을 맞춘다.',
+        ],
+      },
+    ],
+    importBoundaryRules: () => [
+      'shared contract가 필요하면 `packages/contracts`, `packages/app-router`로 올린다.',
+    ],
   },
 ]
 
@@ -304,6 +358,109 @@ function resolveSelectedOptionalSkillDefinitions(options: GeneratedWorkspaceOpti
   return OPTIONAL_SKILL_DEFINITIONS.filter((skill) => skill.enabled?.(options) ?? true)
 }
 
+function resolveEnabledWorkspaceFeatures(options: GeneratedWorkspaceOptions) {
+  return WORKSPACE_FEATURE_DEFINITIONS.filter((feature) => feature.enabled(options))
+}
+
+function renderRootScripts(packageManager: PackageManager) {
+  const adapter = getPackageManagerAdapter(packageManager)
+
+  return {
+    build: 'nx run-many -t build --all',
+    typecheck: 'nx run-many -t typecheck --all',
+    test: 'nx run-many -t test --all',
+    format: adapter.rootFormatScript(),
+    'format:check': adapter.rootFormatCheckScript(),
+    lint: adapter.rootLintScript(),
+    'frontend:policy:check': FRONTEND_POLICY_CHECK_SCRIPT,
+    'skills:sync': SKILLS_SYNC_SCRIPT,
+    'skills:check': SKILLS_CHECK_SCRIPT,
+    verify: renderRootVerifyScript(packageManager),
+  }
+}
+
+function renderRootBiomeSource(adapter: ReturnType<typeof getPackageManagerAdapter>) {
+  return `${JSON.stringify(
+    {
+      $schema: 'https://biomejs.dev/schemas/2.4.8/schema.json',
+      files: {
+        includes: adapter.rootBiomeIncludes,
+      },
+      formatter: {
+        enabled: true,
+        indentStyle: 'space',
+        indentWidth: 2,
+        lineWidth: 100,
+      },
+      linter: {
+        enabled: true,
+        rules: {
+          recommended: true,
+          style: {
+            noRestrictedImports: {
+              level: 'error',
+              options: {
+                paths: {
+                  '@react-native-async-storage/async-storage':
+                    'AsyncStorage는 쓰면 안 돼요. 대신 `@apps-in-toss/framework` storage API를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  '@granite-js/native/@react-native-async-storage/async-storage':
+                    'AsyncStorage는 쓰면 안 돼요. 대신 `@apps-in-toss/framework` storage API를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  'react-native': {
+                    message: ROOT_BIOME_REACT_NATIVE_MESSAGE,
+                    importNames: [
+                      'Button',
+                      'Modal',
+                      'Switch',
+                      'TextInput',
+                      'Text',
+                      'ActivityIndicator',
+                      'Alert',
+                      'TouchableOpacity',
+                      'TouchableHighlight',
+                      'TouchableWithoutFeedback',
+                      'Pressable',
+                    ],
+                  },
+                },
+                patterns: [
+                  {
+                    group: ['@react-navigation/*'],
+                    message:
+                      'react-navigation 패키지는 직접 import하지 말고 `@granite-js/native` 경로를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  },
+                  {
+                    group: ['@react-native-community/*'],
+                    message:
+                      'react-native community 패키지는 직접 import하지 말고 `@granite-js/native` 경로를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  },
+                  {
+                    group: ['react-native-*'],
+                    message:
+                      'react-native 네이티브 패키지는 직접 import하지 말고 `@granite-js/native` 경로를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  },
+                  {
+                    group: ['@shopify/flash-list', 'lottie-react-native', 'fingerprint'],
+                    message:
+                      '이 네이티브 모듈은 직접 import하지 말고 `@granite-js/native` 경로를 써 주세요. 자세한 기준은 `docs/engineering/frontend-policy.md`를 먼저 봐 주세요.',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      javascript: {
+        formatter: {
+          quoteStyle: 'single',
+          semicolons: 'asNeeded',
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`
+}
+
 function renderBulletList(items: string[]) {
   if (items.length === 0) {
     return ''
@@ -359,11 +516,10 @@ function replaceSectionBody(
 }
 
 function renderAgentsWorkspaceModelSection(options: GeneratedWorkspaceOptions) {
-  return renderBulletList(
-    AGENTS_WORKSPACE_ENTRIES.filter((entry) => entry.enabled(options) && entry.agentsLine).map(
-      (entry) => entry.agentsLine as string,
-    ),
-  )
+  return renderBulletList([
+    ...resolveEnabledWorkspaceFeatures(options).flatMap((feature) => feature.agentsLines ?? []),
+    '`docs`: 계약, 정책, 제품, 상태 문서',
+  ])
 }
 
 function renderAgentsSkillRoutingSection(options: GeneratedWorkspaceOptions) {
@@ -396,76 +552,30 @@ function renderDocsIndexSkillStructureSection(options: GeneratedWorkspaceOptions
 
 function renderTopologyRootSection(options: GeneratedWorkspaceOptions) {
   return renderBulletList(
-    TOPOLOGY_ROOT_WORKSPACE_ENTRIES.filter(
-      (entry) => entry.enabled(options) && entry.topologyLine,
-    ).map((entry) => entry.topologyLine as string),
+    resolveEnabledWorkspaceFeatures(options).flatMap((feature) => feature.topologyRootLines ?? []),
   )
 }
 
 function renderTopologyRolesSection(options: GeneratedWorkspaceOptions) {
-  const frontendLines = ['- MiniApp UI, route, client integration을 담당한다.']
-  if (options.serverProvider !== null) {
-    frontendLines.push('- provider 연결값은 각 workspace의 `.env.local`에서 읽는다.')
-    frontendLines.push('- server runtime 구현을 직접 import하지 않는다.')
-  }
-
-  const blocks = [
-    ['### frontend', ...frontendLines].join('\n'),
-    options.serverProvider !== null
-      ? [
-          '### server',
-          '- provider별 원격 리소스 운영과 server-side runtime을 담당한다.',
-          '- deploy, db/functions, rules/indexes 같은 운영 스크립트의 source다.',
-          '- frontend가 기대하는 env와 연결값을 제공한다.',
-          ...(options.hasBackoffice ? ['- backoffice가 기대하는 env와 연결값을 제공한다.'] : []),
-        ].join('\n')
-      : null,
-    options.hasBackoffice
-      ? [
-          '### backoffice',
-          '- 브라우저 기반 운영 화면을 담당한다.',
-          '- MiniApp 전용 runtime 대신 browser/client 패턴을 따른다.',
-          ...(options.serverProvider !== null
-            ? ['- server runtime 구현을 직접 import하지 않는다.']
-            : []),
-        ].join('\n')
-      : null,
-    options.hasTrpc
-      ? [
-          '### packages/contracts',
-          '- boundary input/output schema와 경계 타입의 source of truth다.',
-          '- consumer는 root import만 사용하고 src 상대 경로를 내려가지 않는다.',
-          '',
-          '### packages/app-router',
-          '- route shape와 `AppRouter` 타입의 source of truth다.',
-          '- Worker runtime과 client는 이 package를 기준으로 타입을 맞춘다.',
-        ].join('\n')
-      : null,
-  ]
+  const blocks = resolveEnabledWorkspaceFeatures(options).flatMap((feature) =>
+    (feature.roleSections ?? []).map((section) =>
+      [`### ${section.heading}`, ...section.lines(options)].join('\n'),
+    ),
+  )
 
   return renderMarkdownBlocks(blocks)
 }
 
 function renderTopologyOwnershipSection(options: GeneratedWorkspaceOptions) {
-  const lines = ['- env ownership: 각 workspace의 `.env.local`']
-  const importBoundaryRules: string[] = []
-
-  if (options.serverProvider !== null) {
-    lines.push(
-      '- API / base URL ownership: provider workspace가 값을 정의하고 consumer workspace가 읽는다.',
-    )
-    importBoundaryRules.push('`frontend` ↔ `server` 직접 import 금지')
-  }
-
-  if (options.hasBackoffice && options.serverProvider !== null) {
-    importBoundaryRules.push('`backoffice` ↔ `server` 직접 import 금지')
-  }
-
-  if (options.hasTrpc) {
-    importBoundaryRules.push(
-      'shared contract가 필요하면 `packages/contracts`, `packages/app-router`로 올린다.',
-    )
-  }
+  const lines = [
+    '- env ownership: 각 workspace의 `.env.local`',
+    ...resolveEnabledWorkspaceFeatures(options).flatMap(
+      (feature) => feature.ownershipLines?.(options) ?? [],
+    ),
+  ]
+  const importBoundaryRules = resolveEnabledWorkspaceFeatures(options).flatMap(
+    (feature) => feature.importBoundaryRules?.(options) ?? [],
+  )
 
   if (importBoundaryRules.length > 0) {
     lines.push('- import boundary:')
@@ -1659,28 +1769,23 @@ export async function applyRootTemplates(
     )
   }
 
+  await mkdir(targetRoot, { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'biome.json'),
+    renderRootBiomeSource(packageManager),
+    'utf8',
+  )
+
   const rootPackageJsonSource = replaceTemplateTokens(
     await readFile(path.join(rootTemplateDir, 'package.json'), 'utf8'),
     tokens,
   )
   const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
     packageManagerField: packageManager.packageManagerField,
-    scripts: {
-      build: 'nx run-many -t build --all',
-      typecheck: 'nx run-many -t typecheck --all',
-      test: 'nx run-many -t test --all',
-      format: packageManager.rootFormatScript(),
-      'format:check': packageManager.rootFormatCheckScript(),
-      lint: packageManager.rootLintScript(),
-      'frontend:policy:check': FRONTEND_POLICY_CHECK_SCRIPT,
-      'skills:sync': SKILLS_SYNC_SCRIPT,
-      'skills:check': SKILLS_CHECK_SCRIPT,
-      verify: renderRootVerifyScript(tokens.packageManager),
-    },
+    scripts: renderRootScripts(tokens.packageManager),
     workspaces: packageManager.workspaceManifestFile === null ? normalizedWorkspaces : null,
   })
 
-  await mkdir(targetRoot, { recursive: true })
   await writeFile(path.join(targetRoot, 'package.json'), nextRootPackageJsonSource, 'utf8')
 
   if (packageManager.workspaceManifestFile) {

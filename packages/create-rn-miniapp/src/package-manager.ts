@@ -13,6 +13,7 @@ export type PackageManagerAdapter = {
   packageManagerField: string
   runCommandPrefix: string
   execCommandPrefix: string
+  rootBiomeIncludes: string[]
   rootTemplateFiles: Array<{
     sourceName: string
     targetName: string
@@ -50,6 +51,22 @@ const PNPM_VERSION = '10.32.1'
 const YARN_VERSION = '4.13.0'
 const NPM_VERSION = '11.11.1'
 const BUN_VERSION = '1.3.4'
+const COMMON_ROOT_BIOME_INCLUDES = [
+  '**',
+  '!!**/.nx',
+  '!!**/node_modules',
+  '!!**/dist',
+  '!!frontend/.granite',
+]
+const YARN_ROOT_BIOME_INCLUDES = [
+  '**',
+  '!!**/.nx',
+  '!!**/.yarn',
+  '!!**/node_modules',
+  '!!**/dist',
+  '!!**/.pnp.*',
+  '!!frontend/.granite',
+]
 
 function withArgs(command: string, args: string[]): PackageManagerCommand {
   return { command, args }
@@ -61,14 +78,11 @@ const pnpmAdapter: PackageManagerAdapter = {
   packageManagerField: `pnpm@${PNPM_VERSION}`,
   runCommandPrefix: 'pnpm',
   execCommandPrefix: 'pnpm exec',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'pnpm.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'pnpm.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: 'pnpm-workspace.yaml',
@@ -152,14 +166,11 @@ const yarnAdapter: PackageManagerAdapter = {
   packageManagerField: `yarn@${YARN_VERSION}`,
   runCommandPrefix: 'yarn',
   execCommandPrefix: 'yarn exec',
+  rootBiomeIncludes: YARN_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'yarn.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'yarn.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: null,
@@ -248,14 +259,11 @@ const npmAdapter: PackageManagerAdapter = {
   packageManagerField: `npm@${NPM_VERSION}`,
   runCommandPrefix: 'npm run',
   execCommandPrefix: 'npm exec --',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'npm.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'npm.biome.json',
-      targetName: 'biome.json',
     },
     {
       sourceName: 'npm.npmrc',
@@ -341,14 +349,11 @@ const bunAdapter: PackageManagerAdapter = {
   packageManagerField: `bun@${BUN_VERSION}`,
   runCommandPrefix: 'bun run',
   execCommandPrefix: 'bunx',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'bun.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'bun.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: null,

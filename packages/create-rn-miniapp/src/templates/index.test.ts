@@ -5,7 +5,11 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import {
+  getPackageManagerAdapter,
+  PACKAGE_MANAGERS,
+  type PackageManager,
+} from '../package-manager.js'
 import * as templateModule from './index.js'
 import {
   applyDocsTemplates,
@@ -87,6 +91,19 @@ const NX_ROOT_SCHEMA_URL =
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
 
+function escapeRegExp(source: string) {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getMarkdownSectionBody(source: string, heading: string) {
+  const headingPattern = new RegExp(`^## ${escapeRegExp(heading)}\\n([\\s\\S]*?)(?=^## |$)`, 'm')
+  const match = source.match(headingPattern)
+
+  assert.ok(match, `missing section: ${heading}`)
+
+  return match[1]?.trim() ?? ''
+}
+
 test('template module does not expose the legacy optional docs sync entrypoint', () => {
   assert.equal('syncOptionalDocsTemplates' in templateModule, false)
 })
@@ -102,6 +119,48 @@ test('docs templates keep markdown source free of optional marker comments', asy
 
     assert.doesNotMatch(templateSource, /<!--\s*optional-[a-z-]+:(?:start|end)\s*-->/)
   }
+})
+
+test('dynamic docs templates keep generated sections empty in source', async () => {
+  const dynamicTemplateSections = [
+    {
+      templateFile: 'AGENTS.md',
+      headings: ['Workspace Model', 'Skill Routing'],
+    },
+    {
+      templateFile: 'docs/index.md',
+      headings: ['Skill 구조'],
+    },
+    {
+      templateFile: 'docs/engineering/workspace-topology.md',
+      headings: ['루트 구조', '역할 분리', 'ownership', '참고 Skill'],
+    },
+  ]
+
+  for (const template of dynamicTemplateSections) {
+    const templateSource = await readFile(
+      fileURLToPath(
+        new URL(`../../../scaffold-templates/base/${template.templateFile}`, import.meta.url),
+      ),
+      'utf8',
+    )
+
+    for (const heading of template.headings) {
+      assert.equal(getMarkdownSectionBody(templateSource, heading), '')
+    }
+  }
+})
+
+test('root package template keeps generated scripts out of template source', async () => {
+  const templateSource = await readFile(
+    fileURLToPath(new URL('../../../scaffold-templates/root/package.json', import.meta.url)),
+    'utf8',
+  )
+  const templatePackageJson = JSON.parse(templateSource) as {
+    scripts?: Record<string, string>
+  }
+
+  assert.equal(templatePackageJson.scripts, undefined)
 })
 
 test('resolveGeneratedWorkspaceOptions derives optional docs state from the actual workspace tree', async (t) => {
@@ -214,6 +273,38 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.match(biomeJson, /TDS `Txt`/)
   assert.match(biomeJson, /docs\/engineering\/frontend-policy\.md/)
   assert.match(biomeJson, /\.agents\/skills\/core\/tds\/references\/catalog\.md/)
+})
+
+test('applyRootTemplates emits shared react-native guidance across package managers', async (t) => {
+  const reactNativeMessages: Array<[PackageManager, string]> = []
+
+  for (const packageManager of PACKAGE_MANAGERS) {
+    const targetRoot = await createTempTargetRoot(t)
+    await applyRootTemplates(targetRoot, createTokens(packageManager), ['frontend'])
+
+    const biomeJson = JSON.parse(await readFile(path.join(targetRoot, 'biome.json'), 'utf8')) as {
+      linter?: {
+        rules?: {
+          style?: {
+            noRestrictedImports?: {
+              options?: {
+                paths?: Record<string, string | { message?: string }>
+              }
+            }
+          }
+        }
+      }
+    }
+    const reactNativePath =
+      biomeJson.linter?.rules?.style?.noRestrictedImports?.options?.paths?.['react-native']
+
+    assert.ok(reactNativePath && typeof reactNativePath === 'object')
+    assert.equal(typeof reactNativePath.message, 'string')
+    reactNativeMessages.push([packageManager, reactNativePath.message ?? ''])
+  }
+
+  assert.equal(new Set(reactNativeMessages.map(([, message]) => message)).size, 1)
+  assert.match(reactNativeMessages[0]?.[1] ?? '', /TDS `Txt`/)
 })
 
 test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in pnpm manifest', async (t) => {

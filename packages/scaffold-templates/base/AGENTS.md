@@ -26,21 +26,8 @@
 5. `docs/product/기능명세서.md`
 
 ## Workspace Model
-- `frontend`: AppInToss + Granite 기반 MiniApp
-- `server`: optional provider workspace
-- `backoffice`: optional Vite 기반 운영 도구
-- `packages/contracts`, `packages/app-router`: optional shared tRPC boundary packages
-- `docs`: 계약, 정책, 제품, 상태 문서
 
 ## Skill Routing
-- MiniApp capability / 공식 API 탐색: `.agents/skills/core/miniapp/SKILL.md`
-- route / page / navigation 패턴: `.agents/skills/core/granite/SKILL.md`
-- TDS UI 선택과 form 패턴: `.agents/skills/core/tds/SKILL.md`
-- backoffice React 작업: `.agents/skills/optional/backoffice-react/SKILL.md`
-- Cloudflare provider 작업: `.agents/skills/optional/server-cloudflare/SKILL.md`
-- Supabase provider 작업: `.agents/skills/optional/server-supabase/SKILL.md`
-- Firebase provider 작업: `.agents/skills/optional/server-firebase/SKILL.md`
-- tRPC boundary 변경: `.agents/skills/optional/trpc-boundary/SKILL.md`
 
 ## Done
 - `Plan`과 필요 시 `Status`, `Decisions`가 최신이다.

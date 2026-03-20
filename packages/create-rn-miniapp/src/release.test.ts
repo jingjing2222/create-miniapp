@@ -140,27 +140,11 @@ test('scaffold templates tarball keeps the root assets and new contract docs', (
     true,
   )
   assert.equal(
-    packResult.files.some((file) => file.path === 'root/pnpm.biome.json'),
-    true,
-  )
-  assert.equal(
-    packResult.files.some((file) => file.path === 'root/yarn.biome.json'),
-    true,
-  )
-  assert.equal(
     packResult.files.some((file) => file.path === 'root/npm.gitignore'),
     true,
   )
   assert.equal(
-    packResult.files.some((file) => file.path === 'root/npm.biome.json'),
-    true,
-  )
-  assert.equal(
     packResult.files.some((file) => file.path === 'root/bun.gitignore'),
-    true,
-  )
-  assert.equal(
-    packResult.files.some((file) => file.path === 'root/bun.biome.json'),
     true,
   )
   assert.equal(

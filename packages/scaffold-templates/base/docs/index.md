@@ -13,20 +13,6 @@
 - `engineering/workspace-topology.md`
 
 ## Skill 구조
-- canonical source: `.agents/skills/`
-- Claude mirror: `.claude/skills/`
-
-core skills:
-- `.agents/skills/core/miniapp/SKILL.md`
-- `.agents/skills/core/granite/SKILL.md`
-- `.agents/skills/core/tds/SKILL.md`
-
-optional skills:
-- `.agents/skills/optional/backoffice-react/SKILL.md`
-- `.agents/skills/optional/server-cloudflare/SKILL.md`
-- `.agents/skills/optional/server-supabase/SKILL.md`
-- `.agents/skills/optional/server-firebase/SKILL.md`
-- `.agents/skills/optional/trpc-boundary/SKILL.md`
 
 ## verify
 - `{{packageManagerRunCommand}} format:check`

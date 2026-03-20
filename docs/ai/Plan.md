@@ -1,3 +1,21 @@
+## 다음 작업: scaffold metadata를 단일 source로 더 끌어올리기
+1. 문제
+   - dynamic doc section body가 renderer 코드와 markdown template 양쪽에 남아 있어 wording drift가 생길 수 있다.
+   - workspace 설명은 root/topology/roles/ownership에 나뉘어 있고, root biome 정책도 package manager별 template에 복제되어 이미 npm variant가 drift했다.
+   - root `package.json` scripts는 template과 generator code 양쪽에 있고, starter onboarding copy와 README도 generated contract/skill entrypoint를 따로 열거한다.
+2. 방향
+   - `AGENTS.md`, `docs/index.md`, `workspace-topology.md`의 동적 section은 heading만 남기고 body는 renderer code만 소유하게 바꾼다.
+   - workspace/skill/start-here/root-scripts/biome policy를 공통 metadata와 renderer 함수로 모으고, package manager별 차이는 include/exclude 같은 adapter 값만 남긴다.
+   - README는 exact generated catalog를 직접 열거하지 않고, generated repo의 `AGENTS.md`/`docs/index.md`를 SSOT로 안내한다.
+   - starter page 안내 문구는 `AGENTS.md`의 Start Here와 같은 metadata를 공유하게 만든다.
+3. 테스트
+   - dynamic doc template section body empty, root package template script 부재, package-manager별 shared biome guidance 일치 테스트를 먼저 실패시키고 통과시킨다.
+   - 기존 docs/skills/root template 테스트와 함께 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - 동적 section 본문, root scripts, biome policy, onboarding entrypoint가 각각 단일 source를 가진다.
+   - README가 generated skill/script catalog를 별도 열거하지 않는다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: dynamic docs/skills 메타데이터를 한 군데로 모으고 렌더 경로를 단일화하기
 1. 문제
    - `renderDynamicMarkdownSource()`가 optional 문구를 최종 prose 문자열로 판별해 wording이 조금만 바뀌어도 필터가 깨질 수 있다.
