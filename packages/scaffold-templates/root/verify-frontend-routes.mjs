@@ -12,7 +12,7 @@ const FILENAME_DOLLAR_PATTERN_RULE_ID = 'filename-dollar-pattern'
 const ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX = /\/\$[a-zA-Z][a-zA-Z0-9_]*/g
 const FILENAME_DOLLAR_PATTERN_REGEX =
   /(?:^|[\\/])(?:\$[a-zA-Z][a-zA-Z0-9_]*\.[^.]+|[^\\/]+\.\$[a-zA-Z][a-zA-Z0-9_]*)/
-const GRANITE_ROUTE_DOC_PATH = 'docs/engineering/granite-ssot.md'
+const GRANITE_ROUTE_DOC_PATH = 'docs/engineering/frontend-policy.md'
 
 async function pathExists(targetPath) {
   try {

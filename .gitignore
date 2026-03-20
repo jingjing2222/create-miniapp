@@ -11,3 +11,4 @@ server/.temp
 server/.supabase
 server/supabase/.branches
 server/supabase/.temp
+docs/superpowers/

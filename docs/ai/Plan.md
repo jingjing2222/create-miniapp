@@ -1,3 +1,61 @@
+## 다음 작업: optional workspace에 맞춰 계약 문서와 skill 라우팅도 동적으로 생성하기
+1. 문제
+   - 지금은 `.agents/skills`와 `.claude/skills`만 옵션별로 갈라지고, `AGENTS.md`, `CLAUDE.md`, Copilot instructions, `docs/index.md`, `docs/engineering/workspace-topology.md`는 정적 base template을 그대로 복사한다.
+   - 그래서 `server`를 만들지 않은 생성물에도 `server` workspace, provider skill, tRPC boundary 같은 optional 내용이 그대로 남고, `--add` 이후에도 문서가 현재 구조를 정확히 설명하지 못한다.
+2. 방향
+   - 문서도 skill과 같은 generation context를 사용해 optional section을 조건부 렌더링한다.
+   - `server`, `backoffice`, `trpc` 유무를 기준으로 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/index.md`, `docs/engineering/workspace-topology.md`의 optional 문단을 넣거나 뺀다.
+   - `scaffoldWorkspace`와 `addWorkspaces` 모두 같은 문서 렌더러를 다시 호출해, 최초 생성과 `--add`가 동일한 결과를 내게 한다.
+3. 테스트
+   - template/scaffold 테스트에서 `server` 미생성 시 `AGENTS.md`와 문서에 server/provider/trpc 언급이 없는지 먼저 실패 테스트로 고정한다.
+   - `--add` 성격의 재렌더 테스트를 추가해, server/backoffice/trpc가 생긴 뒤 문서와 skill 라우팅이 다시 확장되는지 확인한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - optional workspace를 만들지 않은 생성물에 해당 workspace 설명과 skill 라우팅이 남지 않는다.
+   - `--add` 후에는 문서와 skill 라우팅이 현재 workspace 구조에 맞춰 다시 생성된다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: Skills 마이그레이션 리뷰 후속 정리와 체크리스트 라인 감사
+1. 문제
+   - 리뷰에서 남은 쟁점은 `.claude/skills` mirror 자동 생성 사실이 README와 조합 테스트에 충분히 고정되지 않았다는 점, stale `syncOptionalDocsTemplates` 래퍼가 남아 있다는 점, 체크리스트를 글자 그대로 보면 아직 미검증 항목이 있다는 점이다.
+   - 특히 Phase 9는 helper 단위 테스트만으로는 부족하고, base/backoffice/provider/trpc 조합별 generated docs/skills tree와 old engineering docs 부재를 실제 트리 기준으로 다시 고정할 필요가 있다.
+2. 방향
+   - `.claude/skills`는 사용자 수동 동기화 전제가 아니라 scaffold 시점에 같이 생성된다는 점을 코드/테스트/README에서 명확히 한다.
+   - `templates/index.ts`의 구 optional docs 용어를 정리하고, 조합별 generated tree 테스트를 추가해 docs tree / skills tree / mirror equality / optional skill presence를 한 번에 확인한다.
+   - 루트 체크리스트 문서는 라인 단위로 다시 대조해, 실제 완료된 항목은 체크하고 남은 항목은 그대로 드러내도록 갱신한다.
+3. 테스트
+   - `packages/create-rn-miniapp/src/scaffold/index.test.ts`에 6개 scaffold 조합 generated tree 검증을 추가한다.
+   - 기존 template/release 테스트와 함께 `pnpm verify`를 다시 실행한다.
+4. 완료 기준
+   - `.claude/skills` mirror 자동 생성이 테스트와 README로 고정된다.
+   - stale optional docs 래퍼/용어가 제거된다.
+   - 체크리스트가 현재 상태를 line-by-line으로 반영한다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: 0.1.0-rc.0 준비용 Skills 중심 스캐폴드 마이그레이션
+1. 문제
+   - 현재 생성물은 `AGENTS.md + docs/engineering + optional engineering docs` 중심 구조라, 반복 플레이북/외부 플랫폼 카탈로그와 강제 규칙이 한곳에 섞여 있다.
+   - 실제 생성 구조에는 `CLAUDE.md`, `.github/copilot-instructions.md`, `.agents/skills`, `.claude/skills`가 없어서 agent adapter와 canonical skill corpus를 릴리스 기준으로 설명하기 어렵다.
+   - 생성기 코드도 optional doc marker 삽입에 기대고 있어, skill source/mirror를 기준으로 구조를 확장하기 어렵다.
+2. 방향
+   - `/create-rn-miniapp-migration-checklist.md`를 기준 문서로 두고, 계약 문서와 skill corpus의 책임을 분리한다.
+   - `packages/scaffold-templates`는 계약 문서와 실제 workspace asset만 남기고, `packages/scaffold-skills`를 새 canonical source로 추가한다.
+   - 생성기는 contract/docs/skills/workspace asset 렌더링 책임으로 쪼개고, `.agents/skills` 정본과 `.claude/skills` mirror를 함께 생성한다.
+   - `verify`에는 skills mirror drift 검사를 추가하고, README/테스트/스냅샷을 새 출력 구조 기준으로 갱신한다.
+3. 테스트
+   - 템플릿 테스트에서 base scaffold가 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/engineering/{repo-contract,frontend-policy,workspace-topology}.md`, `.agents/skills/core/*`, `.claude/skills/*`를 생성하는지 먼저 실패 테스트로 고정한다.
+   - optional 조합 테스트에서 선택한 feature에 맞는 optional skill만 생기고, 기존 engineering 카탈로그 문서는 생성되지 않는지 고정한다.
+   - `scripts/check-skills.mjs` 테스트와 `release` 테스트에서 새 package/file publish 구성이 유지되는지 검증한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 제외 범위
+   - 이번 작업에서는 publish version bump, changeset 작성, 실제 `0.1.0-rc.0` 배포 실행은 하지 않는다.
+   - 이미 존재하는 unrelated untracked 파일(`docs/superpowers/`)은 건드리지 않는다.
+5. 완료 기준
+   - 생성물 루트에 계약/adapter/docs/skills 구조가 체크리스트와 일치하게 생성된다.
+   - old engineering 문서 체계와 marker 기반 optional doc 삽입 로직이 제거된다.
+   - `.claude/skills` mirror drift가 `pnpm verify`에서 검출된다.
+   - README와 테스트가 새 구조를 기준으로 설명/검증한다.
+
 ## 다음 작업: Supabase 기존 프로젝트 skip 경로에서 generated Biome/schema와 `.mjs` 스크립트 문법을 정상화하기
 1. 문제
    - 기존 Supabase 프로젝트에서 원격 초기화를 건너뛴 뒤 generated root `biome.json`이 CLI `2.4.8`과 다른 `2.4.7` schema를 가리켜 root `biome check`가 깨진다.

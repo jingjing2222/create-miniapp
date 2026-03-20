@@ -12,14 +12,14 @@
 - `server`: optional Supabase, Cloudflare, Firebase server 워크스페이스와 provider별 운영 스크립트/문서를 넣어줘요.
 - `backoffice`: optional Vite + React + TypeScript workspace를 만들어요.
 - 루트: 선택한 package manager + `nx` + `biome` 기준으로 monorepo 설정을 맞춰줘요.
-- 문서: `AGENTS.md`, `docs/ai`, `docs/engineering`, `docs/product`를 함께 넣어 AI와 개발자가 바로 작업할 수 있는 컨텍스트를 제공해요.
+- 계약/어댑터/Skill: `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `.agents/skills`, `.claude/skills`, `docs/*`를 함께 넣어 AI와 개발자가 바로 작업할 수 있는 컨텍스트를 제공해요.
 
 ## 이 도구가 실제로 추가하는 것
 
 공식 scaffold만으로는 바로 안 보이는 부분을 이 CLI가 같이 보강해줘요.
 
 - Granite MiniApp이 `@apps-in-toss/framework`와 함께 바로 동작하도록 `granite.config.ts`, `scaffold.preset.ts`, env 주입, monorepo `watchFolders`를 patch해요.
-- TDS, Granite, AppInToss API를 빠르게 탐색할 수 있게 engineering docs와 인덱스 문서를 넣어줘요.
+- TDS, Granite, AppInToss API와 작업 플레이북을 빠르게 탐색할 수 있게 canonical skills와 adapter 문서를 넣어줘요.
 - 루트 monorepo에 `nx`, `biome`, workspace manifest, `project.json`을 맞춰서 검증 흐름을 통일해요.
 - provider를 선택하면 인증, 기존 리소스 선택 또는 신규 리소스 생성, local workspace 연결, `.env.local` 작성까지 이어지는 IaC 흐름을 제공해요.
 - Cloudflare에 tRPC를 같이 고르면 `packages/contracts`를 boundary schema SSOT로, `packages/app-router`를 route shape와 `AppRouter` SSOT로 만들고, `frontend`/`backoffice`는 상대 경로 대신 shared type만 가져오게 맞춰줘요.
@@ -67,31 +67,44 @@ pnpm verify
   packages/app-router/  # optional (cloudflare + trpc)
   backoffice/    # optional
   server/        # optional
+  .agents/skills/
+  .claude/skills/
+  .github/copilot-instructions.md
   docs/
+  scripts/
   AGENTS.md
+  CLAUDE.md
   package.json
   nx.json
   biome.json
 ```
 
-`docs/`는 단순 샘플 문서가 아니라, 생성 직후부터 작업 기준을 맞추기 위한 컨텍스트 문서예요.
+`docs/`, `AGENTS.md`, adapter 파일, skill 디렉터리는 단순 샘플이 아니라 생성 직후부터 작업 기준을 맞추기 위한 컨텍스트예요.
 
 - `docs/ai`
-  - `Plan.md`, `Status.md`, `Decisions.md`, `Implement.md`, `Prompt.md`
-  - 작업 계획, 현재 상태, 구현 메모, 프롬프트 기준을 기록하는 문서예요.
+  - `Plan.md`, `Status.md`, `Decisions.md`, `Prompt.md`
+  - 작업 계획, 현재 상태, 결정, 프롬프트 기준을 기록하는 문서예요.
 - `docs/engineering`
-  - `granite-ssot.md`
-  - `appsintoss-granite-api-index.md`
-  - `appsintoss-granite-full-api-index.md`
-  - `tds-react-native-index.md`
-  - 기타 MiniApp 운영 규칙과 참고 문서를 담고 있어요.
+  - `repo-contract.md`
+  - `frontend-policy.md`
+  - `workspace-topology.md`
+  - 강제 규칙과 구조 정책을 담고 있어요.
 - `docs/product`
   - `기능명세서.md`
   - 기능 요구사항과 제품 맥락을 정리하는 시작점이에요.
+- `.agents/skills`
+  - core: `miniapp`, `granite`, `tds`
+  - optional: `backoffice-react`, `server-cloudflare`, `server-supabase`, `server-firebase`, `trpc-boundary`
+  - 반복 작업법, 외부 플랫폼 가이드, API 카탈로그를 담아요.
+- `.claude/skills`
+  - 스캐폴딩 시점에 `.agents/skills`에서 자동으로 같이 생성되는 Claude 호환 mirror예요.
+- `scripts`
+  - `verify-frontend-routes.mjs`, `sync-skills.mjs`, `check-skills.mjs`가 함께 생성돼요.
+  - 평소에는 scaffold가 `.claude/skills`까지 같이 넣어주고, 이후 수동 수정으로 drift가 생겼을 때만 `skills:sync` 또는 `skills:check`를 써요.
 
-즉 이 저장소가 만드는 건 단순 폴더 구조가 아니라, MiniApp이 Granite, `@apps-in-toss/framework`, TDS를 원활하게 사용할 수 있도록 문서와 설정까지 포함한 작업 컨텍스트예요.
+즉 이 저장소가 만드는 건 단순 폴더 구조가 아니라, MiniApp이 Granite, `@apps-in-toss/framework`, TDS를 원활하게 사용할 수 있도록 계약 문서, Skill, adapter, 설정까지 포함한 작업 컨텍스트예요.
 
-생성이 끝나면 바로 구현부터 들어가기보다, 먼저 `docs/product/기능명세서.md`에 만들 기능을 정리해두는 걸 권장해요. 그다음 `docs/ai/Plan.md`와 `docs/ai/Implement.md`를 함께 보면서, 방금 적은 기능 명세를 기준으로 구현을 하나씩 이끌어가면 돼요.
+생성이 끝나면 바로 구현부터 들어가기보다, 먼저 `docs/product/기능명세서.md`에 만들 기능을 정리해두는 걸 권장해요. 그다음 `docs/ai/Plan.md`와 `docs/index.md`를 보고, 해당 작업에 맞는 `.agents/skills/*`를 선택해서 구현을 이끌어가면 돼요.
 
 ## CLI 옵션
 

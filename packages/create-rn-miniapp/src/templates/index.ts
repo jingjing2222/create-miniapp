@@ -29,11 +29,11 @@ export type TemplateTokens = {
   verifyCommand: string
 }
 
-type OptionalDocsServerProvider = 'supabase' | 'cloudflare' | 'firebase'
+type GeneratedSkillsServerProvider = 'supabase' | 'cloudflare' | 'firebase'
 
-export type OptionalDocsOptions = {
+export type GeneratedSkillsOptions = {
   hasBackoffice: boolean
-  serverProvider: OptionalDocsServerProvider | null
+  serverProvider: GeneratedSkillsServerProvider | null
   hasTrpc: boolean
 }
 
@@ -67,14 +67,11 @@ const FIREBASE_ADMIN_VERSION = '^13.6.0'
 const FIREBASE_FUNCTIONS_VERSION = '^7.0.0'
 const GOOGLE_CLOUD_FUNCTIONS_FRAMEWORK_VERSION = '^3.4.5'
 const FIREBASE_FUNCTIONS_TYPESCRIPT_VERSION = '^5.7.3'
-const OPTIONAL_GOLDEN_RULES_START_MARKER = '<!-- optional-golden-rules:start -->'
-const OPTIONAL_GOLDEN_RULES_END_MARKER = '<!-- optional-golden-rules:end -->'
-const OPTIONAL_AGENTS_START_MARKER = '<!-- optional-doc-links:start -->'
-const OPTIONAL_AGENTS_END_MARKER = '<!-- optional-doc-links:end -->'
-const OPTIONAL_DOCS_INDEX_START_MARKER = '<!-- optional-engineering-links:start -->'
-const OPTIONAL_DOCS_INDEX_END_MARKER = '<!-- optional-engineering-links:end -->'
 const NPMRC_SOURCE = 'legacy-peer-deps=true\n'
 const FRONTEND_POLICY_CHECK_SCRIPT = 'node ./scripts/verify-frontend-routes.mjs'
+const SKILLS_SYNC_SCRIPT = 'node ./scripts/sync-skills.mjs'
+const SKILLS_CHECK_SCRIPT = 'node ./scripts/check-skills.mjs'
+const BINARY_TEMPLATE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 
 const require = createRequire(import.meta.url)
 const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
@@ -91,9 +88,14 @@ function resolveTemplatesPackageRoot() {
   return path.dirname(packageJsonPath)
 }
 
+function resolveSkillsPackageRoot() {
+  const packageJsonPath = require.resolve('@create-rn-miniapp/scaffold-skills/package.json')
+  return path.dirname(packageJsonPath)
+}
+
 function renderRootVerifyScript(packageManager: PackageManager) {
   const adapter = getPackageManagerAdapter(packageManager)
-  return `${adapter.rootVerifyScript()} && ${adapter.runScript('frontend:policy:check')}`
+  return `${adapter.rootVerifyScript()} && ${adapter.runScript('frontend:policy:check')} && ${adapter.runScript('skills:check')}`
 }
 
 function replaceTemplateTokens(source: string, tokens: TemplateTokens) {
@@ -108,6 +110,12 @@ function replaceTemplateTokens(source: string, tokens: TemplateTokens) {
 }
 
 async function copyFileWithTokens(sourcePath: string, targetPath: string, tokens: TemplateTokens) {
+  if (BINARY_TEMPLATE_EXTENSIONS.has(path.extname(sourcePath).toLowerCase())) {
+    await mkdir(path.dirname(targetPath), { recursive: true })
+    await cp(sourcePath, targetPath)
+    return
+  }
+
   const contents = await readFile(sourcePath, 'utf8')
   await mkdir(path.dirname(targetPath), { recursive: true })
   await writeFile(targetPath, replaceTemplateTokens(contents, tokens), 'utf8')
@@ -141,14 +149,6 @@ async function copyOptionalTemplateFile(
   tokens: TemplateTokens,
 ) {
   await copyFileWithTokens(sourcePath, targetPath, tokens)
-}
-
-async function copyOptionalTemplateDirectory(
-  sourceDir: string,
-  targetRoot: string,
-  tokens: TemplateTokens,
-) {
-  await copyDirectoryWithTokens(sourceDir, targetRoot, tokens)
 }
 
 async function readJsonTemplate<T>(sourcePath: string, tokens: TemplateTokens) {
@@ -1189,138 +1189,6 @@ function renderPnpmWorkspaceManifest(workspaces: NormalizedRootWorkspaceName[]) 
   return `${lines.join('\n')}\n`
 }
 
-function renderOptionalAgentsSection(options: OptionalDocsOptions) {
-  const lines: string[] = []
-
-  if (options.hasBackoffice) {
-    lines.push(
-      '- `docs/engineering/backoffice-react-best-practices.md`',
-      '  - backoffice React/Vite 작업에서 상태, 렌더링, 번들 규칙을 빠르게 확인할 때 보는 문서',
-    )
-  }
-
-  if (options.serverProvider === 'supabase') {
-    lines.push(
-      '- `docs/engineering/server-provider-supabase.md`',
-      '  - server가 Supabase workspace일 때 DB, Edge Functions, 클라이언트 연결 흐름을 먼저 보는 문서',
-    )
-  }
-
-  if (options.serverProvider === 'cloudflare') {
-    lines.push(
-      '- `docs/engineering/server-provider-cloudflare.md`',
-      '  - server가 Cloudflare Worker workspace일 때 deploy, API URL, 운영 흐름을 먼저 보는 문서',
-    )
-  }
-
-  if (options.serverProvider === 'firebase') {
-    lines.push(
-      '- `docs/engineering/server-provider-firebase.md`',
-      '  - server가 Firebase Functions workspace일 때 billing, IAM, deploy 흐름을 먼저 보는 문서',
-    )
-  }
-
-  if (options.hasTrpc) {
-    lines.push(
-      '- `docs/engineering/server-api-ssot-trpc.md`',
-      '  - tRPC를 같이 쓸 때 server API의 source of truth가 어디인지 먼저 확인하는 문서',
-    )
-  }
-
-  return lines.join('\n')
-}
-
-function renderOptionalGoldenRulesSection(options: OptionalDocsOptions) {
-  if (!options.hasTrpc) {
-    return ''
-  }
-
-  return [
-    '8. Boundary types from schema only: client-server 경계 타입은 Zod schema에서 `z.infer`로만 파생하고, 같은 DTO를 별도 type alias로 중복 정의하지 않는다.',
-  ].join('\n')
-}
-
-function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
-  const lines: string[] = []
-
-  if (options.hasBackoffice) {
-    lines.push(
-      '- Backoffice React best practices: `engineering/backoffice-react-best-practices.md`',
-    )
-  }
-
-  if (options.serverProvider === 'supabase') {
-    lines.push('- Server provider guide (Supabase): `engineering/server-provider-supabase.md`')
-  }
-
-  if (options.serverProvider === 'cloudflare') {
-    lines.push('- Server provider guide (Cloudflare): `engineering/server-provider-cloudflare.md`')
-  }
-
-  if (options.serverProvider === 'firebase') {
-    lines.push('- Server provider guide (Firebase): `engineering/server-provider-firebase.md`')
-  }
-
-  if (options.hasTrpc) {
-    lines.push('- Server API SSOT (tRPC): `engineering/server-api-ssot-trpc.md`')
-  }
-
-  return lines.join('\n')
-}
-
-function replaceMarkedSection(
-  source: string,
-  options: {
-    startMarker: string
-    endMarker: string
-    renderedSection: string
-    fallbackAnchor: string
-  },
-) {
-  const replacement = options.renderedSection
-    ? `${options.startMarker}\n${options.renderedSection}\n${options.endMarker}`
-    : `${options.startMarker}\n${options.endMarker}`
-
-  if (source.includes(options.startMarker) && source.includes(options.endMarker)) {
-    const pattern = new RegExp(`${options.startMarker}[\\s\\S]*?${options.endMarker}`, 'm')
-    return source.replace(pattern, replacement)
-  }
-
-  if (source.includes(options.fallbackAnchor)) {
-    return source.replace(options.fallbackAnchor, `${replacement}\n${options.fallbackAnchor}`)
-  }
-
-  return `${source.trimEnd()}\n\n${replacement}\n`
-}
-
-type OptionalDocTemplate = {
-  templateDir: string
-}
-
-function resolveOptionalDocTemplates(options: OptionalDocsOptions): OptionalDocTemplate[] {
-  const templates: OptionalDocTemplate[] = []
-
-  if (options.hasBackoffice) {
-    templates.push({
-      templateDir: 'backoffice',
-    })
-  }
-
-  if (options.serverProvider) {
-    templates.push({
-      templateDir: `server-${options.serverProvider}`,
-    })
-  }
-
-  if (options.hasTrpc) {
-    templates.push({
-      templateDir: 'trpc',
-    })
-  }
-
-  return templates
-}
-
 export async function syncRootWorkspaceManifest(
   targetRoot: string,
   packageManager: PackageManager,
@@ -1362,6 +1230,8 @@ export async function applyRootTemplates(
   const fileMappings = [
     ['nx.json', 'nx.json'],
     ['verify-frontend-routes.mjs', 'scripts/verify-frontend-routes.mjs'],
+    ['sync-skills.mjs', 'scripts/sync-skills.mjs'],
+    ['check-skills.mjs', 'scripts/check-skills.mjs'],
   ] as const
 
   for (const [sourceName, targetName] of fileMappings) {
@@ -1394,6 +1264,8 @@ export async function applyRootTemplates(
       'format:check': packageManager.rootFormatCheckScript(),
       lint: packageManager.rootLintScript(),
       'frontend:policy:check': FRONTEND_POLICY_CHECK_SCRIPT,
+      'skills:sync': SKILLS_SYNC_SCRIPT,
+      'skills:check': SKILLS_CHECK_SCRIPT,
       verify: renderRootVerifyScript(tokens.packageManager),
     },
     workspaces: packageManager.workspaceManifestFile === null ? normalizedWorkspaces : null,
@@ -1438,6 +1310,16 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
     path.join(targetRoot, 'AGENTS.md'),
     tokens,
   )
+  await copyFileWithTokens(
+    path.join(baseTemplateDir, 'CLAUDE.md'),
+    path.join(targetRoot, 'CLAUDE.md'),
+    tokens,
+  )
+  await copyDirectoryWithTokens(
+    path.join(baseTemplateDir, '.github'),
+    path.join(targetRoot, '.github'),
+    tokens,
+  )
   await copyDirectoryWithTokens(
     path.join(baseTemplateDir, 'docs'),
     path.join(targetRoot, 'docs'),
@@ -1445,53 +1327,47 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
   )
 }
 
-export async function syncOptionalDocsTemplates(
+function resolveGeneratedSkillTemplates(options: GeneratedSkillsOptions) {
+  const templates = ['core/miniapp', 'core/granite', 'core/tds']
+
+  if (options.hasBackoffice) {
+    templates.push('optional/backoffice-react')
+  }
+
+  if (options.serverProvider) {
+    templates.push(`optional/server-${options.serverProvider}`)
+  }
+
+  if (options.hasTrpc) {
+    templates.push('optional/trpc-boundary')
+  }
+
+  return templates
+}
+
+export async function syncGeneratedSkills(
   targetRoot: string,
   tokens: TemplateTokens,
-  options: OptionalDocsOptions,
+  options: GeneratedSkillsOptions,
 ) {
-  const templatesRoot = resolveTemplatesPackageRoot()
-  const optionalTemplateRoot = path.join(templatesRoot, 'optional')
+  const skillsRoot = resolveSkillsPackageRoot()
+  const canonicalTargetRoot = path.join(targetRoot, '.agents', 'skills')
+  const claudeMirrorRoot = path.join(targetRoot, '.claude', 'skills')
 
-  for (const template of resolveOptionalDocTemplates(options)) {
-    await copyOptionalTemplateDirectory(
-      path.join(optionalTemplateRoot, template.templateDir),
-      targetRoot,
+  await rm(canonicalTargetRoot, { recursive: true, force: true })
+  await mkdir(canonicalTargetRoot, { recursive: true })
+
+  for (const templateDir of resolveGeneratedSkillTemplates(options)) {
+    await copyDirectoryWithTokens(
+      path.join(skillsRoot, templateDir),
+      path.join(canonicalTargetRoot, templateDir),
       tokens,
     )
   }
 
-  const agentsPath = path.join(targetRoot, 'AGENTS.md')
-  if (await pathExists(agentsPath)) {
-    const agentsSource = await readFile(agentsPath, 'utf8')
-    const nextAgentsSource = replaceMarkedSection(
-      replaceMarkedSection(agentsSource, {
-        startMarker: OPTIONAL_GOLDEN_RULES_START_MARKER,
-        endMarker: OPTIONAL_GOLDEN_RULES_END_MARKER,
-        renderedSection: renderOptionalGoldenRulesSection(options),
-        fallbackAnchor: '## Start Here',
-      }),
-      {
-        startMarker: OPTIONAL_AGENTS_START_MARKER,
-        endMarker: OPTIONAL_AGENTS_END_MARKER,
-        renderedSection: renderOptionalAgentsSection(options),
-        fallbackAnchor: '- `docs/engineering/native-modules-policy.md`',
-      },
-    )
-    await writeFile(agentsPath, nextAgentsSource, 'utf8')
-  }
-
-  const docsIndexPath = path.join(targetRoot, 'docs', 'index.md')
-  if (await pathExists(docsIndexPath)) {
-    const docsIndexSource = await readFile(docsIndexPath, 'utf8')
-    const nextDocsIndexSource = replaceMarkedSection(docsIndexSource, {
-      startMarker: OPTIONAL_DOCS_INDEX_START_MARKER,
-      endMarker: OPTIONAL_DOCS_INDEX_END_MARKER,
-      renderedSection: renderOptionalDocsIndexSection(options),
-      fallbackAnchor: '- Native modules policy: `engineering/native-modules-policy.md`',
-    })
-    await writeFile(docsIndexPath, nextDocsIndexSource, 'utf8')
-  }
+  await rm(claudeMirrorRoot, { recursive: true, force: true })
+  await mkdir(path.dirname(claudeMirrorRoot), { recursive: true })
+  await copyDirectory(canonicalTargetRoot, claudeMirrorRoot)
 }
 
 export async function applyWorkspaceProjectTemplate(

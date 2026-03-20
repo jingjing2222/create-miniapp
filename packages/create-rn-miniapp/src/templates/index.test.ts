@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import * as templateModule from './index.js'
 import {
   applyDocsTemplates,
   applyFirebaseServerWorkspaceTemplate,
@@ -14,7 +15,7 @@ import {
   applyWorkspaceProjectTemplate,
   FIREBASE_DEFAULT_FUNCTION_REGION,
   pathExists,
-  syncOptionalDocsTemplates,
+  syncGeneratedSkills,
   syncRootWorkspaceManifest,
   type TemplateTokens,
 } from './index.js'
@@ -46,6 +47,10 @@ const NX_ROOT_SCHEMA_URL =
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
 
+test('template module does not expose the legacy optional docs sync entrypoint', () => {
+  assert.equal('syncOptionalDocsTemplates' in templateModule, false)
+})
+
 test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
 
@@ -76,14 +81,18 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
     await pathExists(path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs')),
     true,
   )
+  assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'sync-skills.mjs')), true)
+  assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'check-skills.mjs')), true)
   assert.equal(
     packageJson.scripts?.verify,
-    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check',
+    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check',
   )
   assert.equal(
     packageJson.scripts?.['frontend:policy:check'],
     'node ./scripts/verify-frontend-routes.mjs',
   )
+  assert.equal(packageJson.scripts?.['skills:sync'], 'node ./scripts/sync-skills.mjs')
+  assert.equal(packageJson.scripts?.['skills:check'], 'node ./scripts/check-skills.mjs')
   assert.equal(packageJson.devDependencies?.nx, '^22.5.4')
   assert.equal(packageJson.devDependencies?.typescript, '^5.9.3')
   assert.equal(packageJson.devDependencies?.['@biomejs/biome'], '^2.4.8')
@@ -113,8 +122,8 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.match(biomeJson, /Alert/)
   assert.match(biomeJson, /Text/)
   assert.match(biomeJson, /TDS `Txt`/)
-  assert.match(biomeJson, /docs\/engineering\/native-modules-policy\.md/)
-  assert.match(biomeJson, /docs\/engineering\/tds-react-native-index\.md/)
+  assert.match(biomeJson, /docs\/engineering\/frontend-policy\.md/)
+  assert.match(biomeJson, /\.agents\/skills\/core\/tds\/references\/catalog\.md/)
 })
 
 test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in pnpm manifest', async (t) => {
@@ -280,10 +289,14 @@ test('applyRootTemplates wires frontend route checker into root verify', async (
     rootPackageJson.scripts?.['frontend:policy:check'],
     'node ./scripts/verify-frontend-routes.mjs',
   )
+  assert.equal(rootPackageJson.scripts?.['skills:sync'], 'node ./scripts/sync-skills.mjs')
+  assert.equal(rootPackageJson.scripts?.['skills:check'], 'node ./scripts/check-skills.mjs')
   assert.equal(
     rootPackageJson.scripts?.verify,
-    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check',
+    'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check',
   )
+  assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'sync-skills.mjs')), true)
+  assert.equal(await pathExists(path.join(targetRoot, 'scripts', 'check-skills.mjs')), true)
   assert.match(scriptSource, /route-dynamic-segment-dollar/)
   assert.match(scriptSource, /FRONTEND_ENTRY_ROOT/)
   assert.match(scriptSource, /FRONTEND_SOURCE_PAGES_ROOT/)
@@ -340,7 +353,7 @@ test('generated frontend route checker rejects dollar route filenames', async (t
   assert.equal(result.status, 1)
   assert.match(result.stderr, /frontend\/pages\/book\/\$bookId\.tsx/)
   assert.match(result.stderr, /\$param/)
-  assert.match(result.stderr, /docs\/engineering\/granite-ssot\.md/)
+  assert.match(result.stderr, /docs\/engineering\/frontend-policy\.md/)
 })
 
 test('generated frontend route checker rejects dollar route strings', async (t) => {
@@ -363,7 +376,7 @@ test('generated frontend route checker rejects dollar route strings', async (t) 
   assert.equal(result.status, 1)
   assert.match(result.stderr, /frontend\/src\/navigation-bad\.ts/)
   assert.match(result.stderr, /\/\$bookId/)
-  assert.match(result.stderr, /docs\/engineering\/granite-ssot\.md/)
+  assert.match(result.stderr, /docs\/engineering\/frontend-policy\.md/)
 })
 
 test('generated frontend route checker reports every violation in one run', async (t) => {
@@ -393,151 +406,145 @@ test('generated frontend route checker reports every violation in one run', asyn
   assert.match(result.stderr, /frontend\/pages\/book\/\$bookId\.tsx/)
   assert.match(result.stderr, /frontend\/src\/navigation-bad\.ts/)
   assert.match(result.stderr, /\/book\/\$bookId/)
-  assert.match(result.stderr, /docs\/engineering\/granite-ssot\.md/)
+  assert.match(result.stderr, /docs\/engineering\/frontend-policy\.md/)
 })
 
-test('applyDocsTemplates keeps optional workspace docs out of the base copy', async (t) => {
+test('applyDocsTemplates lays down contract docs and adapters without old engineering catalogs', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
   await applyDocsTemplates(targetRoot, tokens)
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const claude = await readFile(path.join(targetRoot, 'CLAUDE.md'), 'utf8')
+  const copilot = await readFile(
+    path.join(targetRoot, '.github', 'copilot-instructions.md'),
+    'utf8',
+  )
   const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
 
-  assert.doesNotMatch(agents, /backoffice-react-best-practices/)
-  assert.doesNotMatch(agents, /server-provider-supabase/)
-  assert.doesNotMatch(agents, /server-provider-cloudflare/)
-  assert.doesNotMatch(agents, /server-provider-firebase/)
-  assert.doesNotMatch(agents, /Boundary types from schema only/)
-  assert.doesNotMatch(docsIndex, /Backoffice React best practices/)
-  assert.doesNotMatch(docsIndex, /Server provider guide/)
+  assert.match(agents, /Repository Contract/)
+  assert.match(agents, /\.agents\/skills\/core\/miniapp\/SKILL\.md/)
+  assert.match(claude, /\.claude\/skills/)
+  assert.match(copilot, /AGENTS\.md/)
+  assert.match(docsIndex, /repo-contract\.md/)
+  assert.match(docsIndex, /frontend-policy\.md/)
+  assert.match(docsIndex, /workspace-topology\.md/)
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'repo-contract.md')),
+    true,
+  )
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'frontend-policy.md')),
+    true,
+  )
+  assert.equal(
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'workspace-topology.md')),
+    true,
+  )
   assert.equal(
     await pathExists(
-      path.join(targetRoot, 'docs', 'engineering', 'backoffice-react-best-practices.md'),
+      path.join(targetRoot, 'docs', 'engineering', 'appsintoss-granite-api-index.md'),
     ),
     false,
   )
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-supabase.md')),
+    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'granite-ssot.md')),
     false,
   )
 })
 
-test('syncOptionalDocsTemplates copies and indexes selected backoffice and server provider docs', async (t) => {
+test('syncGeneratedSkills copies core skills, selected optional skills, and the claude mirror', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('yarn')
 
+  await applyRootTemplates(targetRoot, tokens, ['frontend', 'backoffice', 'server'])
   await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await syncGeneratedSkills(targetRoot, tokens, {
     hasBackoffice: true,
     serverProvider: 'firebase',
     hasTrpc: false,
   })
 
-  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
-  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+  const checkResult = spawnSync(process.execPath, ['./scripts/check-skills.mjs'], {
+    cwd: targetRoot,
+    encoding: 'utf8',
+  })
 
-  assert.match(agents, /backoffice-react-best-practices/)
-  assert.match(agents, /server-provider-firebase/)
-  assert.doesNotMatch(agents, /server-provider-supabase/)
-  assert.doesNotMatch(agents, /server-provider-cloudflare/)
-  assert.doesNotMatch(agents, /server-api-ssot-trpc/)
-  assert.doesNotMatch(agents, /Boundary types from schema only/)
-  assert.match(docsIndex, /Backoffice React best practices/)
-  assert.match(docsIndex, /Server provider guide \(Firebase\)/)
-  assert.doesNotMatch(docsIndex, /Server API SSOT \(tRPC\)/)
+  assert.equal(checkResult.status, 0, checkResult.stderr)
+  assert.equal(
+    await pathExists(path.join(targetRoot, '.agents', 'skills', 'core', 'miniapp', 'SKILL.md')),
+    true,
+  )
   assert.equal(
     await pathExists(
-      path.join(targetRoot, 'docs', 'engineering', 'backoffice-react-best-practices.md'),
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'backoffice-react', 'SKILL.md'),
     ),
     true,
   )
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-firebase.md')),
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'server-firebase', 'SKILL.md'),
+    ),
     true,
   )
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-provider-supabase.md')),
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'server-supabase', 'SKILL.md'),
+    ),
     false,
   )
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-api-ssot-trpc.md')),
-    false,
+    await pathExists(
+      path.join(targetRoot, '.claude', 'skills', 'optional', 'server-firebase', 'SKILL.md'),
+    ),
+    true,
+  )
+  assert.equal(
+    await readFile(
+      path.join(targetRoot, '.agents', 'skills', 'core', 'miniapp', 'references', 'feature-map.md'),
+      'utf8',
+    ),
+    await readFile(
+      path.join(targetRoot, '.claude', 'skills', 'core', 'miniapp', 'references', 'feature-map.md'),
+      'utf8',
+    ),
   )
 })
 
-test('syncOptionalDocsTemplates adds the tRPC boundary type golden rule only when trpc is enabled', async (t) => {
+test('syncGeneratedSkills selects the provider and trpc skills without leaving stale entries', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
   await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await syncGeneratedSkills(targetRoot, tokens, {
     hasBackoffice: false,
     serverProvider: 'cloudflare',
     hasTrpc: true,
   })
 
-  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
-  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
-
-  assert.match(agents, /8\. Boundary types from schema only:/)
-  assert.match(agents, /server-api-ssot-trpc/)
-  assert.match(docsIndex, /Server API SSOT \(tRPC\)/)
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-api-ssot-trpc.md')),
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'server-cloudflare', 'SKILL.md'),
+    ),
     true,
   )
-})
-
-test('syncOptionalDocsTemplates can patch legacy docs files without markers', async (t) => {
-  const targetRoot = await createTempTargetRoot(t)
-  const tokens = createTokens('pnpm')
-
-  await mkdir(path.join(targetRoot, 'docs'), { recursive: true })
-  await writeFile(
-    path.join(targetRoot, 'AGENTS.md'),
-    [
-      '## 어떤 문서를 볼지',
-      '- `docs/engineering/tds-react-native-index.md`',
-      '  - TDS 컴포넌트와 UI 구현 참고',
-      '- `docs/engineering/native-modules-policy.md`',
-      '  - 네이티브 연동 제약과 허용 범위',
-      '',
-    ].join('\n'),
-    'utf8',
-  )
-  await writeFile(
-    path.join(targetRoot, 'docs', 'index.md'),
-    [
-      '## 주요 문서',
-      '- TDS RN index: `engineering/tds-react-native-index.md`',
-      '- Native modules policy: `engineering/native-modules-policy.md`',
-      '',
-    ].join('\n'),
-    'utf8',
-  )
-
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice: true,
-    serverProvider: 'supabase',
-    hasTrpc: true,
-  })
-
-  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
-  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
-
-  assert.match(agents, /optional-doc-links:start/)
-  assert.match(agents, /Boundary types from schema only/)
-  assert.match(agents, /backoffice-react-best-practices/)
-  assert.match(agents, /server-provider-supabase/)
-  assert.match(agents, /server-api-ssot-trpc/)
-  assert.match(docsIndex, /optional-engineering-links:start/)
-  assert.match(docsIndex, /Backoffice React best practices/)
-  assert.match(docsIndex, /Server provider guide \(Supabase\)/)
-  assert.match(docsIndex, /Server API SSOT \(tRPC\)/)
   assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'server-api-ssot-trpc.md')),
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'trpc-boundary', 'SKILL.md'),
+    ),
+    true,
+  )
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'optional', 'server-supabase', 'SKILL.md'),
+    ),
+    false,
+  )
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, '.claude', 'skills', 'optional', 'trpc-boundary', 'SKILL.md'),
+    ),
     true,
   )
 })
@@ -590,7 +597,7 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
   assert.equal(
     packageJson.scripts?.verify,
-    'yarn format:check && yarn lint && yarn typecheck && yarn test && yarn frontend:policy:check',
+    'yarn format:check && yarn lint && yarn typecheck && yarn test && yarn frontend:policy:check && yarn skills:check',
   )
   assert.ok(
     packageJsonSource.indexOf('"packageManager"') < packageJsonSource.indexOf('"workspaces"'),
@@ -707,7 +714,7 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
   )
   assert.equal(
     packageJson.scripts?.verify,
-    'npm run format:check && npm run lint && npm run typecheck && npm run test && npm run frontend:policy:check',
+    'npm run format:check && npm run lint && npm run typecheck && npm run test && npm run frontend:policy:check && npm run skills:check',
   )
   assert.equal(
     await readFile(path.join(targetRoot, 'server', '.npmrc'), 'utf8'),
@@ -771,7 +778,7 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
   )
   assert.equal(
     packageJson.scripts?.verify,
-    'bun run format:check && bun run lint && bun run typecheck && bun run test && bun run frontend:policy:check',
+    'bun run format:check && bun run lint && bun run typecheck && bun run test && bun run frontend:policy:check && bun run skills:check',
   )
   assert.match(serverDbApplyScript, /bunx/)
   assert.match(serverTypecheckScript, /const denoCommand =/)

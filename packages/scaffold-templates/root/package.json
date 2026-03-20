@@ -10,7 +10,9 @@
     "format": "pnpm exec biome format . --write",
     "format:check": "pnpm exec biome format .",
     "lint": "pnpm exec biome lint .",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+    "skills:sync": "node ./scripts/sync-skills.mjs",
+    "skills:check": "node ./scripts/check-skills.mjs",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm frontend:policy:check && pnpm skills:check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",

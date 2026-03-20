@@ -9,7 +9,7 @@ import {
   applyRootTemplates,
   ensureEmptyDirectory,
   pathExists,
-  syncOptionalDocsTemplates,
+  syncGeneratedSkills,
   syncRootWorkspaceManifest,
 } from '../templates/index.js'
 import type { ProvisioningNote } from '../server-project.js'
@@ -166,7 +166,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     )
   }
   await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await syncGeneratedSkills(targetRoot, tokens, {
     hasBackoffice:
       options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
     serverProvider: options.serverProvider,
@@ -351,7 +351,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   )
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await syncGeneratedSkills(targetRoot, tokens, {
     hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
     serverProvider: finalServerProvider,
     hasTrpc: trpcEnabled,
