@@ -97,7 +97,7 @@ async function writeControlRootShims(controlRoot: string) {
     'utf8',
   )
 
-  const hooksDir = path.join(controlRoot, '.bare', 'worktrees', MAIN_WORKTREE_DIRECTORY, 'hooks')
+  const hooksDir = path.join(controlRoot, '.bare', 'hooks')
   await mkdir(hooksDir, { recursive: true })
   const hookPath = path.join(hooksDir, 'post-merge')
   await writeFile(hookPath, createPostMergeHook(), 'utf8')

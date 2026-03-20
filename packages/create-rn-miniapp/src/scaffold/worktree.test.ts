@@ -134,7 +134,7 @@ test('initBareWorktreeLayout creates a bare repo with a main worktree and contro
     )
     assert.match(runGit(controlRoot, ['worktree', 'list', '--porcelain']), /main$/m)
 
-    const hookPath = path.join(controlRoot, '.bare', 'worktrees', 'main', 'hooks', 'post-merge')
+    const hookPath = path.join(controlRoot, '.bare', 'hooks', 'post-merge')
     assert.ok(await stat(hookPath), 'post-merge hook이 존재해야 해요')
     await access(hookPath, constants.X_OK)
     assert.match(await readFile(hookPath, 'utf8'), /git worktree remove/)
