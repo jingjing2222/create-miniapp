@@ -5,6 +5,7 @@ import type { ServerProvider } from '../providers/index.js'
 export function buildRootFinalizePlan(options: {
   targetRoot: string
   packageManager: PackageManager
+  serverProvider: ServerProvider | null
 }) {
   const packageManager = getPackageManagerAdapter(options.packageManager)
   const plan: CommandSpec[] = [
@@ -14,6 +15,14 @@ export function buildRootFinalizePlan(options: {
       label: `루트 ${options.packageManager} 설치하기`,
     },
   ]
+
+  if (options.serverProvider === 'supabase') {
+    plan.push({
+      cwd: options.targetRoot,
+      ...packageManager.runScriptInDirectory('server', 'deno:install'),
+      label: 'server Deno stable 버전 맞추기',
+    })
+  }
 
   if (options.packageManager === 'yarn') {
     plan.push({

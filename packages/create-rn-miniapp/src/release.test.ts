@@ -27,16 +27,21 @@ test('formatDevPublishVersion renders a timestamped prerelease version', () => {
   )
 })
 
-test('prepareDevPublishPackageJsons rewrites both publish manifests to the same dev version', () => {
+test('prepareDevPublishPackageJsons rewrites all publish manifests to the same dev version', () => {
   const prepared = prepareDevPublishPackageJsons({
     version: '0.0.0-dev.20260315090807',
     cliPackageJson: {
       name: 'create-rn-miniapp',
       version: '0.0.9',
       dependencies: {
+        '@create-rn-miniapp/scaffold-skills': 'workspace:*',
         '@create-rn-miniapp/scaffold-templates': 'workspace:*',
         yargs: '^18.0.0',
       },
+    },
+    skillsPackageJson: {
+      name: '@create-rn-miniapp/scaffold-skills',
+      version: '0.0.9',
     },
     templatesPackageJson: {
       name: '@create-rn-miniapp/scaffold-templates',
@@ -45,7 +50,12 @@ test('prepareDevPublishPackageJsons rewrites both publish manifests to the same 
   })
 
   assert.equal(prepared.cliPackageJson.version, '0.0.0-dev.20260315090807')
+  assert.equal(prepared.skillsPackageJson.version, '0.0.0-dev.20260315090807')
   assert.equal(prepared.templatesPackageJson.version, '0.0.0-dev.20260315090807')
+  assert.equal(
+    prepared.cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-skills'],
+    '0.0.0-dev.20260315090807',
+  )
   assert.equal(
     prepared.cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-templates'],
     '0.0.0-dev.20260315090807',
@@ -65,12 +75,19 @@ test('published package names match the released npm packages', () => {
   ) as {
     name: string
   }
+  const skillsPackageJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'packages/scaffold-skills/package.json'), 'utf8'),
+  ) as {
+    name: string
+  }
 
   assert.equal(cliPackageJson.name, 'create-rn-miniapp')
+  assert.equal(cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-skills'], 'workspace:*')
   assert.equal(
     cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-templates'],
     'workspace:*',
   )
+  assert.equal(skillsPackageJson.name, '@create-rn-miniapp/scaffold-skills')
   assert.equal(templatesPackageJson.name, '@create-rn-miniapp/scaffold-templates')
 })
 
@@ -104,7 +121,7 @@ test('changeset files keep valid frontmatter delimiters', () => {
   }
 })
 
-test('scaffold templates tarball keeps the root gitignore template', () => {
+test('scaffold templates tarball keeps the root assets and new contract docs', () => {
   const packJson = execFileSync('npm', ['pack', '--dry-run', '--json'], {
     cwd: path.join(repoRoot, 'packages/scaffold-templates'),
     encoding: 'utf8',
@@ -123,19 +140,7 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     true,
   )
   assert.equal(
-    packResult.files.some((file) => file.path === 'root/pnpm.biome.json'),
-    true,
-  )
-  assert.equal(
-    packResult.files.some((file) => file.path === 'root/yarn.biome.json'),
-    true,
-  )
-  assert.equal(
     packResult.files.some((file) => file.path === 'root/npm.gitignore'),
-    true,
-  )
-  assert.equal(
-    packResult.files.some((file) => file.path === 'root/npm.biome.json'),
     true,
   )
   assert.equal(
@@ -143,11 +148,15 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     true,
   )
   assert.equal(
-    packResult.files.some((file) => file.path === 'root/bun.biome.json'),
+    packResult.files.some((file) => file.path === 'root/yarnrc.yml'),
     true,
   )
   assert.equal(
-    packResult.files.some((file) => file.path === 'root/yarnrc.yml'),
+    packResult.files.some((file) => file.path === 'root/sync-skills.mjs'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'root/check-skills.mjs'),
     true,
   )
   assert.equal(
@@ -155,17 +164,61 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     false,
   )
   assert.equal(
-    packResult.files.some(
-      (file) =>
-        file.path === 'optional/backoffice/docs/engineering/backoffice-react-best-practices.md',
-    ),
+    packResult.files.some((file) => file.path === 'base/.github/copilot-instructions.md'),
     true,
   )
   assert.equal(
+    packResult.files.some((file) => file.path === 'base/CLAUDE.md'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'base/AGENTS.md'),
+    false,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'base/docs/index.md'),
+    false,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'base/docs/engineering/frontend-policy.md'),
+    false,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'base/docs/engineering/workspace-topology.md'),
+    false,
+  )
+  assert.equal(
     packResult.files.some(
-      (file) =>
-        file.path === 'optional/server-supabase/docs/engineering/server-provider-supabase.md',
+      (file) => file.path === 'base/docs/engineering/appsintoss-granite-api-index.md',
     ),
+    false,
+  )
+})
+
+test('scaffold skills tarball keeps flat skill sources', () => {
+  const packJson = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+    cwd: path.join(repoRoot, 'packages/scaffold-skills'),
+    encoding: 'utf8',
+  })
+  const [packResult] = JSON.parse(packJson) as Array<{
+    files: Array<{ path: string }>
+  }>
+
+  assert.ok(packResult)
+  assert.equal(
+    packResult.files.some((file) => file.path === 'miniapp/SKILL.md'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'miniapp/references/feature-map.md'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'server-firebase/SKILL.md'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'trpc-boundary/references/change-flow.md'),
     true,
   )
 })

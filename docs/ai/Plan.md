@@ -1,3 +1,372 @@
+## 다음 작업: README에서 Skill 자동 생성을 더 직접적으로 설명하기
+1. 문제
+   - 현재 README는 실행 컨텍스트 patch 설명 비중이 커서, 이 CLI가 공식 scaffold 위에 문서와 Skill을 자동으로 만들어준다는 가치가 첫 문단에서 약하게 보인다.
+   - `canonical`, `source of truth` 같은 영어식 표현이 남아 있어 한국어 README 톤과도 잘 맞지 않는다.
+2. 방향
+   - README 첫 소개와 핵심 가치 섹션에서 `AGENTS.md`, `CLAUDE.md`, `docs/*`, `.agents/skills`, `.claude/skills` 자동 생성 메시지를 전면에 둔다.
+   - `canonical`, `source of truth` 같은 표현은 `기준`, `자동 생성`, `바로 작업할 수 있는 문서와 Skill` 같은 한국어 표현으로 치환한다.
+3. 테스트
+   - README 관련 템플릿 테스트에서 Skill 자동 생성 강조 문구와 영어식 용어 제거를 먼저 실패 테스트로 고정한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - README만 읽어도 이 CLI가 공식 scaffold 위에 문서와 Skill을 자동으로 만들어준다는 점이 바로 드러난다.
+   - README에서 `canonical`, `source of truth` 표현이 제거된다.
+
+## 다음 작업: scaffold skill 구조를 flat하게 재편하기
+1. 문제
+   - 현재 canonical skill source와 generated mirror가 `core/*`, `optional/*` 중간 디렉터리를 끼고 있어 에이전트가 skill을 찾을 때 인식률이 떨어진다.
+   - generated `.agents/skills/*`, `.claude/skills/*` 경로와 skill reference, asset copy path, tarball/release 테스트도 이 계층 구조에 묶여 있다.
+2. 방향
+   - canonical source `packages/scaffold-skills`부터 flat하게 바꿔서 `miniapp`, `granite`, `tds`, `server-supabase` 같은 디렉터리가 바로 루트 아래 오게 만든다.
+   - generated mirror도 `.agents/skills/<skill-id>`, `.claude/skills/<skill-id>`로 맞추고, docs/render/patching/release/test의 경로 참조를 shared metadata 기준으로 모두 갱신한다.
+3. 테스트
+   - `src/templates/index.test.ts`, `src/scaffold/index.test.ts`, `src/release.test.ts`에서 flat skill path를 기대하는 red 테스트를 먼저 만든다.
+   - red를 확인한 뒤 source/mirror/asset/release 경로를 바꾸고 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - canonical source와 generated mirror 모두 `core/optional` 없는 flat skill 구조를 사용한다.
+   - `.agents/skills/tds/SKILL.md`, `.claude/skills/tds/SKILL.md` 같은 경로가 실제 생성된다.
+   - docs, patching, release/test 경로가 새 flat 구조와 일치한다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: generated supabase-install-deno script parse bug 고치기
+1. 문제
+   - generated `server/scripts/supabase-install-deno.mjs`가 `String.raw` 기반 렌더링 때문에 템플릿 리터럴 backtick 앞의 `\`까지 그대로 출력하고 있다.
+   - 그 결과 scaffold된 repo에서 `node ./scripts/supabase-install-deno.mjs`는 실행 전에 parse 단계에서 `SyntaxError: Invalid or unexpected token`으로 죽는다.
+2. 방향
+   - generated installer script를 실제 Node parser로 검증하는 회귀 테스트를 추가한다.
+   - renderer는 템플릿 리터럴 source를 만들되 output 파일에 `\``가 남지 않도록 string 조립 방식을 바꾼다.
+3. 테스트
+   - `src/templates/index.test.ts`에서 generated `supabase-install-deno.mjs`를 temp file로 써서 `node --check`가 실패하는 red 테스트를 먼저 만든다.
+   - 수정 후 same test와 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - generated `supabase-install-deno.mjs`가 `node --check`를 통과한다.
+   - scaffold된 repo에서 `deno:install`이 parse error 없이 실행 시작 단계까지 간다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: Supabase scaffold Deno 확보 정책을 stable로 고치기
+1. 문제
+   - 현재 Supabase scaffold finalize와 generated installer message는 Deno를 `latest`로 설치/업그레이드한다고 설명한다.
+   - 사용자 요구는 `latest`가 아니라 `stable` 채널 기준이어야 하고, 기존 Deno가 있을 때도 `stable`로 맞추는 동작이 더 명확해야 한다.
+2. 방향
+   - Supabase finalize step label과 generated installer/readme description을 `stable` 기준으로 바꾼다.
+   - generated installer script는 기존 Deno가 있으면 `deno upgrade stable`을 실행하게 하고, 신규 설치 경로도 stable release를 설치한다는 메시지로 맞춘다.
+3. 테스트
+   - `src/scaffold/index.test.ts`에서 Supabase finalize step label이 stable 기준인 red 테스트로 먼저 바꾼다.
+   - `src/templates/index.test.ts`에서 generated install script가 `stable` upgrade path를 쓰고 `latest` wording을 남기지 않는 red 테스트로 먼저 바꾼다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - Supabase 선택 생성물은 generated repo 관점에서 Deno stable 채널을 설치/업그레이드한다.
+   - 사용자-facing label/message에 `latest` 표현이 남지 않는다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: Supabase scaffold가 Deno latest를 자동 확보하게 만들기
+1. 문제
+   - Supabase server scaffold는 `deno check`를 쓰는 typecheck 스크립트를 만들지만, 생성 시점에 Deno runtime을 확보하지 않아 generated repo에서 바로 `typecheck`가 깨질 수 있다.
+   - 특히 같은 셸 세션에서는 PATH에 `deno`가 없을 수 있어서, 단순 안내 문구만으로는 scaffold 직후 사용성이 보장되지 않는다.
+2. 방향
+   - Supabase server에 `deno:install` script와 installer script를 생성하고, root finalize plan은 Supabase 선택 시 이를 실행해 최신 Deno를 설치 또는 업그레이드한다.
+   - Supabase functions typecheck script는 PATH의 `deno`뿐 아니라 기본 설치 경로(`~/.deno/bin/deno` 등)도 fallback으로 찾게 만든다.
+3. 테스트
+   - `src/scaffold/index.test.ts`에 Supabase finalize plan이 Deno install step을 포함하는 red 테스트를 먼저 추가한다.
+   - `src/templates/index.test.ts`에 Supabase server script 생성물에 `deno:install`과 fallback resolution이 들어가는 red 테스트를 먼저 추가한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - Supabase 선택 생성물은 scaffold 과정에서 최신 Deno 설치/업그레이드 step을 가진다.
+   - generated Supabase typecheck script는 PATH 미반영 상태에서도 기본 설치 경로를 fallback으로 사용할 수 있다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: generated route checker가 biome unsafe fix 뒤에도 깨지지 않게 만들기
+1. 문제
+   - `scripts/verify-frontend-routes.mjs`는 생성 직후에는 유효하지만, generated repo에서 `biome check . --write --unsafe`를 돌리면 `new RegExp("...")`가 잘못된 regex literal로 바뀌어 parse error가 난다.
+   - 현재 테스트는 generated script의 동작만 확인하고, scaffold 직후 루트 biome 정리 단계를 거친 뒤에도 script가 살아있는지는 고정하지 않는다.
+2. 방향
+   - generated root에 실제 `biome check . --write --unsafe`를 적용하는 실패 테스트를 먼저 추가한다.
+   - route checker는 Biome의 unsafe regex-literal 변환 대상이 되지 않도록 regex source 상수와 `new RegExp(variable, flags)` 조합으로 렌더한다.
+3. 완료 기준
+   - generated root에서 `biome check . --write --unsafe`가 parse error 없이 끝난다.
+   - unsafe fix 이후에도 `scripts/verify-frontend-routes.mjs`가 실행 가능하다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: 남은 doc/script/onboarding/trpc metadata 중복 정리
+1. 문제
+   - code-owned doc manifest가 생겼지만 `AGENTS.md`와 `docs/index.md`의 Start Here / engineering 문서 목록은 아직 함수 안에 따로 박혀 있다.
+   - tRPC workspace path와 root helper script 이름이 `templates/*`, `patching/*`, CLI 요약, template 문서에 흩어져 있다.
+   - secondary agent docs와 starter page가 `AGENTS.md` 밖에서 onboarding 순서를 다시 적고 있고, frontend policy도 restriction surface를 여러 mini-manifest로 쪼개 들고 있다.
+2. 방향
+   - 문서 manifest를 code-owned/copy-owned 전체 관점으로 넓혀서 Start Here, engineering doc list, copy skip set을 같은 정의에서 파생시킨다.
+   - tRPC workspace metadata와 root helper script catalog를 shared 모듈로 올리고, CLI 요약 / patching / template 문서 / generated messages가 그 정의만 사용하게 만든다.
+   - `CLAUDE.md`, Copilot instructions, starter copy는 generated `AGENTS.md`와 `repo-contract.md`를 참조만 하게 줄인다.
+   - frontend policy는 restriction manifest 하나에서 prose, Biome message, direct native import pattern message를 같이 만든다.
+3. 테스트
+   - `src/templates/index.test.ts`에 문서 manifest 파생, tRPC path reuse, helper script catalog tokenization, agent doc deferral, starter onboarding deferral, frontend restriction manifest red 테스트를 먼저 추가한다.
+   - red를 확인한 뒤 구현하고 `pnpm verify`까지 통과한다.
+4. 완료 기준
+   - code-owned doc inventory와 rendered doc list가 같은 manifest를 source of truth로 쓴다.
+   - tRPC workspace path와 root helper script 이름을 바꿀 때 production file 여러 곳을 수동으로 같이 고치지 않아도 된다.
+   - secondary agent docs / starter copy가 onboarding 순서를 다시 적지 않는다.
+   - frontend policy restriction surface가 단일 manifest에서 파생된다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: 남은 repo contract / frontend policy / tRPC metadata 중복 정리
+1. 문제
+   - frontend policy는 문서 renderer와 route verify script가 같은 규칙을 따로 들고 있고, core skill entrypoint도 policy module에 다시 하드코딩돼 있다.
+   - code-owned `AGENTS.md`가 `repo-contract.md`와 같은 hard rule / done 기준을 다시 적고 있어 generated contract가 둘로 나뉜다.
+   - tRPC workspace identity가 `feature-catalog.ts`, `templates/trpc.ts`, `patching/server.ts`에 흩어져 있고, `docs.ts` 안에서도 code-owned doc inventory를 skip set과 write 호출로 두 번 관리한다.
+2. 방향
+   - core skill reference path와 frontend route verifier source를 shared metadata에서 파생시키고, `verify-frontend-routes.mjs`는 template 복사가 아니라 code-owned renderer로 생성한다.
+   - `AGENTS.md`는 repo-contract를 요약/참조만 하게 줄여서 detailed contract는 `docs/engineering/repo-contract.md` 한 곳이 소유하게 만든다.
+   - tRPC workspace 문구와 source-of-truth 설명은 `templates/trpc.ts`의 shared descriptor에서 feature catalog와 server README가 같이 가져오게 바꾼다.
+   - code-owned docs는 단일 definition manifest에서 skip 대상과 write 대상을 함께 계산한다.
+3. 테스트
+   - `src/templates/index.test.ts`에 core skill path, route verifier ownership, AGENTS contract delegation, tRPC descriptor import, code-owned docs manifest 회귀 테스트를 먼저 추가한다.
+   - red를 확인한 뒤 구현하고 `pnpm verify`까지 통과한다.
+4. 완료 기준
+   - frontend policy / verifier / core skill reference path가 단일 source를 가진다.
+   - repo contract detailed rules는 `repo-contract.md` 한 곳이 소유한다.
+   - tRPC workspace identity를 바꿀 때 docs/README/server patch를 여러 파일에서 따로 수정하지 않아도 된다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: code-owned docs와 feature catalog를 단일 source로 정리
+1. 문제
+   - `AGENTS.md`, `docs/index.md`, `workspace-topology.md`, `frontend-policy.md`가 template markdown와 renderer code 사이에 반쯤 걸쳐 있어 section identity와 정책 wording이 둘 이상에서 관리된다.
+   - optional workspace/skill catalog가 `docs.ts`와 `skills.ts`에 따로 있어 feature 추가나 rename 시 함께 바꿔야 한다.
+   - 루트 `README.md`가 generated tree, helper scripts, provider별 파일/env 세부사항을 다시 적고 있어 생성 결과물과 drift할 수 있다.
+2. 방향
+   - dynamic docs와 frontend policy를 code-owned renderer로 올리고, scaffold template package에서는 해당 markdown source를 제거한다.
+   - optional feature metadata를 shared catalog 모듈로 옮겨 docs/skills가 같은 정의를 사용하게 만든다.
+   - root README는 exact generated output 설명을 줄이고, 생성된 repo 문서를 source of truth로만 가리키게 정리한다.
+3. 테스트
+   - `src/templates/index.test.ts`의 새 red 테스트를 먼저 통과시킨다.
+   - scaffold template tarball/release 테스트를 현재 source ownership에 맞게 갱신한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - code-owned docs가 template markdown 없이 생성된다.
+   - optional feature catalog가 한 곳에서만 관리된다.
+   - README가 generated file/env/script catalog를 별도로 들고 있지 않다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: main 대비 diff 기준 minor changeset과 한국어 PR 초안 정리
+1. 문제
+   - 현재 브랜치는 skill 기반 scaffold 구조, dynamic docs, runtime 실분리까지 포함해 publish 대상 패키지 변경 폭이 크다.
+   - 릴리스 전에는 diff 기준으로 실제 영향 패키지를 묶어 한국어 changeset과 PR 설명을 맞춰야 한다.
+2. 방향
+   - `origin/main...HEAD` diff와 publish 대상 package manifest를 기준으로 변경 범위를 요약한다.
+   - `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates`, `@create-rn-miniapp/scaffold-skills`에 minor changeset을 한국어로 추가한다.
+   - `pnpm verify`를 다시 실행한 뒤, 같은 diff 기준으로 한국어 PR 초안을 작성한다.
+3. 완료 기준
+   - minor changeset이 한국어로 추가된다.
+   - `pnpm verify`를 통과한다.
+   - PR 초안이 main 대비 변경을 정확히 반영한다.
+
+## 다음 작업: runtime 실분리 후 남은 barrel 우회와 duplicated resolver 정리
+1. 문제
+   - `runtime.ts`는 없어졌지만 leaf 구현 파일 일부가 아직 `templates/index.ts` 같은 public barrel을 내부에서 다시 타고 있다.
+   - `module-surface.test.ts`도 direct-import contract를 검증하지 않아 이런 우회가 테스트를 통과한다.
+   - `resolveTemplatesPackageRoot()`가 `templates/filesystem.ts`에 올라갔는데 `patching/frontend.ts`, `patching/server.ts`에 중복으로 남아 있다.
+2. 방향
+   - non-test source가 `templates/index.js`, `patching/index.js`를 내부 import하지 못하게 실패 테스트부터 추가한다.
+   - `patching/*`, `providers/*/provision.ts`, `patching/ast/granite.ts`, `templates/trpc.ts`를 concrete module import로 바꾼다.
+   - duplicated template root resolver는 `templates/filesystem.ts` export를 직접 쓰도록 정리한다.
+3. 완료 기준
+   - internal barrel import가 사라지고 regression test가 이를 고정한다.
+   - duplicated resolver helper가 제거된다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: index.ts 외 re-export 금지 규칙으로 area facade를 직접 export 모듈로 바꾸기
+1. 문제
+   - 방금 쪼갠 `templates/docs.ts`, `templates/root.ts`, `patching/frontend.ts` 같은 area 모듈이 여전히 `export ... from './runtime.js'` 형태의 re-export 파일이다.
+   - 사용자는 `index.ts`를 제외한 모든 파일에서 re-export가 없어야 한다고 명시했고, 지금 상태는 그 규칙을 어긴다.
+2. 방향
+   - non-`index.ts` 파일의 `export ... from` / `export type ... from`를 전수조사한다.
+   - 이 파일들은 runtime import 후 직접 function/type/const를 export 하도록 바꾼다.
+   - `index.ts`만 public barrel re-export로 남기고, 나머지는 직접 선언 또는 wrapper export만 사용한다.
+3. 테스트
+   - `src` 전체를 스캔해서 non-`index.ts` 파일에 re-export 구문이 없다는 실패 테스트를 먼저 추가한다.
+   - 수정 후 targeted test와 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - `index.ts`를 제외한 `src` 모든 파일에서 re-export 구문이 사라진다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: templates/patching 진입점을 area facade로 쪼개서 실행 흐름을 읽히게 만들기
+1. 문제
+   - `templates/index.ts`, `patching/index.ts`가 각각 2천 줄이 넘어, 실제 orchestration entrypoint는 `scaffold/index.ts`, `providers/index.ts`인데도 호출 경로가 한눈에 보이지 않는다.
+   - 지금 구조에서는 root/docs/skills/server/frontend/backoffice/provider patch 책임이 한 파일 안에 섞여 있어, "어디가 실행부인지"를 찾으려면 거대한 파일 전체를 읽어야 한다.
+2. 방향
+   - 실제 동작은 바꾸지 않고 기존 로직 파일을 `runtime.ts`로 격리한다.
+   - `templates/root.ts`, `templates/docs.ts`, `templates/skills.ts`, `templates/server.ts`, `templates/filesystem.ts` 같은 area facade를 추가하고, `templates/index.ts`는 re-export 전용 얇은 facade로 줄인다.
+   - `patching/frontend.ts`, `patching/backoffice.ts`, `patching/server.ts`를 추가하고, `patching/index.ts`도 re-export 전용 얇은 facade로 줄인다.
+   - `scaffold/index.ts`, `providers/index.ts`, 관련 helper는 가능하면 `index.ts`가 아니라 area facade를 직접 import해서 실행 흐름이 import graph만 봐도 드러나게 만든다.
+3. 테스트
+   - 기존 template/patching/scaffold/provider 테스트가 그대로 통과해야 한다.
+   - skill sync 테스트는 docs setup이 없는 현재 형태를 유지한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - `templates/index.ts`, `patching/index.ts`가 얇은 facade가 된다.
+   - 실행 entrypoint 파일에서 area별 import가 직접 드러난다.
+   - 동작 변경 없이 `pnpm verify`를 통과한다.
+
+## 다음 작업: dynamic doc anchor와 provider script catalog를 다시 단일화하기
+1. 문제
+   - `AGENTS.md`, `docs/index.md`, `workspace-topology.md`의 dynamic section은 heading wording은 줄었지만 template token과 renderer definition이 여전히 같은 section identity를 양쪽에서 들고 있다.
+   - Supabase/Cloudflare/Firebase server README는 `server/package.json` scripts와 같은 catalog를 prose로 다시 적고 있어 script rename/change 시 문서와 생성물이 같이 drift할 수 있다.
+   - `package-manager.ts`의 `rootVerifyScript()`는 더 이상 실제 verify source가 아닌데 adapter interface와 구현에 남아 있어 dead second source가 됐다.
+   - root README도 generated repo onboarding 순서를 `AGENTS.md`와 별도로 다시 설명해 이미 순서가 어긋나 있다.
+2. 방향
+   - dynamic docs는 template literal token에 section anchor를 맡기지 않고, empty section slot를 순서 기반으로 채우거나 code-owned renderer로 올려 section identity를 한 군데로 줄인다.
+   - provider별 server script catalog를 shared metadata/helper로 올리고, `server/package.json` scripts와 README의 `주요 스크립트`가 같은 metadata에서 렌더되게 만든다.
+   - `package-manager.ts`에서 더 이상 쓰이지 않는 `rootVerifyScript()` interface/implementation을 제거한다.
+   - README onboarding 문구는 generated `AGENTS.md`의 `Start Here`를 source of truth로만 가리키게 줄인다.
+3. 테스트
+   - dynamic doc template source에 section anchor token이 남아 있지 않고 empty section 기반으로 렌더된다는 실패 테스트를 먼저 추가한다.
+   - provider README의 script bullets가 shared script catalog helper와 일치한다는 실패 테스트를 추가한다.
+   - adapter가 legacy `rootVerifyScript`를 더 이상 노출하지 않는지와 README가 `AGENTS.md` `Start Here`를 참조하는지 고정한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - dynamic doc section identity가 template token과 renderer 양쪽에서 따로 관리되지 않는다.
+   - provider server README와 generated scripts가 같은 metadata를 공유한다.
+   - `rootVerifyScript()` dead source가 제거된다.
+   - README onboarding 순서가 `AGENTS.md`와 다시 단일화된다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: verify/doc anchor/package manager source를 다시 단일화하기
+1. 문제
+   - root verify 파이프라인은 generator code가 소유하지만, `docs/index.md`와 `docs/engineering/repo-contract.md`가 같은 단계 목록을 별도로 열거해 관리 포인트가 둘 이상이다.
+   - dynamic markdown 문서는 visible heading 문자열을 code와 template 양쪽에서 같이 들고 있어, 섹션 이름이나 depth를 바꾸면 둘을 동시에 수정해야 한다.
+   - root template `package.json`은 실제 source of truth가 아닌 pnpm version literal을 들고 있고, package manager/version/verify 기대값도 여러 테스트 파일에 하드코딩되어 있다.
+2. 방향
+   - verify 단계 목록을 공통 metadata로 올리고, root `package.json` scripts와 verify 관련 문서가 같은 metadata에서 렌더되게 만든다.
+   - dynamic doc section heading은 template literal이 아니라 공통 anchor metadata에서 token으로 주입해, visible heading wording을 한 군데서만 관리한다.
+   - root template `package.json`은 package manager version literal을 제거하고 generator patch 단계 또는 token으로만 채운다.
+   - 테스트는 package manager adapter와 shared helper를 써서 version/verify/user-agent 기대값을 조합하고, raw literal 반복을 줄인다.
+3. 테스트
+   - verify 문서 섹션과 generated root verify script가 같은 source를 공유하는 실패 테스트를 먼저 추가한다.
+   - dynamic doc template heading이 hardcoded literal이 아니라 shared anchor token으로 유지되는지 실패 테스트를 추가한다.
+   - root package template에 concrete package manager version이 남아 있지 않은지, package-manager 관련 테스트가 shared helper를 통해 기대값을 계산하는지 확인한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - verify 단계 정의가 code와 generated docs 사이에서 한 군데만 관리된다.
+   - dynamic doc heading wording을 바꿀 때 template와 renderer를 각각 손보지 않아도 된다.
+   - root template와 테스트에서 package manager version/verify literal 중복이 줄어든다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: scaffold metadata를 단일 source로 더 끌어올리기
+1. 문제
+   - dynamic doc section body가 renderer 코드와 markdown template 양쪽에 남아 있어 wording drift가 생길 수 있다.
+   - workspace 설명은 root/topology/roles/ownership에 나뉘어 있고, root biome 정책도 package manager별 template에 복제되어 이미 npm variant가 drift했다.
+   - root `package.json` scripts는 template과 generator code 양쪽에 있고, starter onboarding copy와 README도 generated contract/skill entrypoint를 따로 열거한다.
+2. 방향
+   - `AGENTS.md`, `docs/index.md`, `workspace-topology.md`의 동적 section은 heading만 남기고 body는 renderer code만 소유하게 바꾼다.
+   - workspace/skill/start-here/root-scripts/biome policy를 공통 metadata와 renderer 함수로 모으고, package manager별 차이는 include/exclude 같은 adapter 값만 남긴다.
+   - README는 exact generated catalog를 직접 열거하지 않고, generated repo의 `AGENTS.md`/`docs/index.md`를 SSOT로 안내한다.
+   - starter page 안내 문구는 `AGENTS.md`의 Start Here와 같은 metadata를 공유하게 만든다.
+3. 테스트
+   - dynamic doc template section body empty, root package template script 부재, package-manager별 shared biome guidance 일치 테스트를 먼저 실패시키고 통과시킨다.
+   - 기존 docs/skills/root template 테스트와 함께 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - 동적 section 본문, root scripts, biome policy, onboarding entrypoint가 각각 단일 source를 가진다.
+   - README가 generated skill/script catalog를 별도 열거하지 않는다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: dynamic docs/skills 메타데이터를 한 군데로 모으고 렌더 경로를 단일화하기
+1. 문제
+   - `renderDynamicMarkdownSource()`가 optional 문구를 최종 prose 문자열로 판별해 wording이 조금만 바뀌어도 필터가 깨질 수 있다.
+   - optional skill 목록이 실제 skill sync, `AGENTS.md`, `docs/index.md`, `workspace-topology.md`에 각각 흩어져 있어 rename/add/remove 시 문서와 생성물이 쉽게 어긋난다.
+   - `applyDocsTemplates()`도 `docs/` 통복사 후 일부 문서를 다시 렌더링하는 이중 경로라 동적 문서가 늘어날수록 관리 포인트가 늘어난다.
+   - skill sync 테스트는 docs 렌더를 선행 호출해, 테스트 책임보다 넓은 setup 때문에 실패 원인을 흐린다.
+2. 방향
+   - core/optional skill catalog와 workspace/doc section metadata를 한 manifest 계층으로 올린다.
+   - dynamic markdown은 prose 비교로 node를 지우지 않고, 섹션 단위 body를 AST로 교체하는 방식으로 렌더링한다.
+   - `applyDocsTemplates()`는 dynamic docs를 bulk copy 대상에서 제외하고, 명시된 dynamic doc 목록만 별도 렌더링한다.
+   - `syncGeneratedSkills()` 테스트는 docs setup 없이 skill sync 책임만 검증하게 줄인다.
+3. 테스트
+   - 기존 base-only / selected optional / backoffice-only / rerender-after-add 문서 테스트가 그대로 통과해야 한다.
+   - 기존 skill sync 테스트는 docs setup 없이도 `.agents/.claude` mirror와 optional skill selection을 검증해야 한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - optional docs filtering이 template prose 변경에 직접 결합되지 않는다.
+   - skill catalog의 source of truth가 문서와 skill sync 사이에서 한 군데로 모인다.
+   - dynamic docs가 통복사 경로와 별도 덮어쓰기 경로로 이중 관리되지 않는다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: markdown AST 문서 렌더 후속 리뷰 지적 2건 수정하기
+1. 문제
+   - base-only scaffold에서 `docs/engineering/workspace-topology.md`에 빈 `- import boundary:` bullet이 남는다.
+   - backoffice-only scaffold에서 실제 `server/` workspace가 없는데도 `backoffice ↔ server 직접 import 금지`가 남아 no-server 출력 요구를 깨뜨린다.
+2. 방향
+   - 두 현상을 실제 generated markdown 기준으로 재현하는 테스트를 먼저 추가한다.
+   - `workspace-topology` AST 필터에서 parent list item의 자식 제거 여부를 문자열 비교가 아니라 child structure 기준으로 판단한다.
+   - backoffice 관련 bullet 중 server workspace를 전제로 하는 문구는 `hasBackoffice`만이 아니라 실제 server 존재 조건도 함께 보게 수정한다.
+3. 테스트
+   - base-only docs 렌더 테스트에 `import boundary:` 잔재 부재를 실패 테스트로 추가한다.
+   - backoffice-only docs 렌더 테스트를 추가해 `server` 관련 문구와 `backoffice ↔ server` 경계 문장이 없는지 확인한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - base-only 출력에 빈 `import boundary:` bullet이 남지 않는다.
+   - backoffice-only 출력에 존재하지 않는 `server` workspace를 전제한 문구가 남지 않는다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: optional workspace에 맞춰 계약 문서와 skill 라우팅도 markdown AST 기준으로 동적 생성하기
+1. 문제
+   - 지금 워킹트리의 동적 문서 렌더링은 marker comment를 템플릿 본문에 심고 string replace로 잘라내는 방식이라 템플릿 가독성이 떨어지고 유지보수성이 약하다.
+   - 그래서 `server`를 만들지 않은 생성물에도 `server` workspace, provider skill, tRPC boundary 같은 optional 내용을 동적으로 관리해야 한다는 요구는 맞지만, 구현 방식은 markdown source를 오염시키지 않는 쪽으로 바꿔야 한다.
+   - `--add` 이후에도 문서가 현재 구조를 정확히 설명해야 하므로, 생성 옵션이 아니라 rerender 시점의 실제 workspace 상태를 기준으로 문서를 다시 계산해야 한다.
+2. 방향
+   - 템플릿 markdown은 marker 없이 사람이 읽기 좋은 정적 문서로 유지한다.
+   - 생성 시점에는 markdown AST를 파싱해 heading, list item, paragraph 단위로 optional node를 걸러낸다.
+   - `server`, `backoffice`, `trpc` 유무와 provider 종류는 target root의 실제 workspace 존재 여부와 현재 provider/trpc 설정을 합쳐 계산한다.
+   - `scaffoldWorkspace`와 `addWorkspaces` 모두 같은 context resolver + AST renderer를 호출해, 최초 생성과 `--add`가 동일한 결과를 내게 한다.
+3. 테스트
+   - template 테스트에서 template source에 optional marker comment가 남아 있지 않다는 실패 테스트를 먼저 추가한다.
+   - `server` 미생성 시 `AGENTS.md`와 문서에 server/provider/trpc 언급이 없는지, 그리고 실제 workspace 디렉터리 상태에서 context가 계산되는지 실패 테스트로 고정한다.
+   - `--add` 성격의 재렌더 테스트를 추가해, server/backoffice/trpc가 생긴 뒤 문서와 skill 라우팅이 다시 확장되는지 확인한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - optional workspace를 만들지 않은 생성물에 해당 workspace 설명과 skill 라우팅이 남지 않는다.
+   - `--add` 후에는 문서와 skill 라우팅이 현재 workspace 구조에 맞춰 다시 생성된다.
+   - 템플릿 markdown source에는 optional marker comment가 남아 있지 않다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: Skills 마이그레이션 리뷰 후속 정리와 체크리스트 라인 감사
+1. 문제
+   - 리뷰에서 남은 쟁점은 `.claude/skills` mirror 자동 생성 사실이 README와 조합 테스트에 충분히 고정되지 않았다는 점, stale `syncOptionalDocsTemplates` 래퍼가 남아 있다는 점, 체크리스트를 글자 그대로 보면 아직 미검증 항목이 있다는 점이다.
+   - 특히 Phase 9는 helper 단위 테스트만으로는 부족하고, base/backoffice/provider/trpc 조합별 generated docs/skills tree와 old engineering docs 부재를 실제 트리 기준으로 다시 고정할 필요가 있다.
+2. 방향
+   - `.claude/skills`는 사용자 수동 동기화 전제가 아니라 scaffold 시점에 같이 생성된다는 점을 코드/테스트/README에서 명확히 한다.
+   - `templates/index.ts`의 구 optional docs 용어를 정리하고, 조합별 generated tree 테스트를 추가해 docs tree / skills tree / mirror equality / optional skill presence를 한 번에 확인한다.
+   - 루트 체크리스트 문서는 라인 단위로 다시 대조해, 실제 완료된 항목은 체크하고 남은 항목은 그대로 드러내도록 갱신한다.
+3. 테스트
+   - `packages/create-rn-miniapp/src/scaffold/index.test.ts`에 6개 scaffold 조합 generated tree 검증을 추가한다.
+   - 기존 template/release 테스트와 함께 `pnpm verify`를 다시 실행한다.
+4. 완료 기준
+   - `.claude/skills` mirror 자동 생성이 테스트와 README로 고정된다.
+   - stale optional docs 래퍼/용어가 제거된다.
+   - 체크리스트가 현재 상태를 line-by-line으로 반영한다.
+   - `pnpm verify`를 통과한다.
+
+## 다음 작업: 0.1.0-rc.0 준비용 Skills 중심 스캐폴드 마이그레이션
+1. 문제
+   - 현재 생성물은 `AGENTS.md + docs/engineering + optional engineering docs` 중심 구조라, 반복 플레이북/외부 플랫폼 카탈로그와 강제 규칙이 한곳에 섞여 있다.
+   - 실제 생성 구조에는 `CLAUDE.md`, `.github/copilot-instructions.md`, `.agents/skills`, `.claude/skills`가 없어서 agent adapter와 canonical skill corpus를 릴리스 기준으로 설명하기 어렵다.
+   - 생성기 코드도 optional doc marker 삽입에 기대고 있어, skill source/mirror를 기준으로 구조를 확장하기 어렵다.
+2. 방향
+   - 계약 문서와 skill corpus의 책임을 분리하고, 생성 결과를 기준으로 문서/테스트를 함께 갱신한다.
+   - `packages/scaffold-templates`는 계약 문서와 실제 workspace asset만 남기고, `packages/scaffold-skills`를 새 canonical source로 추가한다.
+   - 생성기는 contract/docs/skills/workspace asset 렌더링 책임으로 쪼개고, `.agents/skills` 정본과 `.claude/skills` mirror를 함께 생성한다.
+   - `verify`에는 skills mirror drift 검사를 추가하고, README/테스트/스냅샷을 새 출력 구조 기준으로 갱신한다.
+3. 테스트
+   - 템플릿 테스트에서 base scaffold가 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/engineering/{repo-contract,frontend-policy,workspace-topology}.md`, `.agents/skills/{miniapp,granite,tds}`, `.claude/skills/*`를 생성하는지 먼저 실패 테스트로 고정한다.
+   - optional 조합 테스트에서 선택한 feature에 맞는 optional skill만 생기고, 기존 engineering 카탈로그 문서는 생성되지 않는지 고정한다.
+   - `scripts/check-skills.mjs` 테스트와 `release` 테스트에서 새 package/file publish 구성이 유지되는지 검증한다.
+   - 최종적으로 `pnpm verify`를 통과한다.
+4. 제외 범위
+   - 이번 작업에서는 publish version bump, changeset 작성, 실제 `0.1.0-rc.0` 배포 실행은 하지 않는다.
+   - 이미 존재하는 unrelated untracked 파일(`docs/superpowers/`)은 건드리지 않는다.
+5. 완료 기준
+   - 생성물 루트에 계약/adapter/docs/skills 구조가 체크리스트와 일치하게 생성된다.
+   - old engineering 문서 체계와 marker 기반 optional doc 삽입 로직이 제거된다.
+   - `.claude/skills` mirror drift가 `pnpm verify`에서 검출된다.
+   - README와 테스트가 새 구조를 기준으로 설명/검증한다.
+
 ## 다음 작업: Supabase 기존 프로젝트 skip 경로에서 generated Biome/schema와 `.mjs` 스크립트 문법을 정상화하기
 1. 문제
    - 기존 Supabase 프로젝트에서 원격 초기화를 건너뛴 뒤 generated root `biome.json`이 CLI `2.4.8`과 다른 `2.4.7` schema를 가리켜 root `biome check`가 깨진다.
@@ -2567,4 +2936,23 @@ docs/
    - server provider별로 해당 문서와 링크만 생기는지 검증
    - marker가 없는 예전 문서에도 optional 링크를 삽입할 수 있는지 검증
 7. 완료 기준
+   - `pnpm verify` 통과
+
+## 현재 non-index forwarding module 제거
+1. `index.ts`를 제외한 source module은 다른 파일 export를 forwarding하지 않는다.
+2. `templates/*`, `patching/*`의 facade 파일은 삭제하고 호출부가 실제 구현 파일(`runtime.ts` 등)을 직접 import 하도록 바꾼다.
+3. 테스트 범위
+   - non-`index.ts` 파일에 `export ... from`이 없는지 검증
+   - non-`index.ts` pure forwarding facade module이 존재하면 실패하도록 검증
+4. 완료 기준
+   - `pnpm verify` 통과
+
+## 현재 runtime monolith 실분리
+1. `templates/runtime.ts`, `patching/runtime.ts` 같은 집합 구현 파일을 제거한다.
+2. `templates/docs.ts`, `templates/root.ts`, `templates/server.ts`, `templates/filesystem.ts`, `templates/skills.ts`, `templates/types.ts`, `templates/trpc-entry.ts`, `patching/frontend.ts`, `patching/backoffice.ts`, `patching/server.ts`가 각자 구현을 직접 가진다.
+3. 호출부는 re-export/facade를 거치지 않고 해당 구현 파일을 직접 import 한다.
+4. 테스트 범위
+   - `runtime.ts` 집합 구현 파일이 남아 있으면 실패
+   - non-`index.ts` forwarding facade 금지 규칙 유지
+5. 완료 기준
    - `pnpm verify` 통과

@@ -4,6 +4,11 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
+  createCloudflareServerScriptCatalog,
+  createFirebaseServerScriptCatalog,
+  createSupabaseServerScriptCatalog,
+} from '../server-script-catalog.js'
+import {
   patchBackofficeWorkspace,
   patchCloudflareServerWorkspace,
   patchFirebaseServerWorkspace,
@@ -31,6 +36,10 @@ async function pathExists(targetPath: string) {
   } catch {
     return false
   }
+}
+
+function extractReadmeScriptNames(readme: string) {
+  return Array.from(readme.matchAll(/- `cd server && [^`]+ ([a-z0-9:-]+)`:/g), (match) => match[1])
 }
 
 test('patchFrontendWorkspace keeps supabase bootstrap out when no server provider is selected', async (t) => {
@@ -339,7 +348,11 @@ test('patchFrontendWorkspace replaces Granite starter pages that use touchables'
   assert.doesNotMatch(indexPage, /const STARTER_HERO_LOTTIE = \{/)
   assert.doesNotMatch(indexPage, /AppInToss MiniApp starter/)
   assert.match(indexPage, /안내 페이지 보기/)
-  assert.match(indexPage, /먼저 이 순서로 보면 돼요/)
+  assert.match(indexPage, /먼저 여기부터 보면 돼요/)
+  assert.match(indexPage, /`AGENTS\.md`의 `Start Here`/)
+  assert.match(aboutPage, /`AGENTS\.md`의 `Start Here`/)
+  assert.doesNotMatch(indexPage, /docs\/index\.md`, `\.agents\/skills\/miniapp\/SKILL\.md/)
+  assert.doesNotMatch(aboutPage, /docs\/index\.md`, `\.agents\/skills\/miniapp\/SKILL\.md/)
   assert.match(aboutPage, /import \{ Button, Txt \} from '@toss\/tds-react-native'/)
   assert.match(aboutPage, /홈으로 돌아가기/)
   assert.match(indexPage, /MiniApp 준비가 끝났어요/)
@@ -1762,6 +1775,16 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   )
   assert.match(deployScript, /CLOUDFLARE_API_TOKEN/)
   assert.match(deployScript, /CLOUDFLARE_ACCOUNT_ID/)
+  assert.deepEqual(
+    extractReadmeScriptNames(readme),
+    createCloudflareServerScriptCatalog({
+      devCommand: 'wrangler dev',
+      buildCommand: 'wrangler deploy --dry-run',
+      typecheckCommand: 'wrangler types && tsc --noEmit',
+      deployCommand: 'node ./scripts/cloudflare-deploy.mjs',
+      testCommand: 'vitest run',
+    }).map((entry) => entry.name),
+  )
   assert.equal(await pathExists(copiedTokenGuide), true)
   assert.equal(await pathExists(path.join(serverRoot, '.gitignore')), false)
   assert.equal(await pathExists(path.join(serverRoot, '.prettierrc')), false)
@@ -1861,6 +1884,17 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
   assert.match(readme, /wrangler\.vitest\.jsonc/)
   assert.match(readme, /local D1\/R2 binding/)
   assert.doesNotMatch(readme, /trpc:sync/)
+  assert.deepEqual(
+    extractReadmeScriptNames(readme),
+    createCloudflareServerScriptCatalog({
+      devCommand: 'pnpm --dir ../packages/app-router build && wrangler dev',
+      buildCommand: 'pnpm --dir ../packages/app-router build && wrangler deploy --dry-run',
+      typecheckCommand: 'pnpm --dir ../packages/app-router build && wrangler types && tsc --noEmit',
+      deployCommand:
+        'pnpm --dir ../packages/app-router build && node ./scripts/cloudflare-deploy.mjs',
+      testCommand: 'vitest run',
+    }).map((entry) => entry.name),
+  )
 })
 
 test('patchSupabaseServerWorkspace creates a server README with remote and local guidance', async (t) => {
@@ -1939,6 +1973,12 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(
     readme,
     /!\[Supabase access token 발급 화면 2\]\(\.\/assets\/supabase-access-token-guide2\.png\)/,
+  )
+  assert.deepEqual(
+    extractReadmeScriptNames(readme),
+    createSupabaseServerScriptCatalog('pnpm')
+      .filter((entry) => entry.includeInReadme !== false)
+      .map((entry) => entry.name),
   )
   assert.equal(await readFile(copiedGuide1, 'utf8'), 'fake-image-1')
   assert.equal(await readFile(copiedGuide2, 'utf8'), 'fake-image-2')
@@ -2129,6 +2169,15 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
   assert.match(
     readme,
     /!\[Firebase service account 발급 화면 2\]\(\.\/assets\/firebase-service-account-guide2\.png\)/,
+  )
+  assert.deepEqual(
+    extractReadmeScriptNames(readme),
+    createFirebaseServerScriptCatalog({
+      packageManager: 'pnpm',
+      firestoreRegion: 'asia-northeast3',
+    })
+      .filter((entry) => entry.includeInReadme !== false)
+      .map((entry) => entry.name),
   )
   assert.equal(await readFile(copiedLoginCiGuide, 'utf8'), 'firebase-login-ci')
   assert.equal(await readFile(copiedServiceAccountGuide1, 'utf8'), 'firebase-service-account-1')

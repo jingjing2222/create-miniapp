@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { buildInvocationUserAgent } from './test-support/package-manager.js'
 import {
   type CliPrompter,
   createClackPrompter,
@@ -132,7 +133,7 @@ test('resolveCliOptions asks for missing values when interactive input is needed
     },
     prompts,
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -206,7 +207,7 @@ test('resolveCliOptions does not ask for a cloudflare worker mode when cloudflar
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -260,7 +261,7 @@ test('resolveCliOptions does not ask for trpc when firebase is selected', async 
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -296,7 +297,7 @@ test('resolveCliOptions rejects trpc without a supported server provider', async
           },
         },
         {
-          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+          npm_config_user_agent: buildInvocationUserAgent('pnpm'),
         },
       ),
     /`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요\./,
@@ -328,7 +329,7 @@ test('resolveCliOptions rejects trpc with supabase server provider', async () =>
           },
         },
         {
-          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+          npm_config_user_agent: buildInvocationUserAgent('pnpm'),
         },
       ),
     /`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요\./,
@@ -395,7 +396,7 @@ test('resolveCliOptions keeps prompts optional when yes flag is set', async () =
     },
     prompts,
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v24.0.0 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm', { nodeVersion: '24.0.0' }),
     },
   )
 
@@ -448,7 +449,7 @@ test('resolveCliOptions accepts an explicit server-provider without extra server
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -489,7 +490,7 @@ test('resolveCliOptions rejects server-project-mode without server-provider', as
           },
         },
         {
-          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+          npm_config_user_agent: buildInvocationUserAgent('pnpm'),
         },
       ),
     /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,
@@ -517,7 +518,7 @@ test('resolveCliOptions does not create a server in yes mode without server-prov
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -550,7 +551,7 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
           },
         },
         {
-          npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+          npm_config_user_agent: buildInvocationUserAgent('pnpm'),
         },
       ),
     /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,
@@ -560,25 +561,25 @@ test('resolveCliOptions rejects conflicting server flags', async () => {
 test('detectInvocationPackageManager infers pnpm, yarn, npm, and bun from invocation metadata', () => {
   assert.equal(
     detectInvocationPackageManager({
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     }),
     'pnpm',
   )
   assert.equal(
     detectInvocationPackageManager({
-      npm_config_user_agent: 'yarn/4.13.0 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('yarn'),
     }),
     'yarn',
   )
   assert.equal(
     detectInvocationPackageManager({
-      npm_config_user_agent: 'npm/11.4.0 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: buildInvocationUserAgent('npm'),
     }),
     'npm',
   )
   assert.equal(
     detectInvocationPackageManager({
-      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('bun'),
     }),
     'bun',
   )
@@ -631,7 +632,7 @@ test('resolveCliOptions skips package-manager prompt when pnpm create invoked th
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 
@@ -682,7 +683,7 @@ test('resolveCliOptions skips package-manager prompt when yarn create invoked th
       },
     },
     {
-      npm_config_user_agent: 'yarn/4.13.0 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('yarn'),
     },
   )
 
@@ -734,7 +735,7 @@ test('resolveCliOptions skips package-manager prompt when npm create invoked the
       },
     },
     {
-      npm_config_user_agent: 'npm/11.11.1 node/v25.6.1 darwin arm64 workspaces/false',
+      npm_config_user_agent: buildInvocationUserAgent('npm'),
     },
   )
 
@@ -786,7 +787,7 @@ test('resolveCliOptions skips package-manager prompt when bun create invoked the
       },
     },
     {
-      npm_config_user_agent: 'bun/1.3.4 bunfig/false node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('bun'),
     },
   )
 
@@ -825,7 +826,7 @@ test('resolveCliOptions keeps no-git when explicitly requested', async () => {
       },
     },
     {
-      npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v25.6.1 darwin arm64',
+      npm_config_user_agent: buildInvocationUserAgent('pnpm'),
     },
   )
 

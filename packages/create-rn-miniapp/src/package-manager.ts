@@ -1,3 +1,5 @@
+import type { TrpcWorkspacePath } from './trpc-workspace-metadata.js'
+
 export const PACKAGE_MANAGERS = ['pnpm', 'yarn', 'npm', 'bun'] as const
 
 export type PackageManager = (typeof PACKAGE_MANAGERS)[number]
@@ -13,6 +15,7 @@ export type PackageManagerAdapter = {
   packageManagerField: string
   runCommandPrefix: string
   execCommandPrefix: string
+  rootBiomeIncludes: string[]
   rootTemplateFiles: Array<{
     sourceName: string
     targetName: string
@@ -31,18 +34,19 @@ export type PackageManagerAdapter = {
   createGraniteApp(targetDirectory: string): PackageManagerCommand
   createViteApp(targetDirectory: string): PackageManagerCommand
   createCloudflareApp(targetDirectory: string): PackageManagerCommand
+  installInDirectory(directory: string): PackageManagerCommand
+  runScriptInDirectory(directory: string, script: string): PackageManagerCommand
   installInDirectoryCommand(directory: string): string
   runScriptInDirectoryCommand(directory: string, script: string): string
   dlxCommand(packageName: string, args: string[]): string
   workspaceRunCommand(
-    workspace: 'frontend' | 'backoffice' | 'server' | 'packages/app-router' | 'packages/contracts',
+    workspace: 'frontend' | 'backoffice' | 'server' | TrpcWorkspacePath,
     script: string,
   ): string
   runScript(script: string): string
   rootFormatScript(): string
   rootFormatCheckScript(): string
   rootLintScript(): string
-  rootVerifyScript(): string
   verifyCommand(): string
 }
 
@@ -50,6 +54,22 @@ const PNPM_VERSION = '10.32.1'
 const YARN_VERSION = '4.13.0'
 const NPM_VERSION = '11.11.1'
 const BUN_VERSION = '1.3.4'
+const COMMON_ROOT_BIOME_INCLUDES = [
+  '**',
+  '!!**/.nx',
+  '!!**/node_modules',
+  '!!**/dist',
+  '!!frontend/.granite',
+]
+const YARN_ROOT_BIOME_INCLUDES = [
+  '**',
+  '!!**/.nx',
+  '!!**/.yarn',
+  '!!**/node_modules',
+  '!!**/dist',
+  '!!**/.pnp.*',
+  '!!frontend/.granite',
+]
 
 function withArgs(command: string, args: string[]): PackageManagerCommand {
   return { command, args }
@@ -61,14 +81,11 @@ const pnpmAdapter: PackageManagerAdapter = {
   packageManagerField: `pnpm@${PNPM_VERSION}`,
   runCommandPrefix: 'pnpm',
   execCommandPrefix: 'pnpm exec',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'pnpm.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'pnpm.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: 'pnpm-workspace.yaml',
@@ -114,6 +131,12 @@ const pnpmAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('pnpm', ['--dir', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('pnpm', ['--dir', directory, script])
+  },
   installInDirectoryCommand(directory) {
     return `pnpm --dir ${directory} install`
   },
@@ -138,9 +161,6 @@ const pnpmAdapter: PackageManagerAdapter = {
   rootLintScript() {
     return 'pnpm exec biome lint .'
   },
-  rootVerifyScript() {
-    return 'pnpm format:check && pnpm lint && pnpm typecheck && pnpm test'
-  },
   verifyCommand() {
     return 'pnpm verify'
   },
@@ -152,14 +172,11 @@ const yarnAdapter: PackageManagerAdapter = {
   packageManagerField: `yarn@${YARN_VERSION}`,
   runCommandPrefix: 'yarn',
   execCommandPrefix: 'yarn exec',
+  rootBiomeIncludes: YARN_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'yarn.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'yarn.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: null,
@@ -210,6 +227,12 @@ const yarnAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('yarn', ['--cwd', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('yarn', ['--cwd', directory, script])
+  },
   installInDirectoryCommand(directory) {
     return `yarn --cwd ${directory} install`
   },
@@ -234,9 +257,6 @@ const yarnAdapter: PackageManagerAdapter = {
   rootLintScript() {
     return 'yarn exec biome lint .'
   },
-  rootVerifyScript() {
-    return 'yarn format:check && yarn lint && yarn typecheck && yarn test'
-  },
   verifyCommand() {
     return 'yarn verify'
   },
@@ -248,14 +268,11 @@ const npmAdapter: PackageManagerAdapter = {
   packageManagerField: `npm@${NPM_VERSION}`,
   runCommandPrefix: 'npm run',
   execCommandPrefix: 'npm exec --',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'npm.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'npm.biome.json',
-      targetName: 'biome.json',
     },
     {
       sourceName: 'npm.npmrc',
@@ -303,6 +320,12 @@ const npmAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('npm', ['--prefix', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('npm', ['--prefix', directory, 'run', script])
+  },
   installInDirectoryCommand(directory) {
     return `npm --prefix ${directory} install`
   },
@@ -327,9 +350,6 @@ const npmAdapter: PackageManagerAdapter = {
   rootLintScript() {
     return 'npm exec -- biome lint .'
   },
-  rootVerifyScript() {
-    return 'npm run format:check && npm run lint && npm run typecheck && npm run test'
-  },
   verifyCommand() {
     return 'npm run verify'
   },
@@ -341,14 +361,11 @@ const bunAdapter: PackageManagerAdapter = {
   packageManagerField: `bun@${BUN_VERSION}`,
   runCommandPrefix: 'bun run',
   execCommandPrefix: 'bunx',
+  rootBiomeIncludes: COMMON_ROOT_BIOME_INCLUDES,
   rootTemplateFiles: [
     {
       sourceName: 'bun.gitignore',
       targetName: '.gitignore',
-    },
-    {
-      sourceName: 'bun.biome.json',
-      targetName: 'biome.json',
     },
   ],
   workspaceManifestFile: null,
@@ -392,6 +409,12 @@ const bunAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('bun', ['install', '--cwd', directory])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('bun', ['run', '--cwd', directory, script])
+  },
   installInDirectoryCommand(directory) {
     return `bun install --cwd ${directory}`
   },
@@ -415,9 +438,6 @@ const bunAdapter: PackageManagerAdapter = {
   },
   rootLintScript() {
     return 'bunx biome lint .'
-  },
-  rootVerifyScript() {
-    return 'bun run format:check && bun run lint && bun run typecheck && bun run test'
   },
   verifyCommand() {
     return 'bun run verify'

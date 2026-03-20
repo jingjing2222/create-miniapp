@@ -3,15 +3,12 @@ import path from 'node:path'
 import { log } from '@clack/prompts'
 import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
-import { patchBackofficeWorkspace, patchFrontendWorkspace } from '../patching/index.js'
-import {
-  applyDocsTemplates,
-  applyRootTemplates,
-  ensureEmptyDirectory,
-  pathExists,
-  syncOptionalDocsTemplates,
-  syncRootWorkspaceManifest,
-} from '../templates/index.js'
+import { patchBackofficeWorkspace } from '../patching/backoffice.js'
+import { patchFrontendWorkspace } from '../patching/frontend.js'
+import { ensureEmptyDirectory, pathExists } from '../templates/filesystem.js'
+import { applyRootTemplates, syncRootWorkspaceManifest } from '../templates/root.js'
+import { syncGeneratedSkills } from '../templates/skills.js'
+import { applyDocsTemplates } from '../templates/docs.js'
 import type { ProvisioningNote } from '../server-project.js'
 import { buildRootFinalizePlan, buildRootGitSetupPlan } from './orders.js'
 import {
@@ -165,13 +162,8 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
       await resolveRootWorkspaces(targetRoot),
     )
   }
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice:
-      options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
-    serverProvider: options.serverProvider,
-    hasTrpc: trpcEnabled,
-  })
+  await applyDocsTemplates(targetRoot, tokens, { serverProvider: options.serverProvider })
+  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: options.serverProvider })
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
@@ -222,6 +214,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     for (const command of buildRootFinalizePlan({
       targetRoot,
       packageManager: options.packageManager,
+      serverProvider: options.serverProvider,
     })) {
       log.step(command.label)
       await runCommand(command)
@@ -351,11 +344,8 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   )
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
-    serverProvider: finalServerProvider,
-    hasTrpc: trpcEnabled,
-  })
+  await applyDocsTemplates(targetRoot, tokens, { serverProvider: finalServerProvider })
+  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: finalServerProvider })
 
   if (
     (options.withServer || trpcEnabled) &&
@@ -410,6 +400,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     for (const command of buildRootFinalizePlan({
       targetRoot,
       packageManager: options.packageManager,
+      serverProvider: options.existingServerProvider ?? options.serverProvider,
     })) {
       log.step(command.label)
       await runCommand(command)

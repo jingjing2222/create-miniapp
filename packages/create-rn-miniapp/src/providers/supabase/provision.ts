@@ -10,7 +10,7 @@ import {
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
-import { pathExists } from '../../templates/index.js'
+import { pathExists } from '../../templates/filesystem.js'
 import { promptShouldInitializeExistingRemoteContent } from '../shared.js'
 
 type SupabaseProject = {

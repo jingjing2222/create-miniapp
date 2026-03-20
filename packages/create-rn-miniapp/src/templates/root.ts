@@ -1,0 +1,255 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { patchRootPackageJsonSource } from '../patching/package-json.js'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import {
+  FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
+  FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS,
+  FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES,
+  FRONTEND_POLICY_REACT_NATIVE_MESSAGE,
+  renderFrontendPolicyVerifierSource,
+} from './frontend-policy.js'
+import {
+  copyFileWithTokens,
+  resolveTemplatesPackageRoot,
+  replaceTemplateTokens,
+} from './filesystem.js'
+import {
+  createRootHelperScriptExtraTokens,
+  FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
+  FRONTEND_POLICY_CHECK_SCRIPT_NAME,
+  ROOT_VERIFY_STEP_SCRIPT_NAMES,
+  SKILLS_CHECK_SCRIPT_COMMAND,
+  SKILLS_CHECK_SCRIPT_NAME,
+  SKILLS_SYNC_SCRIPT_COMMAND,
+  SKILLS_SYNC_SCRIPT_NAME,
+} from './root-script-catalog.js'
+import type { TemplateTokens, WorkspaceName } from './types.js'
+
+const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
+const NORMALIZED_ROOT_WORKSPACE_ORDER = [
+  'frontend',
+  'server',
+  NORMALIZED_PACKAGE_WORKSPACE,
+  'backoffice',
+] as const
+
+type NormalizedRootWorkspaceName = (typeof NORMALIZED_ROOT_WORKSPACE_ORDER)[number]
+
+export const ROOT_VERIFY_STEPS_TOKEN = '{{rootVerifyStepsMarkdown}}'
+
+function resolveRootVerifyStepCommands(packageManager: PackageManager) {
+  const adapter = getPackageManagerAdapter(packageManager)
+  return ROOT_VERIFY_STEP_SCRIPT_NAMES.map((scriptName) => adapter.runScript(scriptName))
+}
+
+export function renderRootVerifyScript(packageManager: PackageManager) {
+  return resolveRootVerifyStepCommands(packageManager).join(' && ')
+}
+
+export function renderRootVerifyStepsMarkdown(packageManager: PackageManager) {
+  return resolveRootVerifyStepCommands(packageManager)
+    .map((command) => `- \`${command}\``)
+    .join('\n')
+}
+
+export function createRootTemplateExtraTokens(packageManager: PackageManager) {
+  return {
+    [ROOT_VERIFY_STEPS_TOKEN]: renderRootVerifyStepsMarkdown(packageManager),
+    ...createRootHelperScriptExtraTokens(packageManager),
+  }
+}
+
+function renderRootScripts(packageManager: PackageManager) {
+  const adapter = getPackageManagerAdapter(packageManager)
+
+  return {
+    build: 'nx run-many -t build --all',
+    typecheck: 'nx run-many -t typecheck --all',
+    test: 'nx run-many -t test --all',
+    format: adapter.rootFormatScript(),
+    'format:check': adapter.rootFormatCheckScript(),
+    lint: adapter.rootLintScript(),
+    [FRONTEND_POLICY_CHECK_SCRIPT_NAME]: FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
+    [SKILLS_SYNC_SCRIPT_NAME]: SKILLS_SYNC_SCRIPT_COMMAND,
+    [SKILLS_CHECK_SCRIPT_NAME]: SKILLS_CHECK_SCRIPT_COMMAND,
+    verify: renderRootVerifyScript(packageManager),
+  }
+}
+
+function renderRootBiomeSource(adapter: ReturnType<typeof getPackageManagerAdapter>) {
+  return `${JSON.stringify(
+    {
+      $schema: 'https://biomejs.dev/schemas/2.4.8/schema.json',
+      files: {
+        includes: adapter.rootBiomeIncludes,
+      },
+      formatter: {
+        enabled: true,
+        indentStyle: 'space',
+        indentWidth: 2,
+        lineWidth: 100,
+      },
+      linter: {
+        enabled: true,
+        rules: {
+          recommended: true,
+          style: {
+            noRestrictedImports: {
+              level: 'error',
+              options: {
+                paths: {
+                  '@react-native-async-storage/async-storage':
+                    FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
+                  '@granite-js/native/@react-native-async-storage/async-storage':
+                    FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
+                  'react-native': {
+                    message: FRONTEND_POLICY_REACT_NATIVE_MESSAGE,
+                    importNames: FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES,
+                  },
+                },
+                patterns: FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS,
+              },
+            },
+          },
+        },
+      },
+      javascript: {
+        formatter: {
+          quoteStyle: 'single',
+          semicolons: 'asNeeded',
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`
+}
+
+function normalizeRootWorkspaces(workspaces: WorkspaceName[]): NormalizedRootWorkspaceName[] {
+  const included = new Set<string>()
+
+  for (const workspace of workspaces) {
+    if (workspace.startsWith('packages/')) {
+      included.add(NORMALIZED_PACKAGE_WORKSPACE)
+      continue
+    }
+
+    included.add(workspace)
+  }
+
+  return NORMALIZED_ROOT_WORKSPACE_ORDER.filter((workspace) => included.has(workspace))
+}
+
+function renderPnpmWorkspaceManifest(workspaces: NormalizedRootWorkspaceName[]) {
+  const lines = ['packages:', ...workspaces.map((workspace) => `  - ${workspace}`)]
+  return `${lines.join('\n')}\n`
+}
+
+export async function syncRootWorkspaceManifest(
+  targetRoot: string,
+  packageManager: PackageManager,
+  workspaces: WorkspaceName[],
+) {
+  const adapter = getPackageManagerAdapter(packageManager)
+  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
+
+  if (adapter.workspaceManifestFile) {
+    await writeFile(
+      path.join(targetRoot, adapter.workspaceManifestFile),
+      renderPnpmWorkspaceManifest(normalizedWorkspaces),
+      'utf8',
+    )
+    return
+  }
+
+  const rootPackageJsonPath = path.join(targetRoot, 'package.json')
+  const rootPackageJsonSource = await readFile(rootPackageJsonPath, 'utf8')
+  const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
+    packageManagerField: adapter.packageManagerField,
+    scripts: {},
+    workspaces: normalizedWorkspaces,
+  })
+
+  await writeFile(rootPackageJsonPath, nextRootPackageJsonSource, 'utf8')
+}
+
+export async function applyRootTemplates(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  workspaces: WorkspaceName[],
+) {
+  const templatesRoot = resolveTemplatesPackageRoot()
+  const rootTemplateDir = path.join(templatesRoot, 'root')
+  const packageManager = getPackageManagerAdapter(tokens.packageManager)
+  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
+  const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
+
+  const fileMappings = [
+    ['nx.json', 'nx.json'],
+    ['sync-skills.mjs', 'scripts/sync-skills.mjs'],
+    ['check-skills.mjs', 'scripts/check-skills.mjs'],
+  ] as const
+
+  for (const [sourceName, targetName] of fileMappings) {
+    await copyFileWithTokens(
+      path.join(rootTemplateDir, sourceName),
+      path.join(targetRoot, targetName),
+      tokens,
+      extraTokens,
+    )
+  }
+
+  await mkdir(path.join(targetRoot, 'scripts'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs'),
+    renderFrontendPolicyVerifierSource(),
+    'utf8',
+  )
+
+  for (const rootTemplateFile of packageManager.rootTemplateFiles) {
+    await copyFileWithTokens(
+      path.join(rootTemplateDir, rootTemplateFile.sourceName),
+      path.join(targetRoot, rootTemplateFile.targetName),
+      tokens,
+      extraTokens,
+    )
+  }
+
+  await mkdir(targetRoot, { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'biome.json'),
+    renderRootBiomeSource(packageManager),
+    'utf8',
+  )
+
+  const rootPackageJsonSource = replaceTemplateTokens(
+    await readFile(path.join(rootTemplateDir, 'package.json'), 'utf8'),
+    tokens,
+    extraTokens,
+  )
+  const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
+    packageManagerField: packageManager.packageManagerField,
+    scripts: renderRootScripts(tokens.packageManager),
+    workspaces: packageManager.workspaceManifestFile === null ? normalizedWorkspaces : null,
+  })
+
+  await writeFile(path.join(targetRoot, 'package.json'), nextRootPackageJsonSource, 'utf8')
+
+  if (packageManager.workspaceManifestFile) {
+    await writeFile(
+      path.join(targetRoot, packageManager.workspaceManifestFile),
+      renderPnpmWorkspaceManifest(normalizedWorkspaces),
+      'utf8',
+    )
+  }
+
+  for (const extraRootFile of packageManager.extraRootFiles) {
+    await copyFileWithTokens(
+      path.join(rootTemplateDir, extraRootFile.sourceName),
+      path.join(targetRoot, extraRootFile.targetName),
+      tokens,
+      extraTokens,
+    )
+  }
+}
