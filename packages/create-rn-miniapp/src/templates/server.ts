@@ -316,6 +316,10 @@ function renderSupabaseFunctionsTypecheckScript(tokens: TemplateTokens) {
 }
 
 function renderSupabaseInstallDenoScript() {
+  const responseStatusExpression = '$' + '{response.status}'
+  const responseStatusTextExpression = '$' + '{response.statusText}'
+  const resolvedCommandExpression = '$' + '{resolvedCommand}'
+
   return [
     "import { spawnSync } from 'node:child_process'",
     "import { existsSync } from 'node:fs'",
@@ -375,7 +379,7 @@ function renderSupabaseInstallDenoScript() {
     '  const response = await fetch(url)',
     '',
     '  if (!response.ok) {',
-    String.raw`    throw new Error(\`Deno installer를 다운로드하지 못했어요: \${response.status} \${response.statusText}\`)`,
+    `    throw new Error(\`Deno installer를 다운로드하지 못했어요: ${responseStatusExpression} ${responseStatusTextExpression}\`)`,
     '  }',
     '',
     '  return await response.text()',
@@ -408,7 +412,7 @@ function renderSupabaseInstallDenoScript() {
     '    process.exit(1)',
     '  }',
     '',
-    String.raw`  console.log(\`[server] Deno ready: \${resolvedCommand}\`)`,
+    `  console.log(\`[server] Deno ready: ${resolvedCommandExpression}\`)`,
     '}',
     '',
     'await main()',

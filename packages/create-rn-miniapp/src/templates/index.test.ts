@@ -1329,6 +1329,26 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(serverInstallDenoScript, /install\.ps1/)
   assert.match(serverInstallDenoScript, /\['upgrade', 'stable'\]/)
   assert.doesNotMatch(serverInstallDenoScript, /최신 버전/)
+  assert.doesNotMatch(serverInstallDenoScript, /\\`/)
+  const denoInstallerCheckPath = path.join(
+    targetRoot,
+    'server',
+    'scripts',
+    'supabase-install-deno.mjs',
+  )
+  const denoInstallerSyntaxCheck = spawnSync(
+    process.execPath,
+    ['--check', denoInstallerCheckPath],
+    {
+      cwd: targetRoot,
+      encoding: 'utf8',
+    },
+  )
+  assert.equal(
+    denoInstallerSyntaxCheck.status,
+    0,
+    denoInstallerSyntaxCheck.stderr || denoInstallerSyntaxCheck.stdout,
+  )
   assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
   assert.match(serverFunctionsDeployScript, /baseArgs = \["dlx","supabase","functions","deploy"/)
   assert.match(serverFunctionsDeployScript, /--project-ref/)

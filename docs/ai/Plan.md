@@ -1,3 +1,18 @@
+## 다음 작업: generated supabase-install-deno script parse bug 고치기
+1. 문제
+   - generated `server/scripts/supabase-install-deno.mjs`가 `String.raw` 기반 렌더링 때문에 템플릿 리터럴 backtick 앞의 `\`까지 그대로 출력하고 있다.
+   - 그 결과 scaffold된 repo에서 `node ./scripts/supabase-install-deno.mjs`는 실행 전에 parse 단계에서 `SyntaxError: Invalid or unexpected token`으로 죽는다.
+2. 방향
+   - generated installer script를 실제 Node parser로 검증하는 회귀 테스트를 추가한다.
+   - renderer는 템플릿 리터럴 source를 만들되 output 파일에 `\``가 남지 않도록 string 조립 방식을 바꾼다.
+3. 테스트
+   - `src/templates/index.test.ts`에서 generated `supabase-install-deno.mjs`를 temp file로 써서 `node --check`가 실패하는 red 테스트를 먼저 만든다.
+   - 수정 후 same test와 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - generated `supabase-install-deno.mjs`가 `node --check`를 통과한다.
+   - scaffold된 repo에서 `deno:install`이 parse error 없이 실행 시작 단계까지 간다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: Supabase scaffold Deno 확보 정책을 stable로 고치기
 1. 문제
    - 현재 Supabase scaffold finalize와 generated installer message는 Deno를 `latest`로 설치/업그레이드한다고 설명한다.
