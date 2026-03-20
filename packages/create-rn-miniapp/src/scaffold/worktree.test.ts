@@ -19,6 +19,7 @@ import {
   createControlRootStubFiles,
   createWorktreeBaselineCommit,
   ensureWorktreeBootstrapReadme,
+  ensureWorkspaceClaudeGuide,
   GITDATA_DIRECTORY,
   initializeWorktreeControlRoot,
   createPostMergeHook,
@@ -108,6 +109,7 @@ test('createWorktreePolicyNote explains the control-root workflow', () => {
   assert.match(note.body, /post-merge hook으로 같이 정리돼요/)
   assert.match(note.body, /control root 바로 아래 sibling으로/)
   assert.match(note.body, /구현, 커밋, 푸시, PR 생성은 그 worktree 안에서 진행/)
+  assert.match(note.body, /main\/docs\/engineering\/worktree-workflow\.md/)
 })
 
 test('createPostMergeHook generates valid bash syntax for repo-root cleanup', () => {
@@ -180,6 +182,21 @@ test('createControlRootStubFiles writes local-only stubs into the control root',
     )
   } finally {
     await rm(controlRoot, { recursive: true, force: true })
+  }
+})
+
+test('ensureWorkspaceClaudeGuide writes the committed Claude guide into the repo root', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-workspace-claude-'))
+
+  try {
+    await ensureWorkspaceClaudeGuide(workspaceRoot)
+
+    assert.match(
+      await readFile(path.join(workspaceRoot, '.claude', 'CLAUDE.md'), 'utf8'),
+      /프로젝트 안내는 `AGENTS\.md`를 읽어주세요\./,
+    )
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true })
   }
 })
 

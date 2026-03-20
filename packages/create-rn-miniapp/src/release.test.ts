@@ -181,6 +181,8 @@ test('README describes worktree as a control-root bootstrap workflow', () => {
   )
 
   assert.match(readme, /control root/)
+  assert.match(readme, /single-root라면 `cd my-miniapp` 뒤에 `pnpm verify`/)
+  assert.match(readme, /`--worktree`라면 `cd my-miniapp\/main` 뒤에 `pnpm verify`/)
   assert.match(readme, /git clone --separate-git-dir=\.gitdata <repo-url> main/)
   assert.match(readme, /node main\/scripts\/worktree\/bootstrap-control-root\.mjs/)
   assert.match(readme, /\.gitdata\//)
@@ -188,6 +190,7 @@ test('README describes worktree as a control-root bootstrap workflow', () => {
   assert.match(readme, /git -C main worktree add -b <branch> \.\.\/<branch-dir> main/)
   assert.match(readme, /에이전트가 worktree를 사용하게 할까요\?/)
   assert.match(readme, /feat\/test` 브랜치는 `feat-test/)
+  assert.doesNotMatch(readme, /Implement\.md/)
   assert.match(workflow, /plain clone 상태라면 README bootstrap/)
   assert.match(workflow, /git -C main worktree add -b <branch-name> \.\.\/<branch-dir> main/)
   assert.match(workflow, /control root 바로 아래 sibling으로/)

@@ -37,6 +37,10 @@ function renderControlRootClaudeStub() {
   return '프로젝트 안내는 `../AGENTS.md`와 `../main/AGENTS.md`를 먼저 읽어주세요.\n'
 }
 
+function renderWorkspaceClaudeGuide() {
+  return '프로젝트 안내는 `AGENTS.md`를 읽어주세요.\n'
+}
+
 function renderWorktreeBootstrapSection() {
   return [
     WORKTREE_BOOTSTRAP_START_MARKER,
@@ -75,6 +79,13 @@ export async function createControlRootStubFiles(controlRoot: string) {
   await writeFile(path.join(controlRoot, 'AGENTS.md'), renderControlRootAgentsStub(), 'utf8')
   await writeFile(path.join(controlRoot, 'README.md'), renderControlRootReadmeStub(), 'utf8')
   await writeFile(path.join(claudeRoot, 'CLAUDE.md'), renderControlRootClaudeStub(), 'utf8')
+}
+
+export async function ensureWorkspaceClaudeGuide(workspaceRoot: string) {
+  const claudeRoot = path.join(workspaceRoot, '.claude')
+
+  await mkdir(claudeRoot, { recursive: true })
+  await writeFile(path.join(claudeRoot, 'CLAUDE.md'), renderWorkspaceClaudeGuide(), 'utf8')
 }
 
 export async function ensureWorktreeBootstrapReadme(workspaceRoot: string) {
@@ -128,7 +139,7 @@ export function createWorktreePolicyNote(options: { controlRoot: string; workspa
       '상태 확인: `git -C main worktree list`',
       '`main/` 최신화는 보통 control root에서 `git -C main pull --ff-only`를 써 주세요. 이 표준 경로로 갱신하면 main에 반영된 clean worktree는 post-merge hook으로 같이 정리돼요.',
       '구현, 커밋, 푸시, PR 생성은 그 worktree 안에서 진행해 주세요.',
-      '자세한 규칙은 `docs/engineering/worktree-workflow.md`를 먼저 확인해 주세요.',
+      '자세한 규칙은 `main/AGENTS.md`와 `main/docs/engineering/worktree-workflow.md`를 먼저 확인해 주세요.',
     ].join('\n'),
   } satisfies ProvisioningNote
 }

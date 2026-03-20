@@ -50,13 +50,11 @@ pnpm dlx create-rn-miniapp \
   --with-backoffice
 ```
 
-생성이 끝나면 선택한 package manager로 검증해보면 돼요:
+생성이 끝나면 실제 repo root에서 검증해보면 돼요.
 
-```bash
-cd my-miniapp
-pnpm verify
-# 또는 yarn verify / npm run verify / bun run verify
-```
+- single-root라면 `cd my-miniapp` 뒤에 `pnpm verify`를 실행해요.
+- `--worktree`라면 `cd my-miniapp/main` 뒤에 `pnpm verify`를 실행해요.
+- package manager가 다르면 `yarn verify`, `npm run verify`, `bun run verify`로 바꿔서 실행해요.
 
 기본 생성 결과는 single-root예요. 다만 `--worktree`를 고르거나 마지막 질문에서 worktree를 선택하면 local 구조를 control root로 만들어 줘요.
 
@@ -128,8 +126,8 @@ single-root 기본값은 이렇습니다.
 `docs/`는 단순 샘플 문서가 아니라, 생성 직후부터 작업 기준을 맞추기 위한 컨텍스트 문서예요.
 
 - `docs/ai`
-  - `Plan.md`, `Status.md`, `Decisions.md`, `Implement.md`, `Prompt.md`
-  - 작업 계획, 현재 상태, 구현 메모, 프롬프트 기준을 기록하는 문서예요.
+  - `Plan.md`, `Status.md`, `Decisions.md`, `Prompt.md`
+  - 작업 계획, 현재 상태, 결정사항, 프롬프트 기준을 기록하는 문서예요.
 - `docs/engineering`
   - `granite-ssot.md`
   - `appsintoss-granite-api-index.md`
@@ -142,7 +140,7 @@ single-root 기본값은 이렇습니다.
 
 즉 이 저장소가 만드는 건 단순 폴더 구조가 아니라, MiniApp이 Granite, `@apps-in-toss/framework`, TDS를 원활하게 사용할 수 있도록 문서와 설정까지 포함한 작업 컨텍스트예요.
 
-생성이 끝나면 바로 구현부터 들어가기보다, 먼저 `docs/product/기능명세서.md`에 만들 기능을 정리해두는 걸 권장해요. 그다음 `docs/ai/Plan.md`와 `docs/ai/Implement.md`를 함께 보면서, 방금 적은 기능 명세를 기준으로 구현을 하나씩 이끌어가면 돼요.
+생성이 끝나면 바로 구현부터 들어가기보다, 먼저 `docs/product/기능명세서.md`에 만들 기능을 정리해두는 걸 권장해요. 그다음 `docs/ai/Plan.md`로 구현 순서를 세우고, 진행하면서 `docs/ai/Status.md`와 `docs/ai/Decisions.md`를 갱신해가면 돼요.
 
 ## CLI 옵션
 

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
 import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
@@ -37,6 +37,7 @@ import {
   createWorktreeBaselineCommit,
   createWorktreePolicyNote,
   ensureWorktreeBootstrapReadme,
+  ensureWorkspaceClaudeGuide,
   initializeWorktreeControlRoot,
   installWorktreeHooks,
   MAIN_WORKTREE_DIRECTORY,
@@ -207,15 +208,8 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   if (worktreePolicyEnabled) {
     await createControlRootStubFiles(controlRoot)
     await ensureWorktreeBootstrapReadme(workspaceRoot)
-  } else {
-    const claudeDir = path.join(workspaceRoot, '.claude')
-    await mkdir(claudeDir, { recursive: true })
-    await writeFile(
-      path.join(claudeDir, 'CLAUDE.md'),
-      '프로젝트 안내는 `AGENTS.md`를 읽어주세요.\n',
-      'utf8',
-    )
   }
+  await ensureWorkspaceClaudeGuide(workspaceRoot)
 
   await syncOptionalDocsTemplates(workspaceRoot, tokens, {
     hasBackoffice:
