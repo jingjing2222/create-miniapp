@@ -11,7 +11,7 @@ export type ScaffoldOptions = {
   outputDir: string
   noGit: boolean
   yes: boolean
-  worktree?: boolean
+  worktree: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean

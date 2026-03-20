@@ -11,6 +11,7 @@ import {
   type ServerProvider,
 } from './providers/index.js'
 import { pathExists } from './templates/index.js'
+import { resolveCreateWorktreeLayout } from './scaffold/worktree.js'
 import type { WorkspaceInspection } from './workspace-inspector.js'
 
 export type ParsedCliArgs = {
@@ -74,7 +75,7 @@ export type ResolvedCliOptions = {
   displayName: string
   noGit: boolean
   yes: boolean
-  worktree?: boolean
+  worktree: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
   skipServerProvisioning: boolean
@@ -140,7 +141,7 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     })
     .option('worktree', {
       type: 'boolean',
-      describe: '마지막 git 단계 직전에 control root + main worktree 레이아웃으로 전환',
+      describe: 'scaffold 시작 시 control root + main worktree 레이아웃으로 세팅',
     })
     .option('server-provider', {
       choices: SERVER_PROVIDERS,
@@ -223,7 +224,7 @@ export function formatCliHelp() {
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
     '  --no-git                       생성 완료 후 루트 git init 생략',
-    '  --worktree                     마지막 git 단계 직전에 control root + main worktree로 전환',
+    '  --worktree                     scaffold 시작 시 control root + main worktree로 세팅',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
     '  --trpc                         `cloudflare` server provider 위에 tRPC overlay 추가',
@@ -475,6 +476,13 @@ export async function resolveCliOptions(
           initialValue: 'no',
         })) === 'yes')
 
+  const worktree = await resolveCreateWorktreeLayout({
+    prompt,
+    noGit: argv.noGit ?? false,
+    yes: argv.yes,
+    explicitWorktree: argv.worktree,
+  })
+
   return {
     add: false,
     packageManager,
@@ -482,7 +490,7 @@ export async function resolveCliOptions(
     displayName,
     noGit: argv.noGit ?? false,
     yes: argv.yes,
-    worktree: argv.worktree,
+    worktree,
     serverProvider: normalizedServerProvider,
     serverProjectMode,
     skipServerProvisioning,
