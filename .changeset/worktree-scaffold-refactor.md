@@ -11,4 +11,5 @@
 - post-merge hook으로 merged worktree 자동 정리
 - `--add` 모드에서 worktree control root를 `main/`으로 자동 해석
 - worktree 선택 시 AGENTS.md golden rule, docs index, 하네스 실행가이드에 worktree 안내 삽입
+- scaffold 시 `.claude/CLAUDE.md` → AGENTS.md 포인터 자동 생성
 - scaffold-templates에 `worktree-workflow.md` optional doc 추가
