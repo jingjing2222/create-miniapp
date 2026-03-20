@@ -93,6 +93,9 @@ const NX_ROOT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/nx-schema.json'
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
+const ROOT_BIOME_BIN = fileURLToPath(
+  new URL('../../../../node_modules/.bin/biome', import.meta.url),
+)
 
 function escapeRegExp(source: string) {
   return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -929,6 +932,37 @@ test('generated frontend route checker reports every violation in one run', asyn
   assert.match(result.stderr, /frontend\/src\/navigation-bad\.ts/)
   assert.match(result.stderr, /\/book\/\$bookId/)
   assert.match(result.stderr, /docs\/engineering\/frontend-policy\.md/)
+})
+
+test('generated frontend route checker survives root biome unsafe fixes', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('yarn')
+
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+
+  const biomeResult = spawnSync(ROOT_BIOME_BIN, ['check', '.', '--write', '--unsafe'], {
+    cwd: targetRoot,
+    encoding: 'utf8',
+  })
+
+  assert.equal(biomeResult.status, 0, biomeResult.stderr)
+
+  const scriptSource = await readFile(
+    path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs'),
+    'utf8',
+  )
+  assert.match(
+    scriptSource,
+    /new RegExp\(\s*ROUTE_DYNAMIC_SEGMENT_DOLLAR_REGEX_SOURCE,\s*'g',?\s*\)/,
+  )
+  assert.match(scriptSource, /new RegExp\(FILENAME_DOLLAR_PATTERN_REGEX_SOURCE\)/)
+
+  const verifyResult = spawnSync(process.execPath, ['./scripts/verify-frontend-routes.mjs'], {
+    cwd: targetRoot,
+    encoding: 'utf8',
+  })
+
+  assert.equal(verifyResult.status, 0, verifyResult.stderr)
 })
 
 test('applyDocsTemplates omits optional workspace and skill references for base-only workspaces', async (t) => {

@@ -1,3 +1,15 @@
+## 다음 작업: generated route checker가 biome unsafe fix 뒤에도 깨지지 않게 만들기
+1. 문제
+   - `scripts/verify-frontend-routes.mjs`는 생성 직후에는 유효하지만, generated repo에서 `biome check . --write --unsafe`를 돌리면 `new RegExp("...")`가 잘못된 regex literal로 바뀌어 parse error가 난다.
+   - 현재 테스트는 generated script의 동작만 확인하고, scaffold 직후 루트 biome 정리 단계를 거친 뒤에도 script가 살아있는지는 고정하지 않는다.
+2. 방향
+   - generated root에 실제 `biome check . --write --unsafe`를 적용하는 실패 테스트를 먼저 추가한다.
+   - route checker는 Biome의 unsafe regex-literal 변환 대상이 되지 않도록 regex source 상수와 `new RegExp(variable, flags)` 조합으로 렌더한다.
+3. 완료 기준
+   - generated root에서 `biome check . --write --unsafe`가 parse error 없이 끝난다.
+   - unsafe fix 이후에도 `scripts/verify-frontend-routes.mjs`가 실행 가능하다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: 남은 doc/script/onboarding/trpc metadata 중복 정리
 1. 문제
    - code-owned doc manifest가 생겼지만 `AGENTS.md`와 `docs/index.md`의 Start Here / engineering 문서 목록은 아직 함수 안에 따로 박혀 있다.
