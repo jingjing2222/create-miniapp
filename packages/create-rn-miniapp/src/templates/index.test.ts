@@ -433,7 +433,6 @@ test('syncOptionalDocsTemplates copies and indexes selected backoffice and serve
     hasBackoffice: true,
     serverProvider: 'firebase',
     hasTrpc: false,
-    hasWorktreePolicy: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
@@ -477,13 +476,12 @@ test('syncOptionalDocsTemplates adds the tRPC boundary type golden rule only whe
     hasBackoffice: false,
     serverProvider: 'cloudflare',
     hasTrpc: true,
-    hasWorktreePolicy: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
   const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
 
-  assert.match(agents, /9\. Boundary types from schema only:/)
+  assert.match(agents, /8\. Boundary types from schema only:/)
   assert.match(agents, /server-api-ssot-trpc/)
   assert.match(docsIndex, /Server API SSOT \(tRPC\)/)
   assert.equal(
@@ -524,7 +522,6 @@ test('syncOptionalDocsTemplates can patch legacy docs files without markers', as
     hasBackoffice: true,
     serverProvider: 'supabase',
     hasTrpc: true,
-    hasWorktreePolicy: false,
   })
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
@@ -1104,67 +1101,4 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
   assert.deepEqual(yarnPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
   assert.deepEqual(npmPackageJson.workspaces, ['frontend', 'server', 'packages/*'])
   assert.deepEqual(bunPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
-})
-
-test('syncOptionalDocsTemplates injects worktree docs and golden rule when worktree is enabled', async (t) => {
-  const targetRoot = await createTempTargetRoot(t)
-  const tokens = createTokens('pnpm')
-
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice: false,
-    serverProvider: null,
-    hasTrpc: false,
-    hasWorktreePolicy: true,
-  })
-
-  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
-  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
-  const harnessGuide = await readFile(
-    path.join(targetRoot, 'docs', 'engineering', '하네스-실행가이드.md'),
-    'utf8',
-  )
-
-  assert.match(agents, /worktree-workflow\.md/)
-  assert.match(agents, /9\. Worktree discipline:/)
-  assert.match(docsIndex, /Worktree workflow/)
-  assert.match(
-    agents,
-    /plain clone 상태라면 README의 bootstrap 절차를 먼저 실행하고, 새 작업은 반드시 control root에서 `git -C main worktree add -b <branch-name> \.\.\/<branch-name> main`으로 시작하며, 브랜치명에는 `\/`를 쓰지 않고 1-depth kebab-case를 쓰며, `main\/`과 sibling worktree에서만 작업하며/,
-  )
-  assert.match(
-    harnessGuide,
-    /14\. 이 repo는 control root worktree 운영을 기준으로 한다\. plain clone 상태라면 README bootstrap을 먼저 실행하고, 새 브랜치 작업은 control root에서 `git -C main worktree add -b <branch-name> \.\.\/<branch-name> main`으로 시작하며, 브랜치명에는 `\/`를 쓰지 않고 1-depth kebab-case를 쓴다\./,
-  )
-  assert.match(harnessGuide, /15\. 브랜치 생성, 커밋, 브랜치 푸시, PR 생성 순으로 마무리한다\./)
-  assert.equal(
-    await pathExists(path.join(targetRoot, 'docs', 'engineering', 'worktree-workflow.md')),
-    true,
-  )
-  assert.equal(
-    await pathExists(path.join(targetRoot, 'scripts', 'worktree', 'bootstrap-control-root.mjs')),
-    true,
-  )
-  assert.equal(
-    await pathExists(path.join(targetRoot, 'scripts', 'worktree', 'post-merge-cleanup.sh')),
-    true,
-  )
-})
-
-test('syncOptionalDocsTemplates numbers worktree golden rule after trpc when both are enabled', async (t) => {
-  const targetRoot = await createTempTargetRoot(t)
-  const tokens = createTokens('pnpm')
-
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
-    hasBackoffice: false,
-    serverProvider: 'cloudflare',
-    hasTrpc: true,
-    hasWorktreePolicy: true,
-  })
-
-  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
-
-  assert.match(agents, /9\. Boundary types from schema only:/)
-  assert.match(agents, /10\. Worktree discipline:/)
 })

@@ -1,12 +1,12 @@
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import { patchRootPackageJsonSource } from '../patching/package-json.js'
+import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
   APP_ROUTER_WORKSPACE_PATH,
-  applyTrpcWorkspaceTemplate as applyTrpcWorkspaceTemplateImpl,
   CONTRACTS_WORKSPACE_PATH,
+  applyTrpcWorkspaceTemplate as applyTrpcWorkspaceTemplateImpl,
 } from './trpc.js'
 
 const ROOT_WORKSPACE_ORDER = [
@@ -35,7 +35,6 @@ export type OptionalDocsOptions = {
   hasBackoffice: boolean
   serverProvider: OptionalDocsServerProvider | null
   hasTrpc: boolean
-  hasWorktreePolicy: boolean
 }
 
 type WorkspaceProjectJson = {
@@ -74,9 +73,6 @@ const OPTIONAL_AGENTS_START_MARKER = '<!-- optional-doc-links:start -->'
 const OPTIONAL_AGENTS_END_MARKER = '<!-- optional-doc-links:end -->'
 const OPTIONAL_DOCS_INDEX_START_MARKER = '<!-- optional-engineering-links:start -->'
 const OPTIONAL_DOCS_INDEX_END_MARKER = '<!-- optional-engineering-links:end -->'
-const OPTIONAL_WORKTREE_WORKFLOW_START_MARKER = '<!-- optional-worktree-workflow:start -->'
-const OPTIONAL_WORKTREE_WORKFLOW_END_MARKER = '<!-- optional-worktree-workflow:end -->'
-const SINGLE_ROOT_FINALIZE_LINE = '14. 브랜치 생성, 커밋, 브랜치 푸시, PR 생성 순으로 마무리한다.'
 const NPMRC_SOURCE = 'legacy-peer-deps=true\n'
 const FRONTEND_POLICY_CHECK_SCRIPT = 'node ./scripts/verify-frontend-routes.mjs'
 
@@ -1231,35 +1227,17 @@ function renderOptionalAgentsSection(options: OptionalDocsOptions) {
     )
   }
 
-  if (options.hasWorktreePolicy) {
-    lines.push(
-      '- `docs/engineering/worktree-workflow.md`',
-      '  - control root bootstrap과 `main/` + sibling worktree 운영 규칙을 먼저 보는 문서',
-    )
-  }
-
   return lines.join('\n')
 }
 
 function renderOptionalGoldenRulesSection(options: OptionalDocsOptions) {
-  const lines: string[] = []
-  let ruleNumber = 9
-
-  if (options.hasTrpc) {
-    lines.push(
-      `${ruleNumber}. Boundary types from schema only: client-server 경계 타입은 Zod schema에서 \`z.infer\`로만 파생하고, 같은 DTO를 별도 type alias로 중복 정의하지 않는다.`,
-    )
-    ruleNumber++
+  if (!options.hasTrpc) {
+    return ''
   }
 
-  if (options.hasWorktreePolicy) {
-    lines.push(
-      `${ruleNumber}. Worktree discipline: plain clone 상태라면 README의 bootstrap 절차를 먼저 실행하고, 새 작업은 반드시 control root에서 \`git -C main worktree add -b <branch-name> ../<branch-name> main\`으로 시작하며, 브랜치명에는 \`/\`를 쓰지 않고 1-depth kebab-case를 쓰며, \`main/\`과 sibling worktree에서만 작업하며, 구현, 커밋, 푸시, PR 생성은 그 worktree 안에서만 진행한다.`,
-    )
-    ruleNumber++
-  }
-
-  return lines.join('\n')
+  return [
+    '8. Boundary types from schema only: client-server 경계 타입은 Zod schema에서 `z.infer`로만 파생하고, 같은 DTO를 별도 type alias로 중복 정의하지 않는다.',
+  ].join('\n')
 }
 
 function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
@@ -1285,10 +1263,6 @@ function renderOptionalDocsIndexSection(options: OptionalDocsOptions) {
 
   if (options.hasTrpc) {
     lines.push('- Server API SSOT (tRPC): `engineering/server-api-ssot-trpc.md`')
-  }
-
-  if (options.hasWorktreePolicy) {
-    lines.push('- Worktree workflow: `engineering/worktree-workflow.md`')
   }
 
   return lines.join('\n')
@@ -1344,17 +1318,11 @@ function resolveOptionalDocTemplates(options: OptionalDocsOptions): OptionalDocT
     })
   }
 
-  if (options.hasWorktreePolicy) {
-    templates.push({
-      templateDir: 'worktree',
-    })
-  }
-
   return templates
 }
 
 export async function syncRootWorkspaceManifest(
-  workspaceRoot: string,
+  targetRoot: string,
   packageManager: PackageManager,
   workspaces: WorkspaceName[],
 ) {
@@ -1363,14 +1331,14 @@ export async function syncRootWorkspaceManifest(
 
   if (adapter.workspaceManifestFile) {
     await writeFile(
-      path.join(workspaceRoot, adapter.workspaceManifestFile),
+      path.join(targetRoot, adapter.workspaceManifestFile),
       renderPnpmWorkspaceManifest(normalizedWorkspaces),
       'utf8',
     )
     return
   }
 
-  const rootPackageJsonPath = path.join(workspaceRoot, 'package.json')
+  const rootPackageJsonPath = path.join(targetRoot, 'package.json')
   const rootPackageJsonSource = await readFile(rootPackageJsonPath, 'utf8')
   const nextRootPackageJsonSource = patchRootPackageJsonSource(rootPackageJsonSource, {
     packageManagerField: adapter.packageManagerField,
@@ -1470,7 +1438,6 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
     path.join(targetRoot, 'AGENTS.md'),
     tokens,
   )
-
   await copyDirectoryWithTokens(
     path.join(baseTemplateDir, 'docs'),
     path.join(targetRoot, 'docs'),
@@ -1524,28 +1491,6 @@ export async function syncOptionalDocsTemplates(
       fallbackAnchor: '- Native modules policy: `engineering/native-modules-policy.md`',
     })
     await writeFile(docsIndexPath, nextDocsIndexSource, 'utf8')
-  }
-
-  const harnessGuidePath = path.join(targetRoot, 'docs', 'engineering', '하네스-실행가이드.md')
-  if (await pathExists(harnessGuidePath)) {
-    const harnessSource = await readFile(harnessGuidePath, 'utf8')
-    let nextHarnessSource = replaceMarkedSection(harnessSource, {
-      startMarker: OPTIONAL_WORKTREE_WORKFLOW_START_MARKER,
-      endMarker: OPTIONAL_WORKTREE_WORKFLOW_END_MARKER,
-      renderedSection: options.hasWorktreePolicy
-        ? '14. 이 repo는 control root worktree 운영을 기준으로 한다. plain clone 상태라면 README bootstrap을 먼저 실행하고, 새 브랜치 작업은 control root에서 `git -C main worktree add -b <branch-name> ../<branch-name> main`으로 시작하며, 브랜치명에는 `/`를 쓰지 않고 1-depth kebab-case를 쓴다.'
-        : '',
-      fallbackAnchor: SINGLE_ROOT_FINALIZE_LINE,
-    })
-
-    if (options.hasWorktreePolicy && nextHarnessSource.includes(SINGLE_ROOT_FINALIZE_LINE)) {
-      nextHarnessSource = nextHarnessSource.replace(
-        SINGLE_ROOT_FINALIZE_LINE,
-        '15. 브랜치 생성, 커밋, 브랜치 푸시, PR 생성 순으로 마무리한다.',
-      )
-    }
-
-    await writeFile(harnessGuidePath, nextHarnessSource, 'utf8')
   }
 }
 
