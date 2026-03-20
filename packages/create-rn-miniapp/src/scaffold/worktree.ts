@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { CliPrompter } from '../cli.js'
 import { runCommand } from '../commands.js'
@@ -46,6 +46,39 @@ function createControlRootReadmeStub(workspaceDirectory: string) {
   ].join('\n')
 }
 
+function createPostMergeHook() {
+  return [
+    '#!/usr/bin/env bash',
+    '# post-merge: merged된 worktree 자동 정리',
+    'set -euo pipefail',
+    '',
+    'control_root="$(git rev-parse --show-toplevel)/.."',
+    'cd "$control_root"',
+    '',
+    'git branch --merged main | while IFS= read -r branch; do',
+    '  branch="$(echo "$branch" | sed "s/^[* ]*//")"',
+    '  [ "$branch" = "main" ] && continue',
+    '  [ -z "$branch" ] && continue',
+    '',
+    '  worktree_path="$(git worktree list --porcelain | awk -v b="$branch" \'',
+    '    /^worktree /{ wt=$2 }',
+    '    /^branch refs\\/heads\\//{ if ($2 == "refs/heads/" b) print wt }',
+    "  '\")",
+    '  [ -z "$worktree_path" ] && continue',
+    '',
+    '  # dirty worktree는 건너뜀',
+    '  if [ -n "$(git -C "$worktree_path" status --porcelain 2>/dev/null)" ]; then',
+    '    echo "post-merge: $branch worktree에 변경사항이 있어서 건너뛰었어요"',
+    '    continue',
+    '  fi',
+    '',
+    '  echo "post-merge: merged된 worktree 정리 — $branch"',
+    '  git worktree remove "$worktree_path" 2>/dev/null || true',
+    '  git branch -d "$branch" 2>/dev/null || true',
+    'done',
+  ].join('\n')
+}
+
 async function writeControlRootShims(controlRoot: string) {
   await writeFile(
     path.join(controlRoot, 'AGENTS.md'),
@@ -57,6 +90,12 @@ async function writeControlRootShims(controlRoot: string) {
     createControlRootReadmeStub(MAIN_WORKTREE_DIRECTORY),
     'utf8',
   )
+
+  const hooksDir = path.join(controlRoot, '.bare', 'hooks')
+  await mkdir(hooksDir, { recursive: true })
+  const hookPath = path.join(hooksDir, 'post-merge')
+  await writeFile(hookPath, createPostMergeHook(), 'utf8')
+  await chmod(hookPath, 0o755)
 }
 
 export function createWorktreeLayoutNote(options: { controlRoot: string; workspaceRoot: string }) {

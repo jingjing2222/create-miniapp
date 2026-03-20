@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { access, constants, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -126,6 +126,11 @@ test('initBareWorktreeLayout creates a bare repo with a main worktree and contro
       'main',
     )
     assert.match(runGit(controlRoot, ['worktree', 'list', '--porcelain']), /main$/m)
+
+    const hookPath = path.join(controlRoot, '.bare', 'hooks', 'post-merge')
+    assert.ok(await stat(hookPath), 'post-merge hook이 존재해야 해요')
+    await access(hookPath, constants.X_OK)
+    assert.match(await readFile(hookPath, 'utf8'), /git worktree remove/)
   } finally {
     await rm(controlRoot, { recursive: true, force: true })
   }
