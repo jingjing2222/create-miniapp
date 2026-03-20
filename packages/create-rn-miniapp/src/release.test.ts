@@ -169,3 +169,12 @@ test('scaffold templates tarball keeps the root gitignore template', () => {
     true,
   )
 })
+
+test('README describes worktree as a workflow policy, not a layout conversion', () => {
+  const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8')
+
+  assert.doesNotMatch(readme, /로컬 레이아웃은 이렇게 바뀌어요/)
+  assert.doesNotMatch(readme, /control root/)
+  assert.doesNotMatch(readme, /\.bare\//)
+  assert.match(readme, /에이전트가 worktree를 사용하게 할까요\?/)
+})

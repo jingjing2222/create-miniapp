@@ -32,6 +32,7 @@
    - `packages/create-rn-miniapp/src/templates/index.ts`에서 worktree golden rule은 유지하되, control root 전제가 없는 강제 규칙으로 변경
    - `하네스-실행가이드.md`의 공통 "브랜치 생성, 커밋, 브랜치 푸시, PR 생성" 마무리 라인은 항상 유지
    - docs index에서는 worktree 문서를 이 repo의 권장 브랜치 시작 방식으로 설명하되 clone-safe하게 유지
+   - `README.md`에서도 `--worktree`를 레이아웃 전환처럼 설명하는 문구를 제거하고, 에이전트 workflow 정책 의미로 맞춘다
 4. 기존 control-root 레이아웃 호환성 판단
    - `packages/create-rn-miniapp/src/workspace-inspector.ts`의 `main/` fallback은 유지할지 검토
    - 최소 방침: 새 생성은 단순화하되, 기존 control-root 레이아웃을 `--add`에서 읽는 기능은 당장 깨지지 않게 유지
@@ -56,6 +57,7 @@
    - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`: control root 생성 테스트 제거, 일반 repo 기준 안내 테스트로 대체
    - `packages/create-rn-miniapp/src/cli.test.ts`: `--worktree` 파싱은 유지하고 프롬프트 문구/의미만 수정
    - `packages/create-rn-miniapp/src/templates/index.test.ts`: 공통 finalize line 유지 + clone-safe worktree rule 검증으로 수정
+   - `packages/create-rn-miniapp/src/release.test.ts`: README가 control-root 레이아웃을 설명하지 않는지 회귀 테스트 추가
    - `packages/create-rn-miniapp/src/workspace-inspector.test.ts`: 호환 유지 여부에 따라 유지 또는 deprecated 케이스로 명시
 
 ### TDD 순서

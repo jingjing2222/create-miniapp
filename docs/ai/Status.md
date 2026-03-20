@@ -19,9 +19,14 @@
   - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
     - control root 설명 제거
     - repo-root 기준 시작/조회/동기화/정리 절차로 재작성
+  - `README.md`
+    - `--worktree`를 레이아웃 전환이 아니라 에이전트 workflow 정책으로 설명하도록 정리
+    - `--add` 예시에서도 repo root / worktree checkout 기준 설명으로 맞춤
   - `packages/create-rn-miniapp/src/cli.test.ts`
   - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
   - `packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - README에 control-root 레이아웃 설명이 재유입되지 않도록 회귀 테스트 추가
     - 새 정책과 hook 설치 기준으로 테스트 갱신
 - 검증
   - `pnpm test -- packages/create-rn-miniapp/src/cli.test.ts packages/create-rn-miniapp/src/templates/index.test.ts packages/create-rn-miniapp/src/scaffold/worktree.test.ts` ✅
