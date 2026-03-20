@@ -32,9 +32,9 @@ import {
 } from './helpers.js'
 import type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
 import {
-  convertSingleRootToWorktreeLayout,
   createWorktreeLayoutNote,
-  resolveCreateWorktreeLayout,
+  initBareWorktreeLayout,
+  MAIN_WORKTREE_DIRECTORY,
 } from './worktree.js'
 
 export type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
@@ -45,7 +45,7 @@ export {
 export { buildCreateExecutionOrder, buildCreateLifecycleOrder } from './orders.js'
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
-  const targetRoot = path.resolve(options.outputDir, options.appName)
+  const controlRoot = path.resolve(options.outputDir, options.appName)
   const notes: ProvisioningNote[] = []
   const trpcEnabled = options.withTrpc && options.serverProvider === 'cloudflare'
   const tokens = createTemplateTokens({
@@ -53,17 +53,27 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     displayName: options.displayName,
     packageManager: options.packageManager,
   })
-  let workspaceRoot = targetRoot
+  const useWorktree = options.worktree && !options.noGit
 
-  await ensureEmptyDirectory(targetRoot)
+  await ensureEmptyDirectory(controlRoot)
+
+  let workspaceRoot: string
+
+  if (useWorktree) {
+    log.step('control root + main worktree 레이아웃 세팅')
+    await initBareWorktreeLayout(controlRoot)
+    workspaceRoot = path.join(controlRoot, MAIN_WORKTREE_DIRECTORY)
+  } else {
+    workspaceRoot = controlRoot
+  }
 
   if (options.serverProvider) {
-    await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+    await mkdir(path.join(workspaceRoot, 'server'), { recursive: true })
   }
 
   const phases = buildCreateCommandPhases({
     appName: options.appName,
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
     withBackoffice: options.withBackoffice,
@@ -74,7 +84,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   if (frontendCreateCommand) {
     log.step(frontendCreateCommand.label)
     await runCommand(frontendCreateCommand)
-    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'frontend'), options.packageManager)
+    await maybeWriteNpmWorkspaceConfig(path.join(workspaceRoot, 'frontend'), options.packageManager)
   }
 
   for (const command of frontendSetupCommands) {
@@ -88,21 +98,21 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
 
   await maybePrepareServerWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
   })
 
-  await applyRootTemplates(targetRoot, tokens, await resolveRootWorkspaces(targetRoot))
+  await applyRootTemplates(workspaceRoot, tokens, await resolveRootWorkspaces(workspaceRoot))
   await maybePrepareTrpcWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     withTrpc: trpcEnabled,
     serverProvider: trpcEnabled ? 'cloudflare' : null,
   })
   await maybePatchServerWorkspace({
-    targetRoot,
+    targetRoot: workspaceRoot,
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
@@ -111,9 +121,9 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
 
   if (trpcEnabled) {
     await syncRootWorkspaceManifest(
-      targetRoot,
+      workspaceRoot,
       options.packageManager,
-      await resolveRootWorkspaces(targetRoot),
+      await resolveRootWorkspaces(workspaceRoot),
     )
   }
 
@@ -121,14 +131,14 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     const packageManager = getPackageManagerAdapter(options.packageManager)
     log.step('루트 tRPC workspace 의존성을 먼저 설치할게요')
     await runCommand({
-      cwd: targetRoot,
+      cwd: workspaceRoot,
       ...packageManager.install(),
       label: '루트 tRPC workspace 의존성을 먼저 설치할게요',
     })
   }
 
   const provisionedSupabaseProject = await maybeProvisionSupabaseProject({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -136,7 +146,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     skipServerProvisioning: options.skipServerProvisioning,
   })
   const provisionedCloudflareWorker = await maybeProvisionCloudflareWorker({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -145,7 +155,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     skipServerProvisioning: options.skipServerProvisioning,
   })
   const provisionedFirebaseProject = await maybeProvisionFirebaseProject({
-    targetRoot,
+    targetRoot: workspaceRoot,
     packageManager: options.packageManager,
     prompt: options.prompt,
     serverProvider: options.serverProvider,
@@ -160,33 +170,34 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await runCommand(command)
   }
 
-  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
-    await maybeWriteNpmWorkspaceConfig(path.join(targetRoot, 'backoffice'), options.packageManager)
+  if (options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice')))) {
+    await maybeWriteNpmWorkspaceConfig(path.join(workspaceRoot, 'backoffice'), options.packageManager)
   }
 
   if (options.withBackoffice || trpcEnabled) {
     await syncRootWorkspaceManifest(
-      targetRoot,
+      workspaceRoot,
       options.packageManager,
-      await resolveRootWorkspaces(targetRoot),
+      await resolveRootWorkspaces(workspaceRoot),
     )
   }
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncOptionalDocsTemplates(targetRoot, tokens, {
+  await applyDocsTemplates(workspaceRoot, tokens)
+  await syncOptionalDocsTemplates(workspaceRoot, tokens, {
     hasBackoffice:
-      options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
+      options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice'))),
     serverProvider: options.serverProvider,
     hasTrpc: trpcEnabled,
+    hasWorktree: useWorktree,
   })
-  await patchFrontendWorkspace(targetRoot, tokens, {
+  await patchFrontendWorkspace(workspaceRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
     trpc: trpcEnabled,
     removeCloudflareApiClientHelpers: trpcEnabled,
   })
 
-  if (options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice')))) {
-    await patchBackofficeWorkspace(targetRoot, tokens, {
+  if (options.withBackoffice && (await pathExists(path.join(workspaceRoot, 'backoffice')))) {
+    await patchBackofficeWorkspace(workspaceRoot, tokens, {
       packageManager: options.packageManager,
       serverProvider: options.serverProvider,
       trpc: trpcEnabled,
@@ -194,23 +205,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     })
   }
 
-  const shouldUseWorktreeLayout = await resolveCreateWorktreeLayout({
-    prompt: options.prompt,
-    noGit: options.noGit,
-    yes: options.yes,
-    explicitWorktree: options.worktree,
-  })
-
-  if (!options.noGit) {
-    if (shouldUseWorktreeLayout) {
-      log.step('루트를 `main/` worktree 레이아웃으로 바꿔둘게요')
-      const convertedWorkspace = await convertSingleRootToWorktreeLayout(targetRoot)
-      workspaceRoot = convertedWorkspace.workspaceRoot
-    } else {
-      for (const command of buildRootGitSetupPlan({ targetRoot })) {
-        log.step(command.label)
-        await runCommand(command)
-      }
+  if (!options.noGit && !useWorktree) {
+    for (const command of buildRootGitSetupPlan({ targetRoot: workspaceRoot })) {
+      log.step(command.label)
+      await runCommand(command)
     }
   }
 
@@ -237,10 +235,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     })),
   )
 
-  if (shouldUseWorktreeLayout && workspaceRoot !== targetRoot) {
+  if (useWorktree) {
     notes.unshift(
       createWorktreeLayoutNote({
-        controlRoot: targetRoot,
+        controlRoot,
         workspaceRoot,
       }),
     )
@@ -257,10 +255,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
 
   return {
-    targetRoot,
+    controlRoot,
     workspaceRoot,
     notes,
-    worktree: shouldUseWorktreeLayout,
+    worktree: useWorktree,
   }
 }
 
@@ -388,6 +386,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
     serverProvider: finalServerProvider,
     hasTrpc: trpcEnabled,
+    hasWorktree: false,
   })
 
   if (
