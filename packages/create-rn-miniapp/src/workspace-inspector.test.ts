@@ -392,8 +392,7 @@ test('inspectWorkspace resolves a worktree control root to main/', async (t) => 
   const controlRoot = await createTempWorkspace(t)
   const workspaceRoot = path.join(controlRoot, 'main')
 
-  await mkdir(path.join(controlRoot, '.bare'), { recursive: true })
-  await writeFile(path.join(controlRoot, '.git'), 'gitdir: ./.bare\n', 'utf8')
+  await mkdir(path.join(controlRoot, '.gitdata'), { recursive: true })
   await mkdir(path.join(workspaceRoot, 'frontend'), { recursive: true })
   await writeFile(
     path.join(workspaceRoot, 'package.json'),
@@ -433,4 +432,58 @@ test('inspectWorkspace resolves a worktree control root to main/', async (t) => 
   assert.equal(inspection.packageManager, 'pnpm')
   assert.equal(inspection.appName, 'ebook-miniapp')
   assert.equal(inspection.hasWorktreePolicy, false)
+})
+
+test('inspectWorkspace resolves a sibling worktree back to main/', async (t) => {
+  const controlRoot = await createTempWorkspace(t)
+  const workspaceRoot = path.join(controlRoot, 'main')
+  const featureRoot = path.join(controlRoot, 'feat-login')
+
+  await mkdir(path.join(controlRoot, '.gitdata'), { recursive: true })
+
+  for (const candidateRoot of [workspaceRoot, featureRoot]) {
+    await mkdir(path.join(candidateRoot, 'frontend'), { recursive: true })
+    await writeFile(
+      path.join(candidateRoot, '.git'),
+      'gitdir: ../.gitdata/worktrees/feat-login\n',
+      'utf8',
+    )
+    await writeFile(
+      path.join(candidateRoot, 'package.json'),
+      JSON.stringify(
+        {
+          packageManager: 'pnpm@10.32.1',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+    await writeFile(
+      path.join(candidateRoot, 'frontend', 'granite.config.ts'),
+      [
+        "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+        "import { defineConfig } from '@granite-js/react-native/config'",
+        '',
+        'export default defineConfig({',
+        '  appName: "ebook-miniapp",',
+        '  plugins: [',
+        '    appsInToss({',
+        '      brand: {',
+        '        displayName: "전자책 미니앱",',
+        '      },',
+        '    }),',
+        '  ],',
+        '})',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+  }
+
+  const inspection = await inspectWorkspace(featureRoot)
+
+  assert.equal(inspection.rootDir, workspaceRoot)
+  assert.equal(inspection.packageManager, 'pnpm')
+  assert.equal(inspection.appName, 'ebook-miniapp')
 })

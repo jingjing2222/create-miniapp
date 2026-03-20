@@ -1,3 +1,41 @@
+## 2026-03-20 — control root 복귀, `.gitdata` + `main/` sibling worktree 구조로 재정의
+- 상태
+  - `--worktree`는 다시 local control-root 레이아웃을 만드는 옵션으로 되돌렸다.
+  - 생성 결과는 `root/.gitdata + root/main + root/<branch-dir>` sibling 구조를 기준으로 맞췄다.
+  - clone-visible repo 내용은 평범한 repo root로 유지하되, committed README와 bootstrap script가 control-root bootstrap 절차를 안내하게 했다.
+  - local root `AGENTS.md`, `.claude/CLAUDE.md`, `README.md`는 stub로 생성하고, 실제 committed 문서와 코드 작업 루트는 `main/`으로 분리했다.
+  - `workspace-inspector`는 control root, `main/`, sibling worktree 입력을 모두 `main/` 작업 루트로 해석하게 복구했다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+    - `.gitdata` 상수 추가
+    - `git init --separate-git-dir` 기반 control-root 초기화 helper 추가
+    - control-root stub 생성 helper 추가
+    - committed README 상단 bootstrap 섹션 주입 helper 추가
+    - worktree note를 control-root 기준 문구로 교체
+  - `packages/create-rn-miniapp/src/scaffold/index.ts`
+    - `--worktree` create 경로를 `controlRoot/main` 구조로 되돌림
+    - single-root와 control-root git 초기화 동선을 분리
+    - add 경로에서도 worktree policy repo README bootstrap 섹션을 유지
+  - `packages/create-rn-miniapp/src/workspace-inspector.ts`
+    - `.gitdata` 또는 legacy `.bare`를 가진 control root 감지 추가
+    - sibling worktree 입력도 `main/`으로 해석하도록 수정
+  - `packages/create-rn-miniapp/src/templates/index.ts`
+    - AGENTS golden rule, docs index, 하네스 실행가이드를 control-root 기준으로 갱신
+  - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
+    - control-root bootstrap, `git -C main worktree add`, `git -C main pull --ff-only` 기준으로 재작성
+  - `packages/scaffold-templates/optional/worktree/scripts/worktree/bootstrap-control-root.mjs`
+    - clone 후 local root stub를 복원하는 committed helper script 추가
+  - `README.md`
+    - `--worktree`를 control-root 구조로 설명하도록 재작성
+    - `.gitdata`, `main/`, sibling worktree 구조와 bootstrap 명령을 문서화
+  - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+  - `packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `packages/create-rn-miniapp/src/workspace-inspector.test.ts`
+  - `packages/create-rn-miniapp/src/release.test.ts`
+    - control-root bootstrap 회귀 테스트 추가
+- 검증
+  - `pnpm verify` ✅
+
 ## 2026-03-20 — control root 제거, `--worktree`는 정책 플래그로 유지
 - 상태
   - 새 scaffold 결과는 항상 일반 single-root repo로 생성되도록 정리했다.

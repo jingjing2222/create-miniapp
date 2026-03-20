@@ -1,110 +1,162 @@
-## 진행 예정: control root 제거 + `--worktree`는 정책 플래그로 유지
+## 진행 예정: control root 복귀 + bootstrap clone 지원
 
 ### 결정
-- `git worktree` 자체는 유지한다.
-- create 시 `control root + .bare + main/` 특수 레이아웃은 제거한다.
-- 생성 결과물은 항상 일반 single-root repo로 통일한다.
-- `--worktree` 플래그는 유지하되, repo 구조를 바꾸는 옵션이 아니라 worktree discipline을 켜는 정책 플래그로 재정의한다.
+- `--worktree`는 다시 control-root 레이아웃을 만드는 옵션으로 되돌린다.
+- 로컬 구조는 `root/main/<branch-worktree>` sibling 배치로 고정한다.
+- Git 메타데이터는 `.bare` 대신 `.gitdata` 같은 분리 git dir로 관리한다.
+- clone 사용자는 일반 `git clone` 뒤 수동 전환하지 않고, bootstrap 절차로 바로 control root를 만든다.
+- commit-visible 문서는 `main/` 기준으로 유지하고, root의 `AGENTS.md`, `.claude/CLAUDE.md`, `README.md`는 로컬 bootstrap이 만드는 stub로 분리한다.
 
 ### 문제
-- 현재 `--worktree`는 생성 결과를 clone 구조와 다른 특수 레이아웃으로 바꾼다.
-- commit되는 하네스 문서에 control root, `main/`, `../<branch>` 같은 로컬 레이아웃 전제가 섞여 clone 사용자 기준이 깨진다.
-- `workspace-inspector`, CLI help, scaffold note, optional docs가 모두 control root 개념을 알고 있어 구조적 복잡도가 커졌다.
-- 생성 직후에는 `main`에 실제 commit이 없어서, 현재 강제한 `git worktree add -b <branch> ../<branch> main` 시작 규칙이 바로 실패한다.
-- `--add` 경로는 기존 repo의 worktree 정책 여부를 모르고 문서를 다시 동기화해서, worktree repo의 규칙을 지워버릴 수 있다.
+- single-root + sibling worktree 방식은 clone은 단순하지만, IDE를 repo 하나만 열었을 때 `main`과 agent worktree를 함께 보기 어렵다.
+- `../worktrees/...`나 `../<repo>-worktrees/...`는 상위 디렉토리에서 소유 관계가 흐려지고, 해당 폴더가 왜 생겼는지 직관이 떨어진다.
+- AI 에이전트 관점에서는 “지금 이 repo의 기본 checkout은 무엇이고, 활성 worktree는 어디 있는가”가 구조만으로 드러나야 한다.
+- repo 내부 nested worktree는 Biome, Nx, 에이전트의 repo root 탐색을 꼬이게 할 수 있어서 피해야 한다.
+- 기존 single-root 계획 위에 문서를 더 얹는 방식으로는 이 가시성 문제를 해결하기 어렵다.
 
 ### 목표
-- 생성 결과, clone 결과, 하네스 문서가 모두 같은 repo root 관점을 사용한다.
-- worktree를 쓰는 사람도 일반 Git repo 기준 명령만 보면 되게 만든다.
-- `--worktree`를 고른 팀은 하네스 문서와 에이전트 규칙이 worktree 사용을 일관되게 유도하게 만든다.
-- `--worktree`를 고른 repo에서는 새 작업 시작 규칙을 하나로 고정한다.
-- 기존 control-root 레이아웃은 새로 생성하지 않되, 기존 레포를 읽는 최소 호환은 유지할지 구현 시점에 판단한다.
+- IDE를 `desktop/code/test` 하나만 열어도 `main/`과 agent 작업 디렉토리를 같은 depth sibling으로 함께 볼 수 있게 한다.
+- clone-visible 원격 구조는 여전히 평범한 repo root를 유지한다.
+- control root는 로컬 운영 방식으로만 만들고, bootstrap 절차는 README 맨 위에서 바로 이해되게 한다.
+- `--worktree`로 생성한 레포와 clone 뒤 bootstrap한 레포가 같은 로컬 구조를 갖게 만든다.
+- local-only stub와 commit-visible 문서의 역할을 분리해, clone 사용자 혼란과 local 운영 편의성을 동시에 맞춘다.
+
+### 목표 구조
+```text
+<appName>/
+  .gitdata/             # local-only separated git dir
+  AGENTS.md             # local-only control-root stub
+  .claude/CLAUDE.md     # local-only control-root stub
+  README.md             # local-only control-root stub
+  main/
+    frontend/
+    packages/contracts/   # optional
+    packages/app-router/  # optional
+    backoffice/           # optional
+    server/               # optional
+    docs/
+    AGENTS.md
+    README.md
+    package.json
+    nx.json
+    biome.json
+  feat-login/
+  fix-auth-timeout/
+```
+
+### bootstrap 흐름
+1. 원격 기본 clone/배포 구조는 지금처럼 평범한 repo root를 유지한다.
+2. clone 사용자는 빈 디렉토리에서 bootstrap 절차를 실행한다.
+3. bootstrap은 `git clone --separate-git-dir=.gitdata <repo-url> main`으로 `main/` checkout과 분리 git dir을 만든다.
+4. bootstrap은 root stub 파일(`AGENTS.md`, `.claude/CLAUDE.md`, `README.md`)을 생성한다.
+5. 이후 새 작업은 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작한다.
+
+### clone-visible 문서 방향
+- commit되는 [README.md](/Users/kimhyeongjeong/Desktop/code/miniapp/create-rn-miniapp/README.md)는 bootstrap 전 상태에서는 repo root README이고, bootstrap 후에는 `main/README.md`가 된다.
+- 따라서 clone 사용자를 위한 bootstrap 안내는 committed README 맨 위에 둔다.
+- README 첫 섹션에서 아래를 바로 설명한다.
+  - 일반 clone은 평범한 single-root checkout이라는 점
+  - AI/멀티-agent 운영용 권장 방식은 control-root bootstrap이라는 점
+  - bootstrap 명령 또는 `pnpm worktree:clone:bootstrap` 같은 helper 스크립트 사용법
+- bootstrap이 끝난 뒤 root의 로컬 stub README는 “이 디렉토리는 control root이고 실제 작업은 `main/`과 sibling worktree에서 한다”만 짧게 안내한다.
 
 ### 구현 방향
-1. 생성 경로 단순화
-   - `packages/create-rn-miniapp/src/scaffold/worktree.ts`의 bare repo / control root 초기화 로직 제거
-   - `packages/create-rn-miniapp/src/scaffold/index.ts`에서 `main/` worktree 생성 분기 제거
-   - provisioning note는 "repo는 일반 root로 생성됐고, 새 작업은 필요 시 worktree로 시작" 안내로 교체
-2. CLI 계약 정리
-   - `packages/create-rn-miniapp/src/cli.ts`에서 `--worktree` 옵션은 유지
-   - help / prompt 문구를 "control root 레이아웃"이 아니라 "worktree workflow 권장" 의미로 변경
-   - `--worktree` 선택 시 생성 직후 문서/가이드/에이전트 규칙이 worktree 사용을 유도하도록 연결
-3. 하네스 문서 정리
-   - `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`를 일반 repo 기준 가이드로 다시 작성
-   - `packages/create-rn-miniapp/src/templates/index.ts`에서 worktree golden rule은 유지하되, control root 전제가 없는 강제 규칙으로 변경
-   - `하네스-실행가이드.md`의 공통 "브랜치 생성, 커밋, 브랜치 푸시, PR 생성" 마무리 라인은 항상 유지
-   - docs index에서는 worktree 문서를 이 repo의 권장 브랜치 시작 방식으로 설명하되 clone-safe하게 유지
-   - `README.md`에서도 `--worktree`를 레이아웃 전환처럼 설명하는 문구를 제거하고, 에이전트 workflow 정책 의미로 맞춘다
-4. 기존 control-root 레이아웃 호환성 판단
-   - `packages/create-rn-miniapp/src/workspace-inspector.ts`의 `main/` fallback은 유지할지 검토
-   - 최소 방침: 새 생성은 단순화하되, 기존 control-root 레이아웃을 `--add`에서 읽는 기능은 당장 깨지지 않게 유지
-   - 필요하면 deprecated 주석/테스트만 남기고 후속 제거로 분리
-5. 리뷰 반영 후속 수정
-   - `--worktree` 생성 시 scaffold 결과를 담은 초기 baseline commit을 `main`에 자동 생성해, 문서가 안내하는 표준 `git worktree add ... main` 시작 명령이 즉시 동작하게 만든다
-   - `workspace-inspector`가 기존 repo의 worktree 정책 활성화 여부를 감지하고, `--add`도 그 상태를 그대로 유지하게 만든다
-   - 현재 single-root에서 같은 값을 가리키는 `controlRoot`/`workspaceRoot` 표현은 줄이고, worktree 관련 불리언 이름도 정책 의미가 드러나게 정리한다
-   - `git pull --ff-only`는 hook이 기대하는 권장 표준 경로로만 설명하고, 문서가 필수 규칙처럼 읽히지 않게 톤을 낮춘다
-   - release metadata도 현재 구현 범위에 맞춘다. `.changeset` 설명과 현재 브랜치 PR 제목/본문에서 control-root 레이아웃 뉘앙스를 제거하고, single-root + worktree policy + baseline commit + hook cleanup 기준으로 정리한다
-6. nested worktree 경로 재검토
-   - `../<branch>` 대신 `./worktrees/<branch>`를 기본 경로로 둘 수 있는지 검증한다
-   - Git 동작만이 아니라 root `.gitignore`, Biome, Nx, `pnpm verify`, cleanup hook, generated docs 문구까지 함께 확인한다
-   - repo 내부 경로가 실제로 안전하다고 확인되면, 경로 정책 변경안과 필요한 ignore/문서/테스트 범위를 같이 제안한다
-7. sibling path 표현 보정
-   - sibling path 정책은 유지하되, 브랜치명에 `/`가 있어도 worktree path는 항상 1-depth slug로 쓰게 문구를 수정한다
-   - 표준 예시는 `feat/test -> ../feat-test`처럼, 브랜치명과 디렉토리명을 분리해 설명한다
-   - README, generated note, optional worktree doc, AGENTS golden rule, 하네스 실행가이드, 회귀 테스트를 같이 갱신한다
+1. create 경로에서 control-root 복귀
+   - `packages/create-rn-miniapp/src/scaffold/index.ts`는 `--worktree`일 때 최종 산출물을 `<output>/<appName>/main` 아래에 놓도록 다시 분기한다.
+   - root `<output>/<appName>`는 control root가 되고, git init 대신 separated git dir 기반 bootstrap을 수행한다.
+   - 생성 직후 local stub도 같이 만든다.
+2. git 저장소 초기화 방식 교체
+   - 예전 `.bare` 직접 생성 대신, separated git dir 또는 동등한 로컬 git-dir 구성 로직을 사용한다.
+   - `main/.git`는 포인터 파일이 되고, hooks는 `.gitdata/hooks`에 설치한다.
+   - `post-merge` cleanup hook은 여전히 `main`에서 pull했을 때 merged clean worktree를 정리하도록 유지한다.
+3. bootstrap 지원
+   - 생성물 README 상단에 clone 후 control-root bootstrap 절차를 추가한다.
+   - 가능하면 CLI 또는 generated script로 `worktree:clone:bootstrap`을 제공해 수동 Git 명령 나열을 줄인다.
+   - bootstrap helper가 없다면 README에는 최소 명령 집합을 정확히 적고, local stub 생성까지 포함한다.
+4. local stub / committed docs 분리
+   - root `AGENTS.md`, `.claude/CLAUDE.md`, `README.md`는 local-only 생성물로 복귀시킨다.
+   - `main/AGENTS.md`, `main/README.md`, `main/docs/**`는 commit-visible 기준 문서로 유지한다.
+   - stub는 “실제 작업 루트는 `main/`”와 “새 worktree는 control root 바로 아래 sibling으로 만든다”만 안내한다.
+5. worktree 규칙 재정의
+   - 표준 시작 경로는 `../<branch-dir>`로 고정한다.
+   - `<branch-dir>`는 브랜치명의 `/`를 `-`로 바꾼 1-depth slug를 쓴다.
+   - IDE에서 root를 열면 `main/`과 branch worktree가 한눈에 보여야 한다.
+6. `--add`와 inspector 재정비
+   - `workspace-inspector`는 다시 control root를 first-class로 다뤄야 한다.
+   - 입력 경로가 control root인지 `main/`인지 sibling worktree인지 구분해서 실제 작업 루트를 정확히 찾게 한다.
+   - `--add`는 control root 레이아웃에서 `main/`을 수정 대상으로 삼고, local stub는 건드리지 않는다.
 
 ### 파일별 작업 계획
-1. `packages/create-rn-miniapp/src/scaffold/worktree.ts`
-   - 더 이상 쓰지 않는 control root helper, hook, note API 정리
-   - 남길 코드가 없다면 파일 삭제까지 검토
-2. `packages/create-rn-miniapp/src/scaffold/index.ts`
-   - `useWorktree` 분기 제거
-   - 생성 루트를 항상 `controlRoot` 자체로 사용하도록 단순화
-3. `packages/create-rn-miniapp/src/cli.ts`
-   - parse/help/resolve 흐름은 유지하되, 옵션 의미와 질문 문구를 새 정책에 맞게 수정
-4. `packages/create-rn-miniapp/src/templates/index.ts`
-   - worktree optional docs 주입 방식 수정
-   - AGENTS golden rule은 repo-root 기준 worktree discipline의 강제 규칙으로 수정
-   - harness guide override는 공통 finalize line을 유지하는 방식으로 수정
-5. `packages/scaffold-templates/optional/worktree/docs/engineering/worktree-workflow.md`
-   - 일반 repo 기준 예시 명령으로 전면 수정
-6. 테스트
-   - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`: control root 생성 테스트 제거, 일반 repo 기준 안내 테스트로 대체
-   - `packages/create-rn-miniapp/src/cli.test.ts`: `--worktree` 파싱은 유지하고 프롬프트 문구/의미만 수정
-   - `packages/create-rn-miniapp/src/templates/index.test.ts`: 공통 finalize line 유지 + clone-safe worktree rule 검증으로 수정
-   - `packages/create-rn-miniapp/src/release.test.ts`: README가 control-root 레이아웃을 설명하지 않는지 회귀 테스트 추가
-   - `packages/create-rn-miniapp/src/workspace-inspector.test.ts`: 호환 유지 여부에 따라 유지 또는 deprecated 케이스로 명시
-   - `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`: baseline commit 생성 뒤 표준 `git worktree add ... main` 명령이 실제로 성공하는지 검증 추가
-   - `packages/create-rn-miniapp/src/scaffold/index.test.ts`: `--add`에서 기존 worktree 정책을 optional docs 동기화에 그대로 전달하는지 검증 추가
+1. `packages/create-rn-miniapp/src/scaffold/index.ts`
+   - `--worktree` create 흐름을 `controlRoot` + `mainRoot` + sibling worktree 구조로 복귀
+   - single-root / control-root 분기를 다시 명확히 분리
+2. `packages/create-rn-miniapp/src/scaffold/worktree.ts`
+   - separated git dir bootstrap helper 추가
+   - local stub 생성 helper 추가
+   - `post-merge` hook 설치 위치를 `.gitdata` 기준으로 정리
+3. `packages/create-rn-miniapp/src/workspace-inspector.ts`
+   - control root, `main/`, sibling worktree 입력을 모두 해석하는 탐지 로직 재구성
+4. `packages/create-rn-miniapp/src/cli.ts`
+   - `--worktree` help를 다시 “control-root + main + worktrees 운영 모드”로 설명
+   - interactive 설명도 “멀티-agent용 root/main/sibling-worktree 구조” 의미로 바꾼다
+5. `packages/create-rn-miniapp/src/templates/index.ts`
+   - committed 문서는 `main/` 기준으로 생성
+   - optional worktree docs는 sibling worktree 기준 절차로 갱신
+   - AGENTS golden rule과 하네스 실행가이드는 `main`과 sibling worktree를 명시
+6. `README.md`
+   - 맨 위에 clone 후 bootstrap 절차 추가
+   - bootstrap 전/후 구조를 구분해서 설명
+   - `--worktree` 생성 결과도 `root/main/<branch-worktree>` 구조로 다시 설명
+7. local stub 템플릿
+   - root `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` 내용을 새로 정의
+   - 필요하면 `packages/scaffold-templates` 안에 local stub 소스를 따로 둔다
+
+### 테스트 계획
+1. `packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
+   - separated git dir bootstrap 뒤 `main/` checkout과 sibling worktree 시작 명령이 실제로 동작하는지 검증
+   - local stub 생성 결과 검증
+2. `packages/create-rn-miniapp/src/scaffold/index.test.ts`
+   - `--worktree` create 결과가 `controlRoot/main` 구조인지 검증
+   - `--add`가 control root에서 `main/`만 수정하는지 검증
+3. `packages/create-rn-miniapp/src/workspace-inspector.test.ts`
+   - control root, `main/`, sibling worktree 입력 해석 케이스 추가
+4. `packages/create-rn-miniapp/src/templates/index.test.ts`
+   - AGENTS golden rule, 하네스 실행가이드, worktree 문서가 sibling worktree 기준으로 바뀌는지 검증
+5. `packages/create-rn-miniapp/src/release.test.ts`
+   - README 상단에 bootstrap 안내가 있는지 회귀 검증
 
 ### TDD 순서
-1. CLI 테스트부터 깨기
-   - `--worktree` 의미 변경에 맞춰 parse/help/prompt 테스트 수정
-2. scaffold/worktree 테스트 깨기
-   - control root 생성 기대를 제거
-3. template 테스트 깨기
-   - worktree 문서가 clone-safe하고 공통 finalize line이 유지되는지 고정
-4. 그다음 implementation 정리
+1. README / 템플릿 테스트를 먼저 깨서 bootstrap 문구와 새 경로 규칙을 고정한다.
+2. scaffold/worktree 테스트를 깨서 separated git dir + `main/` 구조를 고정한다.
+3. workspace-inspector 테스트를 깨서 control root 해석을 고정한다.
+4. 그다음 create / add implementation을 복귀시킨다.
 
 ### 오픈 포인트
-- 기존 control-root 레이아웃을 읽는 `workspace-inspector` fallback은 이번 PR에서 유지하는 쪽이 안전하다.
-- optional/worktree 템플릿 자체를 완전히 없앨지, 일반 Git worktree 가이드 문서로 재사용할지는 구현 전에 한 번 더 확인한다.
-  - 현재 추천: 문서는 유지하되 내용만 일반화
+- `.gitdata`라는 이름을 쓸지 `.bare`를 유지할지는 아직 결정 필요
+  - 현재 추천: `.gitdata`
+  - 이유: bare clone처럼 오해되지 않고, “분리된 git dir” 의미가 더 직접적
+- bootstrap을 README 명령으로만 열지, helper script/CLI 명령까지 같이 제공할지 결정 필요
+  - 현재 추천: helper script 제공
+  - 이유: local stub 생성과 hook 설치까지 수동 절차가 길어지기 때문
+- control-root local stub를 commit 대상에서 완전히 제외할지, generated ignore 규칙으로만 관리할지 결정 필요
+  - 현재 추천: local-only 생성 + Git 추적 제외
 
 ### 고정 규칙 초안
-- `--worktree` repo의 Golden Rule:
-  - `새 작업은 반드시 repo root에서 git worktree add -b <branch> ../<branch> main 으로 시작한다.`
-- `하네스-실행가이드` 추가 단계:
-  - `새 브랜치 작업은 repo root에서 git worktree add -b <branch> ../<branch> main 으로 worktree를 만든 뒤 그 worktree 안에서 구현, 커밋, 푸시, PR 생성까지 진행한다.`
-- `worktree-workflow.md` 역할:
-  - 예외 없는 표준 시작/조회/정리 절차를 제공한다.
-  - control root 설명 없이 repo root만 기준으로 쓴다.
+- `--worktree` create 결과:
+  - `root/main`이 기본 checkout이다.
+  - `root/main` 옆 sibling으로 agent worktree를 만든다.
+- 표준 시작 명령:
+  - `git -C main worktree add -b <branch> ../<branch-dir> main`
+- `<branch-dir>` 규칙:
+  - 브랜치명의 `/`를 `-`로 바꾼 1-depth slug를 쓴다.
+- clone 사용자의 첫 단계:
+  - committed `main/README.md` 상단 bootstrap 절차를 먼저 따른다.
 
 ### 검증 계획
-- 우선: 관련 단위 테스트만 집중 실행
-  - `pnpm test -- packages/create-rn-miniapp/src/cli.test.ts`
+- 우선: 관련 단위 테스트 집중 실행
   - `pnpm test -- packages/create-rn-miniapp/src/scaffold/worktree.test.ts`
-  - `pnpm test -- packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `pnpm test -- packages/create-rn-miniapp/src/scaffold/index.test.ts`
   - `pnpm test -- packages/create-rn-miniapp/src/workspace-inspector.test.ts`
+  - `pnpm test -- packages/create-rn-miniapp/src/templates/index.test.ts`
+  - `pnpm test -- packages/create-rn-miniapp/src/release.test.ts`
 - 마무리: `pnpm verify`

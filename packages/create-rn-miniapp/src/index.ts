@@ -35,7 +35,7 @@ function describeWorktreeSelection(options: { noGit: boolean; worktree: boolean 
   }
 
   if (options.worktree) {
-    return '네, 에이전트는 새 작업을 worktree에서 시작할게요'
+    return '네, control root 아래 `main/`과 sibling worktree 구조로 만들게요'
   }
 
   return '아니요, 에이전트는 기본 checkout에서 시작할게요'

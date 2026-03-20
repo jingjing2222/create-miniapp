@@ -52,20 +52,31 @@ async function hasWorkspaceMarkers(rootDir: string) {
   )
 }
 
+async function isWorktreeControlRoot(rootDir: string) {
+  const hasSeparatedGitDir =
+    (await pathExists(path.join(rootDir, '.gitdata'))) ||
+    (await pathExists(path.join(rootDir, '.bare')))
+
+  if (!hasSeparatedGitDir) {
+    return false
+  }
+
+  return hasWorkspaceMarkers(path.join(rootDir, MAIN_WORKTREE_DIRECTORY))
+}
+
 export async function resolveWorkspaceRoot(rootDir: string) {
   const resolvedRootDir = path.resolve(rootDir)
+  if (await isWorktreeControlRoot(resolvedRootDir)) {
+    return path.join(resolvedRootDir, MAIN_WORKTREE_DIRECTORY)
+  }
+
+  const parentDir = path.dirname(resolvedRootDir)
+  if (parentDir !== resolvedRootDir && (await isWorktreeControlRoot(parentDir))) {
+    return path.join(parentDir, MAIN_WORKTREE_DIRECTORY)
+  }
 
   if (await hasWorkspaceMarkers(resolvedRootDir)) {
     return resolvedRootDir
-  }
-
-  const mainWorktreeRoot = path.join(resolvedRootDir, MAIN_WORKTREE_DIRECTORY)
-  const looksLikeWorktreeControlRoot =
-    (await pathExists(path.join(resolvedRootDir, '.git'))) ||
-    (await pathExists(path.join(resolvedRootDir, '.bare')))
-
-  if (looksLikeWorktreeControlRoot && (await hasWorkspaceMarkers(mainWorktreeRoot))) {
-    return mainWorktreeRoot
   }
 
   return resolvedRootDir

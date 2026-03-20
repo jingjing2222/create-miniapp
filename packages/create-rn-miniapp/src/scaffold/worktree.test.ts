@@ -1,12 +1,26 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { access, constants, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  access,
+  constants,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import type { CliPrompter } from '../cli.js'
 import {
+  createControlRootStubFiles,
   createWorktreeBaselineCommit,
+  ensureWorktreeBootstrapReadme,
+  GITDATA_DIRECTORY,
+  initializeWorktreeControlRoot,
   createPostMergeHook,
   createWorktreePolicyNote,
   installWorktreeHooks,
@@ -79,20 +93,21 @@ test('resolveWorktreePolicySelection asks whether to enforce the worktree workfl
   ])
 })
 
-test('createWorktreePolicyNote explains the repo-root workflow', () => {
-  const note = createWorktreePolicyNote({ workspaceRoot: '/tmp/ebook' })
+test('createWorktreePolicyNote explains the control-root workflow', () => {
+  const note = createWorktreePolicyNote({
+    controlRoot: '/tmp/ebook',
+    workspaceRoot: '/tmp/ebook/main',
+  })
 
   assert.equal(note.title, 'worktree 워크플로우를 기본 규칙으로 설정했어요')
-  assert.match(note.body, /repo root: \/tmp\/ebook/)
-  assert.match(note.body, /baseline commit/)
-  assert.match(note.body, /git worktree add -b <branch> \.\.\/<branch-dir> main/)
-  assert.match(note.body, /feat\/test` -> `\.\.\/feat-test/)
+  assert.match(note.body, /control root: \/tmp\/ebook/)
+  assert.match(note.body, /기본 checkout: \/tmp\/ebook\/main/)
+  assert.match(note.body, /git -C main worktree add -b <branch> \.\.\/<branch-dir> main/)
+  assert.match(note.body, /feat\/test` -> `feat-test/)
+  assert.match(note.body, /bootstrap-control-root\.mjs/)
   assert.match(note.body, /post-merge hook으로 같이 정리돼요/)
-  assert.match(note.body, /repo 안 `\.\/worktrees\/` 같은 nested worktree는/)
+  assert.match(note.body, /control root 바로 아래 sibling으로/)
   assert.match(note.body, /구현, 커밋, 푸시, PR 생성은 그 worktree 안에서 진행/)
-  assert.doesNotMatch(note.body, /정리: `git worktree remove <path>`/)
-  assert.doesNotMatch(note.body, /control root/)
-  assert.doesNotMatch(note.body, /main worktree/)
 })
 
 test('createPostMergeHook generates valid bash syntax for repo-root cleanup', () => {
@@ -121,18 +136,85 @@ test('installWorktreeHooks writes an executable post-merge hook into the repo ro
   }
 })
 
-test('createWorktreeBaselineCommit makes the standard worktree start command work immediately', async () => {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-base-'))
-  const branchName = 'feat-worktree'
-  const worktreeName = `${path.basename(workspaceRoot)}-${branchName}`
-  const worktreeRoot = path.join(path.dirname(workspaceRoot), worktreeName)
+test('initializeWorktreeControlRoot creates a separated git dir for main/', async () => {
+  const controlRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-control-'))
+  const workspaceRoot = path.join(controlRoot, 'main')
 
   try {
+    await mkdir(workspaceRoot, { recursive: true })
     await writeFile(path.join(workspaceRoot, 'README.md'), '# scaffold\n', 'utf8')
-    execFileSync('git', ['init'], { cwd: workspaceRoot, stdio: 'ignore' })
-    execFileSync('git', ['symbolic-ref', 'HEAD', 'refs/heads/main'], {
-      cwd: workspaceRoot,
-      stdio: 'ignore',
+
+    await initializeWorktreeControlRoot({
+      controlRoot,
+      workspaceRoot,
+    })
+
+    assert.ok((await stat(path.join(controlRoot, GITDATA_DIRECTORY))).isDirectory())
+    assert.match(await readFile(path.join(workspaceRoot, '.git'), 'utf8'), /\.gitdata/)
+    assert.equal(
+      execFileSync('git', ['rev-parse', '--show-toplevel'], {
+        cwd: workspaceRoot,
+        encoding: 'utf8',
+      }).trim(),
+      await realpath(workspaceRoot),
+    )
+  } finally {
+    await rm(controlRoot, { recursive: true, force: true })
+  }
+})
+
+test('createControlRootStubFiles writes local-only stubs into the control root', async () => {
+  const controlRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-stubs-'))
+
+  try {
+    await createControlRootStubFiles(controlRoot)
+
+    assert.match(
+      await readFile(path.join(controlRoot, 'AGENTS.md'), 'utf8'),
+      /실제 작업 루트는 `main\/`/,
+    )
+    assert.match(await readFile(path.join(controlRoot, 'README.md'), 'utf8'), /control root/)
+    assert.match(
+      await readFile(path.join(controlRoot, '.claude', 'CLAUDE.md'), 'utf8'),
+      /main\/AGENTS\.md/,
+    )
+  } finally {
+    await rm(controlRoot, { recursive: true, force: true })
+  }
+})
+
+test('ensureWorktreeBootstrapReadme prepends the control-root bootstrap section', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-readme-'))
+  const readmePath = path.join(workspaceRoot, 'README.md')
+
+  try {
+    await writeFile(readmePath, '# Existing README\n\nbody\n', 'utf8')
+    await ensureWorktreeBootstrapReadme(workspaceRoot)
+
+    const readme = await readFile(readmePath, 'utf8')
+
+    assert.match(readme, /^## Worktree Bootstrap/m)
+    assert.match(readme, /git clone --separate-git-dir=\.gitdata <repo-url> main/)
+    assert.match(readme, /node main\/scripts\/worktree\/bootstrap-control-root\.mjs/)
+    assert.match(readme, /# Existing README/)
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true })
+  }
+})
+
+test('createWorktreeBaselineCommit makes the standard control-root worktree start command work immediately', async () => {
+  const controlRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-worktree-base-'))
+  const workspaceRoot = path.join(controlRoot, 'main')
+  const branchName = 'feat-worktree'
+  const branchDir = 'feat-worktree'
+  const worktreeRoot = path.join(controlRoot, branchDir)
+
+  try {
+    await mkdir(workspaceRoot, { recursive: true })
+    await writeFile(path.join(workspaceRoot, 'README.md'), '# scaffold\n', 'utf8')
+    await initializeWorktreeControlRoot({
+      controlRoot,
+      workspaceRoot,
     })
 
     await createWorktreeBaselineCommit(workspaceRoot)
@@ -145,14 +227,17 @@ test('createWorktreeBaselineCommit makes the standard worktree start command wor
       'chore: bootstrap scaffold',
     )
 
-    execFileSync('git', ['worktree', 'add', '-b', branchName, `../${worktreeName}`, 'main'], {
-      cwd: workspaceRoot,
-      stdio: 'ignore',
-    })
+    execFileSync(
+      'git',
+      ['-C', 'main', 'worktree', 'add', '-b', branchName, `../${branchDir}`, 'main'],
+      {
+        cwd: controlRoot,
+        stdio: 'ignore',
+      },
+    )
 
     assert.ok((await stat(path.join(worktreeRoot, 'README.md'))).isFile())
   } finally {
-    await rm(worktreeRoot, { recursive: true, force: true })
-    await rm(workspaceRoot, { recursive: true, force: true })
+    await rm(controlRoot, { recursive: true, force: true })
   }
 })

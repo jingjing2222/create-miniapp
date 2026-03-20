@@ -1234,7 +1234,7 @@ function renderOptionalAgentsSection(options: OptionalDocsOptions) {
   if (options.hasWorktreePolicy) {
     lines.push(
       '- `docs/engineering/worktree-workflow.md`',
-      '  - repo root 기준 worktree 시작, 조회, 정리 규칙을 먼저 보는 문서',
+      '  - control root bootstrap과 `main/` + sibling worktree 운영 규칙을 먼저 보는 문서',
     )
   }
 
@@ -1254,7 +1254,7 @@ function renderOptionalGoldenRulesSection(options: OptionalDocsOptions) {
 
   if (options.hasWorktreePolicy) {
     lines.push(
-      `${ruleNumber}. Worktree discipline: 새 작업은 반드시 repo root에서 \`git worktree add -b <branch> ../<branch-dir> main\`으로 시작하고, \`<branch-dir>\`는 브랜치명의 \`/\`를 \`-\`로 바꾼 1-depth 디렉토리명을 쓰며, repo 안 \`./worktrees/\` 같은 nested worktree는 만들지 않으며, 구현, 커밋, 푸시, PR 생성은 그 worktree 안에서만 진행한다.`,
+      `${ruleNumber}. Worktree discipline: plain clone 상태라면 README의 bootstrap 절차를 먼저 실행하고, 새 작업은 반드시 control root에서 \`git -C main worktree add -b <branch> ../<branch-dir> main\`으로 시작하며, \`<branch-dir>\`는 브랜치명의 \`/\`를 \`-\`로 바꾼 1-depth 디렉토리명을 쓰고, \`main/\`과 sibling worktree에서만 작업하며, 구현, 커밋, 푸시, PR 생성은 그 worktree 안에서만 진행한다.`,
     )
     ruleNumber++
   }
@@ -1533,7 +1533,7 @@ export async function syncOptionalDocsTemplates(
       startMarker: OPTIONAL_WORKTREE_WORKFLOW_START_MARKER,
       endMarker: OPTIONAL_WORKTREE_WORKFLOW_END_MARKER,
       renderedSection: options.hasWorktreePolicy
-        ? '14. 새 브랜치 작업은 repo root에서 `git worktree add -b <branch> ../<branch-dir> main`으로 worktree를 만들고, `<branch-dir>`는 브랜치명의 `/`를 `-`로 바꾼 1-depth 디렉토리명을 쓰며, repo 안 `./worktrees/` 같은 nested worktree는 만들지 않으며, 구현, 커밋, 푸시, PR 생성은 그 worktree 안에서 진행한다.'
+        ? '14. 이 repo는 control root worktree 운영을 기준으로 한다. plain clone 상태라면 README bootstrap을 먼저 실행하고, 새 브랜치 작업은 control root에서 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작하며, `<branch-dir>`는 브랜치명의 `/`를 `-`로 바꾼 1-depth 디렉토리명을 쓴다.'
         : '',
       fallbackAnchor: SINGLE_ROOT_FINALIZE_LINE,
     })

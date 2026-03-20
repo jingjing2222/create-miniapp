@@ -58,19 +58,27 @@ pnpm verify
 # 또는 yarn verify / npm run verify / bun run verify
 ```
 
-생성 결과 디렉터리 구조는 항상 single-root예요.
+기본 생성 결과는 single-root예요. 다만 `--worktree`를 고르거나 마지막 질문에서 worktree를 선택하면 local 구조를 control root로 만들어 줘요.
 
-`--worktree`를 고르거나 마지막 질문에서 worktree를 선택해도 repo 레이아웃 자체는 바뀌지 않아요. 대신:
-
-- 에이전트용 `AGENTS.md`와 하네스 문서가 "새 작업은 worktree로 시작" 규칙을 기본으로 안내해요.
-- scaffold 결과를 `main`의 baseline commit으로 먼저 고정해 둬서 표준 `git worktree add ... main` 명령이 바로 동작해요.
-- repo root `.git/hooks/post-merge`에 merged된 clean worktree를 정리하는 hook을 설치해요.
+- root에 `.gitdata/`, local stub `AGENTS.md`, `.claude/CLAUDE.md`, `README.md`를 만들어요.
+- 실제 기본 checkout은 `main/`에 두고, 새 작업용 worktree는 control root 바로 아래 sibling으로 만들게 유도해요.
+- `main/`에는 scaffold baseline commit을 먼저 만들어 둬서 표준 `git -C main worktree add ... main` 명령이 바로 동작해요.
+- `.gitdata/hooks/post-merge`에 merged된 clean worktree를 정리하는 hook을 설치해요.
 
 기본값은 worktree 미사용이에요. 마지막 git 단계 직전에 `에이전트가 worktree를 사용하게 할까요? (멀티 에이전트 환경에 유리합니다)`라고 한 번 더 물어봐요. `--worktree`를 주면 그 질문 없이 바로 활성화되고, `--no-git`이면 이 단계는 건너뛰어요.
 
+이미 만들어진 repo를 clone해서 control root 구조로 쓰고 싶다면, plain clone 대신 빈 디렉토리에서 bootstrap하는 방식을 권장해요.
+
+```bash
+git clone --separate-git-dir=.gitdata <repo-url> main
+node main/scripts/worktree/bootstrap-control-root.mjs
+```
+
+이렇게 시작하면 clone-visible repo 내용은 그대로 유지하면서 local control root만 `.gitdata/ + main/ + sibling worktree` 구조로 맞출 수 있어요.
+
 ## 생성되는 구조
 
-생성되는 구조는 항상 이렇습니다.
+single-root 기본값은 이렇습니다.
 
 ```text
 <appName>/
@@ -86,15 +94,36 @@ pnpm verify
   biome.json
 ```
 
-`--worktree`를 활성화했다면 에이전트 작업 규칙만 달라져요.
+`--worktree`를 활성화했다면 구조가 이렇게 바뀌어요.
 
-- 새 작업은 repo root에서 `git worktree add -b <branch> ../<branch-dir> main`으로 시작해요.
-- worktree path는 항상 1-depth slug를 써요. 예를 들어 `feat/test` 브랜치는 `../feat-test`처럼 만들어요.
-- worktree는 의도적으로 repo root 옆 sibling path에 만들어요. repo 안 `./worktrees/` 같은 nested worktree는 두지 않아요.
-- `main`에는 scaffold baseline commit이 이미 있어서 이 명령을 바로 실행할 수 있어요.
+```text
+<appName>/
+  .gitdata/
+  AGENTS.md            # local control-root stub
+  .claude/CLAUDE.md    # local control-root stub
+  README.md            # local control-root stub
+  main/
+    frontend/
+    packages/contracts/   # optional
+    packages/app-router/  # optional
+    backoffice/           # optional
+    server/               # optional
+    docs/
+    AGENTS.md
+    README.md
+    package.json
+    nx.json
+    biome.json
+  feat-login/
+```
+
+- 새 작업은 control root에서 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작해요.
+- worktree path는 항상 1-depth slug를 써요. 예를 들어 `feat/test` 브랜치는 `feat-test`처럼 만들어요.
+- worktree는 control root 바로 아래 sibling path에 만들어요.
+- `main/`에는 scaffold baseline commit이 이미 있어서 이 명령을 바로 실행할 수 있어요.
 - 구현, 커밋, 푸시, PR 생성은 새 worktree 안에서 진행해요.
-- `main` checkout 최신화는 보통 `git pull --ff-only`를 권장해요. 이 표준 경로로 갱신하면 main에 반영된 clean worktree는 post-merge hook으로 같이 정리돼요.
-- 자세한 규칙은 생성된 repo의 `docs/engineering/worktree-workflow.md`를 보면 돼요.
+- `main/` checkout 최신화는 보통 control root에서 `git -C main pull --ff-only`를 권장해요. 이 표준 경로로 갱신하면 main에 반영된 clean worktree는 post-merge hook으로 같이 정리돼요.
+- 자세한 규칙은 생성된 repo의 `main/docs/engineering/worktree-workflow.md`를 보면 돼요.
 
 `docs/`는 단순 샘플 문서가 아니라, 생성 직후부터 작업 기준을 맞추기 위한 컨텍스트 문서예요.
 
@@ -128,7 +157,7 @@ pnpm verify
 - `--root-dir <dir>`: `--add`에서 수정할 기존 모노레포 루트예요. 기본값은 현재 디렉터리예요.
 - `--output-dir <dir>`: 생성할 모노레포의 상위 디렉터리예요.
 - `--no-git`: 생성 완료 후 루트 `git init`을 생략해요.
-- `--worktree`: 에이전트가 repo root 기준 worktree workflow를 기본으로 사용하게 하는 규칙을 활성화해요.
+- `--worktree`: control root 아래 `main/` 기본 checkout과 sibling worktree 운영 구조를 활성화해요.
 - `--skip-install`: 마지막 루트 package manager install과 Biome 정리를 생략해요.
 - `--yes`: 선택형 질문을 기본값으로 진행해요.
 - `--help`: 도움말을 출력해요.

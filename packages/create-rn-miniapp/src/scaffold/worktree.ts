@@ -6,18 +6,127 @@ import type { CliPrompter } from '../cli.js'
 import type { ProvisioningNote } from '../server-project.js'
 
 export const MAIN_WORKTREE_DIRECTORY = 'main'
+export const GITDATA_DIRECTORY = '.gitdata'
+const WORKTREE_BOOTSTRAP_START_MARKER = '<!-- worktree-bootstrap:start -->'
+const WORKTREE_BOOTSTRAP_END_MARKER = '<!-- worktree-bootstrap:end -->'
 
-export function createWorktreePolicyNote(options: { workspaceRoot: string }) {
+function renderControlRootAgentsStub() {
+  return [
+    '# AGENTS.md',
+    '',
+    '- 실제 작업 루트는 `main/`이에요.',
+    '- 새 작업은 control root에서 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작해요.',
+    '- 구현, 커밋, 푸시, PR 생성은 `main/`이 아니라 새 sibling worktree 안에서 진행해요.',
+    '- 자세한 규칙은 `main/AGENTS.md`와 `main/docs/engineering/worktree-workflow.md`를 먼저 읽어주세요.',
+    '',
+  ].join('\n')
+}
+
+function renderControlRootReadmeStub() {
+  return [
+    '# Control Root',
+    '',
+    '이 디렉토리는 local control root예요.',
+    '기본 checkout은 `main/`이고, 새 작업은 control root에서 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작해요.',
+    '자세한 안내는 `main/README.md`, `main/AGENTS.md`, `main/docs/engineering/worktree-workflow.md`를 먼저 확인해 주세요.',
+    '',
+  ].join('\n')
+}
+
+function renderControlRootClaudeStub() {
+  return '프로젝트 안내는 `../AGENTS.md`와 `../main/AGENTS.md`를 먼저 읽어주세요.\n'
+}
+
+function renderWorktreeBootstrapSection() {
+  return [
+    WORKTREE_BOOTSTRAP_START_MARKER,
+    '## Worktree Bootstrap',
+    '',
+    '이 repo를 AI/멀티-agent용 control root 구조로 운영하려면, plain clone 대신 빈 디렉토리에서 아래 순서로 시작해요.',
+    '',
+    '```bash',
+    'git clone --separate-git-dir=.gitdata <repo-url> main',
+    'node main/scripts/worktree/bootstrap-control-root.mjs',
+    '```',
+    '',
+    'bootstrap이 끝나면 local control root에는 `.gitdata/`, `main/`, root stub(`AGENTS.md`, `.claude/CLAUDE.md`, `README.md`)가 생겨요.',
+    '이후 새 작업은 control root에서 `git -C main worktree add -b <branch> ../<branch-dir> main`으로 시작해요.',
+    WORKTREE_BOOTSTRAP_END_MARKER,
+  ].join('\n')
+}
+
+function replaceMarkedSection(source: string, renderedSection: string) {
+  const startIndex = source.indexOf(WORKTREE_BOOTSTRAP_START_MARKER)
+  const endIndex = source.indexOf(WORKTREE_BOOTSTRAP_END_MARKER)
+
+  if (startIndex >= 0 && endIndex >= startIndex) {
+    return `${source.slice(0, startIndex)}${renderedSection}${source.slice(
+      endIndex + WORKTREE_BOOTSTRAP_END_MARKER.length,
+    )}`.replace(/^\n+/, '')
+  }
+
+  return `${renderedSection}\n\n${source}`
+}
+
+export async function createControlRootStubFiles(controlRoot: string) {
+  const claudeRoot = path.join(controlRoot, '.claude')
+
+  await mkdir(claudeRoot, { recursive: true })
+  await writeFile(path.join(controlRoot, 'AGENTS.md'), renderControlRootAgentsStub(), 'utf8')
+  await writeFile(path.join(controlRoot, 'README.md'), renderControlRootReadmeStub(), 'utf8')
+  await writeFile(path.join(claudeRoot, 'CLAUDE.md'), renderControlRootClaudeStub(), 'utf8')
+}
+
+export async function ensureWorktreeBootstrapReadme(workspaceRoot: string) {
+  const readmePath = path.join(workspaceRoot, 'README.md')
+  let source = '# Project\n'
+
+  try {
+    source = await readFile(readmePath, 'utf8')
+  } catch {
+    // README가 아직 없으면 bootstrap 섹션만 먼저 만들어요.
+  }
+
+  await writeFile(
+    readmePath,
+    replaceMarkedSection(source, renderWorktreeBootstrapSection()),
+    'utf8',
+  )
+}
+
+export async function initializeWorktreeControlRoot(options: {
+  controlRoot: string
+  workspaceRoot: string
+}) {
+  await mkdir(options.workspaceRoot, { recursive: true })
+
+  execFileSync(
+    'git',
+    ['init', '--separate-git-dir', path.join(options.controlRoot, GITDATA_DIRECTORY)],
+    {
+      cwd: options.workspaceRoot,
+      stdio: 'ignore',
+    },
+  )
+  execFileSync('git', ['symbolic-ref', 'HEAD', 'refs/heads/main'], {
+    cwd: options.workspaceRoot,
+    stdio: 'ignore',
+  })
+}
+
+export function createWorktreePolicyNote(options: { controlRoot: string; workspaceRoot: string }) {
   return {
     title: 'worktree 워크플로우를 기본 규칙으로 설정했어요',
     body: [
-      `repo root: ${options.workspaceRoot}`,
-      '`main`에는 scaffold 결과를 담은 baseline commit을 먼저 만들어 두었어요.',
-      '표준 시작: `git worktree add -b <branch> ../<branch-dir> main`',
-      '`<branch-dir>`는 브랜치명의 `/`를 `-`로 바꾼 1-depth 디렉토리명을 써 주세요. 예: `feat/test` -> `../feat-test`',
-      'repo 안 `./worktrees/` 같은 nested worktree는 tooling과 에이전트의 repo root 탐색을 꼬이게 할 수 있어서 쓰지 않아요.',
-      '상태 확인: `git worktree list`',
-      '`main` 최신화는 보통 `git pull --ff-only`를 써 주세요. 이 표준 경로로 갱신하면 main에 반영된 clean worktree는 post-merge hook으로 같이 정리돼요.',
+      `control root: ${options.controlRoot}`,
+      `기본 checkout: ${options.workspaceRoot}`,
+      '`main/`에는 scaffold 결과를 담은 baseline commit을 먼저 만들어 두었어요.',
+      'plain clone을 control root 구조로 바꾸려면 `node main/scripts/worktree/bootstrap-control-root.mjs`를 먼저 실행해 주세요.',
+      '표준 시작: `git -C main worktree add -b <branch> ../<branch-dir> main`',
+      '`<branch-dir>`는 브랜치명의 `/`를 `-`로 바꾼 1-depth 디렉토리명을 써 주세요. 예: `feat/test` -> `feat-test`',
+      '새 worktree는 control root 바로 아래 sibling으로 만들어요.',
+      '상태 확인: `git -C main worktree list`',
+      '`main/` 최신화는 보통 control root에서 `git -C main pull --ff-only`를 써 주세요. 이 표준 경로로 갱신하면 main에 반영된 clean worktree는 post-merge hook으로 같이 정리돼요.',
       '구현, 커밋, 푸시, PR 생성은 그 worktree 안에서 진행해 주세요.',
       '자세한 규칙은 `docs/engineering/worktree-workflow.md`를 먼저 확인해 주세요.',
     ].join('\n'),

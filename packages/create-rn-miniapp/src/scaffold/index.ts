@@ -33,9 +33,13 @@ import {
 } from './provisioning.js'
 import type { AddWorkspaceOptions, ScaffoldOptions } from './types.js'
 import {
+  createControlRootStubFiles,
   createWorktreeBaselineCommit,
   createWorktreePolicyNote,
+  ensureWorktreeBootstrapReadme,
+  initializeWorktreeControlRoot,
   installWorktreeHooks,
+  MAIN_WORKTREE_DIRECTORY,
 } from './worktree.js'
 
 export {
@@ -62,7 +66,7 @@ export function buildAddOptionalDocsOptions(options: {
 }
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
-  const workspaceRoot = path.resolve(options.outputDir, options.appName)
+  const controlRoot = path.resolve(options.outputDir, options.appName)
   const notes: ProvisioningNote[] = []
   const trpcEnabled = options.withTrpc && options.serverProvider === 'cloudflare'
   const tokens = createTemplateTokens({
@@ -71,8 +75,15 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     packageManager: options.packageManager,
   })
   const worktreePolicyEnabled = options.worktree && !options.noGit
+  const workspaceRoot = worktreePolicyEnabled
+    ? path.join(controlRoot, MAIN_WORKTREE_DIRECTORY)
+    : controlRoot
 
-  await ensureEmptyDirectory(workspaceRoot)
+  await ensureEmptyDirectory(controlRoot)
+
+  if (worktreePolicyEnabled) {
+    await mkdir(workspaceRoot, { recursive: true })
+  }
 
   if (options.serverProvider) {
     await mkdir(path.join(workspaceRoot, 'server'), { recursive: true })
@@ -193,13 +204,18 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
   await applyDocsTemplates(workspaceRoot, tokens)
 
-  const claudeDir = path.join(workspaceRoot, '.claude')
-  await mkdir(claudeDir, { recursive: true })
-  await writeFile(
-    path.join(claudeDir, 'CLAUDE.md'),
-    '프로젝트 안내는 `AGENTS.md`를 읽어주세요.\n',
-    'utf8',
-  )
+  if (worktreePolicyEnabled) {
+    await createControlRootStubFiles(controlRoot)
+    await ensureWorktreeBootstrapReadme(workspaceRoot)
+  } else {
+    const claudeDir = path.join(workspaceRoot, '.claude')
+    await mkdir(claudeDir, { recursive: true })
+    await writeFile(
+      path.join(claudeDir, 'CLAUDE.md'),
+      '프로젝트 안내는 `AGENTS.md`를 읽어주세요.\n',
+      'utf8',
+    )
+  }
 
   await syncOptionalDocsTemplates(workspaceRoot, tokens, {
     hasBackoffice:
@@ -225,14 +241,22 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
   }
 
   if (!options.noGit) {
-    for (const command of buildRootGitSetupPlan({ targetRoot: workspaceRoot })) {
-      log.step(command.label)
-      await runCommand(command)
+    if (worktreePolicyEnabled) {
+      log.step('control root git 저장소 만들기')
+      await initializeWorktreeControlRoot({
+        controlRoot,
+        workspaceRoot,
+      })
+    } else {
+      for (const command of buildRootGitSetupPlan({ targetRoot: workspaceRoot })) {
+        log.step(command.label)
+        await runCommand(command)
+      }
     }
-  }
 
-  if (worktreePolicyEnabled) {
-    await installWorktreeHooks(workspaceRoot)
+    if (worktreePolicyEnabled) {
+      await installWorktreeHooks(workspaceRoot)
+    }
   }
 
   notes.push(
@@ -272,13 +296,14 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     await createWorktreeBaselineCommit(workspaceRoot)
     notes.unshift(
       createWorktreePolicyNote({
+        controlRoot,
         workspaceRoot,
       }),
     )
   }
 
   return {
-    workspaceRoot,
+    workspaceRoot: worktreePolicyEnabled ? controlRoot : workspaceRoot,
     notes,
     worktree: worktreePolicyEnabled,
   }
@@ -415,6 +440,9 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
       existingHasWorktreePolicy: options.existingHasWorktreePolicy,
     }),
   )
+  if (options.existingHasWorktreePolicy) {
+    await ensureWorktreeBootstrapReadme(targetRoot)
+  }
 
   if (
     (options.withServer || trpcEnabled) &&
