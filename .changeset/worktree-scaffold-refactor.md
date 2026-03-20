@@ -1,6 +1,14 @@
 ---
-"create-rn-miniapp": patch
+"create-rn-miniapp": minor
 "@create-rn-miniapp/scaffold-templates": patch
 ---
 
-worktree opt-in 결정을 스캐폴드 전으로 이동하여, 파일 이동 로직(convertSingleRootToWorktreeLayout)을 제거하고 처음부터 올바른 디렉터리에 파일을 생성하도록 리팩토링했어요. 선택적 worktree 하네스 문서도 추가했어요.
+`--worktree` 플래그로 scaffold 시 control root + `main/` worktree 레이아웃을 선택할 수 있어요.
+
+- `--worktree` CLI 플래그 및 interactive prompt 추가
+- worktree 선택 시 bare repo → `.bare/` + `main/` worktree 자동 세팅 (git 2.38+ 필요)
+- control root에 AGENTS.md·README.md 안내 shim 생성
+- post-merge hook으로 merged worktree 자동 정리
+- `--add` 모드에서 worktree control root를 `main/`으로 자동 해석
+- worktree 선택 시 AGENTS.md golden rule, docs index, 하네스 실행가이드에 worktree 안내 삽입
+- scaffold-templates에 `worktree-workflow.md` optional doc 추가
