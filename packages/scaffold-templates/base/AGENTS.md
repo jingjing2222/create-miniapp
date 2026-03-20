@@ -37,7 +37,9 @@
 - route / page / navigation 패턴: `.agents/skills/core/granite/SKILL.md`
 - TDS UI 선택과 form 패턴: `.agents/skills/core/tds/SKILL.md`
 - backoffice React 작업: `.agents/skills/optional/backoffice-react/SKILL.md`
-- provider 운영 가이드: `.agents/skills/optional/server-*/SKILL.md`
+- Cloudflare provider 작업: `.agents/skills/optional/server-cloudflare/SKILL.md`
+- Supabase provider 작업: `.agents/skills/optional/server-supabase/SKILL.md`
+- Firebase provider 작업: `.agents/skills/optional/server-firebase/SKILL.md`
 - tRPC boundary 변경: `.agents/skills/optional/trpc-boundary/SKILL.md`
 
 ## Done

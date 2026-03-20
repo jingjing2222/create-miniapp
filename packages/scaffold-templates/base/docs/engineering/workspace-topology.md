@@ -17,7 +17,8 @@
 ### server
 - provider별 원격 리소스 운영과 server-side runtime을 담당한다.
 - deploy, db/functions, rules/indexes 같은 운영 스크립트의 source다.
-- frontend/backoffice가 기대하는 env와 연결값을 제공한다.
+- frontend가 기대하는 env와 연결값을 제공한다.
+- backoffice가 기대하는 env와 연결값을 제공한다.
 
 ### backoffice
 - 브라우저 기반 운영 화면을 담당한다.
@@ -44,4 +45,8 @@
 - MiniApp capability: `.agents/skills/core/miniapp/SKILL.md`
 - Granite page/route patterns: `.agents/skills/core/granite/SKILL.md`
 - TDS UI selection: `.agents/skills/core/tds/SKILL.md`
-- provider 운영 가이드: `.agents/skills/optional/*/SKILL.md`
+- Backoffice React workflow: `.agents/skills/optional/backoffice-react/SKILL.md`
+- Cloudflare provider 운영 가이드: `.agents/skills/optional/server-cloudflare/SKILL.md`
+- Supabase provider 운영 가이드: `.agents/skills/optional/server-supabase/SKILL.md`
+- Firebase provider 운영 가이드: `.agents/skills/optional/server-firebase/SKILL.md`
+- tRPC boundary change flow: `.agents/skills/optional/trpc-boundary/SKILL.md`

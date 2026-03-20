@@ -1,18 +1,22 @@
-## 다음 작업: optional workspace에 맞춰 계약 문서와 skill 라우팅도 동적으로 생성하기
+## 다음 작업: optional workspace에 맞춰 계약 문서와 skill 라우팅도 markdown AST 기준으로 동적 생성하기
 1. 문제
-   - 지금은 `.agents/skills`와 `.claude/skills`만 옵션별로 갈라지고, `AGENTS.md`, `CLAUDE.md`, Copilot instructions, `docs/index.md`, `docs/engineering/workspace-topology.md`는 정적 base template을 그대로 복사한다.
-   - 그래서 `server`를 만들지 않은 생성물에도 `server` workspace, provider skill, tRPC boundary 같은 optional 내용이 그대로 남고, `--add` 이후에도 문서가 현재 구조를 정확히 설명하지 못한다.
+   - 지금 워킹트리의 동적 문서 렌더링은 marker comment를 템플릿 본문에 심고 string replace로 잘라내는 방식이라 템플릿 가독성이 떨어지고 유지보수성이 약하다.
+   - 그래서 `server`를 만들지 않은 생성물에도 `server` workspace, provider skill, tRPC boundary 같은 optional 내용을 동적으로 관리해야 한다는 요구는 맞지만, 구현 방식은 markdown source를 오염시키지 않는 쪽으로 바꿔야 한다.
+   - `--add` 이후에도 문서가 현재 구조를 정확히 설명해야 하므로, 생성 옵션이 아니라 rerender 시점의 실제 workspace 상태를 기준으로 문서를 다시 계산해야 한다.
 2. 방향
-   - 문서도 skill과 같은 generation context를 사용해 optional section을 조건부 렌더링한다.
-   - `server`, `backoffice`, `trpc` 유무를 기준으로 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/index.md`, `docs/engineering/workspace-topology.md`의 optional 문단을 넣거나 뺀다.
-   - `scaffoldWorkspace`와 `addWorkspaces` 모두 같은 문서 렌더러를 다시 호출해, 최초 생성과 `--add`가 동일한 결과를 내게 한다.
+   - 템플릿 markdown은 marker 없이 사람이 읽기 좋은 정적 문서로 유지한다.
+   - 생성 시점에는 markdown AST를 파싱해 heading, list item, paragraph 단위로 optional node를 걸러낸다.
+   - `server`, `backoffice`, `trpc` 유무와 provider 종류는 target root의 실제 workspace 존재 여부와 현재 provider/trpc 설정을 합쳐 계산한다.
+   - `scaffoldWorkspace`와 `addWorkspaces` 모두 같은 context resolver + AST renderer를 호출해, 최초 생성과 `--add`가 동일한 결과를 내게 한다.
 3. 테스트
-   - template/scaffold 테스트에서 `server` 미생성 시 `AGENTS.md`와 문서에 server/provider/trpc 언급이 없는지 먼저 실패 테스트로 고정한다.
+   - template 테스트에서 template source에 optional marker comment가 남아 있지 않다는 실패 테스트를 먼저 추가한다.
+   - `server` 미생성 시 `AGENTS.md`와 문서에 server/provider/trpc 언급이 없는지, 그리고 실제 workspace 디렉터리 상태에서 context가 계산되는지 실패 테스트로 고정한다.
    - `--add` 성격의 재렌더 테스트를 추가해, server/backoffice/trpc가 생긴 뒤 문서와 skill 라우팅이 다시 확장되는지 확인한다.
    - 최종적으로 `pnpm verify`를 통과한다.
 4. 완료 기준
    - optional workspace를 만들지 않은 생성물에 해당 workspace 설명과 skill 라우팅이 남지 않는다.
    - `--add` 후에는 문서와 skill 라우팅이 현재 workspace 구조에 맞춰 다시 생성된다.
+   - 템플릿 markdown source에는 optional marker comment가 남아 있지 않다.
    - `pnpm verify`를 통과한다.
 
 ## 다음 작업: Skills 마이그레이션 리뷰 후속 정리와 체크리스트 라인 감사

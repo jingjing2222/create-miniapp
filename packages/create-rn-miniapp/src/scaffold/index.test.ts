@@ -116,12 +116,8 @@ async function materializeMigrationWorkspace(targetRoot: string, combo: Migratio
   }
 
   await applyRootTemplates(targetRoot, tokens, workspaces)
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncGeneratedSkills(targetRoot, tokens, {
-    hasBackoffice: combo.withBackoffice,
-    serverProvider: combo.serverProvider,
-    hasTrpc: combo.withTrpc,
-  })
+  await applyDocsTemplates(targetRoot, tokens, { serverProvider: combo.serverProvider })
+  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: combo.serverProvider })
 }
 
 test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {

@@ -165,13 +165,8 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
       await resolveRootWorkspaces(targetRoot),
     )
   }
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncGeneratedSkills(targetRoot, tokens, {
-    hasBackoffice:
-      options.withBackoffice && (await pathExists(path.join(targetRoot, 'backoffice'))),
-    serverProvider: options.serverProvider,
-    hasTrpc: trpcEnabled,
-  })
+  await applyDocsTemplates(targetRoot, tokens, { serverProvider: options.serverProvider })
+  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: options.serverProvider })
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
@@ -351,11 +346,8 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   )
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
-  await syncGeneratedSkills(targetRoot, tokens, {
-    hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
-    serverProvider: finalServerProvider,
-    hasTrpc: trpcEnabled,
-  })
+  await applyDocsTemplates(targetRoot, tokens, { serverProvider: finalServerProvider })
+  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: finalServerProvider })
 
   if (
     (options.withServer || trpcEnabled) &&

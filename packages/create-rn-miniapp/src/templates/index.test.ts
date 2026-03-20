@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import * as templateModule from './index.js'
 import {
@@ -15,10 +16,49 @@ import {
   applyWorkspaceProjectTemplate,
   FIREBASE_DEFAULT_FUNCTION_REGION,
   pathExists,
+  resolveGeneratedWorkspaceOptions,
   syncGeneratedSkills,
   syncRootWorkspaceManifest,
   type TemplateTokens,
 } from './index.js'
+
+async function materializeDocsWorkspaceState(
+  targetRoot: string,
+  options?: {
+    hasBackoffice?: boolean
+    hasServer?: boolean
+    hasTrpc?: boolean
+  },
+) {
+  const resolvedOptions = {
+    hasBackoffice: false,
+    hasServer: false,
+    hasTrpc: false,
+    ...options,
+  }
+
+  if (resolvedOptions.hasServer) {
+    await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+  }
+
+  if (resolvedOptions.hasBackoffice) {
+    await mkdir(path.join(targetRoot, 'backoffice'), { recursive: true })
+  }
+
+  if (resolvedOptions.hasTrpc) {
+    await mkdir(path.join(targetRoot, 'packages', 'contracts'), { recursive: true })
+    await mkdir(path.join(targetRoot, 'packages', 'app-router'), { recursive: true })
+  }
+}
+
+function createDocsHints(overrides?: {
+  serverProvider?: 'supabase' | 'cloudflare' | 'firebase' | null
+}) {
+  return {
+    serverProvider: null,
+    ...overrides,
+  }
+}
 
 function createTokens(packageManager: PackageManager): TemplateTokens {
   const adapter = getPackageManagerAdapter(packageManager)
@@ -49,6 +89,56 @@ const NX_PROJECT_SCHEMA_URL =
 
 test('template module does not expose the legacy optional docs sync entrypoint', () => {
   assert.equal('syncOptionalDocsTemplates' in templateModule, false)
+})
+
+test('docs templates keep markdown source free of optional marker comments', async () => {
+  const templateFiles = ['AGENTS.md', 'docs/index.md', 'docs/engineering/workspace-topology.md']
+
+  for (const templateFile of templateFiles) {
+    const templateSource = await readFile(
+      fileURLToPath(new URL(`../../../scaffold-templates/base/${templateFile}`, import.meta.url)),
+      'utf8',
+    )
+
+    assert.doesNotMatch(templateSource, /<!--\s*optional-[a-z-]+:(?:start|end)\s*-->/)
+  }
+})
+
+test('resolveGeneratedWorkspaceOptions derives optional docs state from the actual workspace tree', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+
+  let options = await resolveGeneratedWorkspaceOptions(targetRoot, {
+    serverProvider: 'cloudflare',
+  })
+  assert.deepEqual(options, {
+    hasBackoffice: false,
+    serverProvider: null,
+    hasTrpc: false,
+  })
+
+  await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'backoffice'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'packages', 'contracts'), { recursive: true })
+
+  options = await resolveGeneratedWorkspaceOptions(targetRoot, {
+    serverProvider: 'cloudflare',
+  })
+  assert.deepEqual(options, {
+    hasBackoffice: true,
+    serverProvider: 'cloudflare',
+    hasTrpc: false,
+  })
+
+  await mkdir(path.join(targetRoot, 'packages', 'app-router'), { recursive: true })
+
+  options = await resolveGeneratedWorkspaceOptions(targetRoot, {
+    serverProvider: 'cloudflare',
+  })
+  assert.deepEqual(options, {
+    hasBackoffice: true,
+    serverProvider: 'cloudflare',
+    hasTrpc: true,
+  })
 })
 
 test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
@@ -409,11 +499,11 @@ test('generated frontend route checker reports every violation in one run', asyn
   assert.match(result.stderr, /docs\/engineering\/frontend-policy\.md/)
 })
 
-test('applyDocsTemplates lays down contract docs and adapters without old engineering catalogs', async (t) => {
+test('applyDocsTemplates omits optional workspace and skill references for base-only workspaces', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
-  await applyDocsTemplates(targetRoot, tokens)
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints())
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
   const claude = await readFile(path.join(targetRoot, 'CLAUDE.md'), 'utf8')
@@ -422,14 +512,30 @@ test('applyDocsTemplates lays down contract docs and adapters without old engine
     'utf8',
   )
   const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+  const workspaceTopology = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'workspace-topology.md'),
+    'utf8',
+  )
 
   assert.match(agents, /Repository Contract/)
   assert.match(agents, /\.agents\/skills\/core\/miniapp\/SKILL\.md/)
+  assert.doesNotMatch(agents, /optional provider workspace/)
+  assert.doesNotMatch(agents, /backoffice React 작업/)
+  assert.doesNotMatch(agents, /provider 운영 가이드/)
+  assert.doesNotMatch(agents, /trRPC|tRPC boundary 변경/)
   assert.match(claude, /\.claude\/skills/)
   assert.match(copilot, /AGENTS\.md/)
   assert.match(docsIndex, /repo-contract\.md/)
   assert.match(docsIndex, /frontend-policy\.md/)
   assert.match(docsIndex, /workspace-topology\.md/)
+  assert.doesNotMatch(docsIndex, /optional skills:/)
+  assert.doesNotMatch(docsIndex, /server-cloudflare/)
+  assert.doesNotMatch(docsIndex, /backoffice-react/)
+  assert.doesNotMatch(docsIndex, /trpc-boundary/)
+  assert.doesNotMatch(workspaceTopology, /optional provider workspace/)
+  assert.doesNotMatch(workspaceTopology, /backoffice/)
+  assert.doesNotMatch(workspaceTopology, /packages\/contracts/)
+  assert.doesNotMatch(workspaceTopology, /provider 운영 가이드/)
   assert.equal(
     await pathExists(path.join(targetRoot, 'docs', 'engineering', 'repo-contract.md')),
     true,
@@ -454,17 +560,89 @@ test('applyDocsTemplates lays down contract docs and adapters without old engine
   )
 })
 
+test('applyDocsTemplates includes only the selected optional workspace and skill references', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+  await materializeDocsWorkspaceState(targetRoot, {
+    hasBackoffice: true,
+    hasServer: true,
+    hasTrpc: true,
+  })
+
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints({ serverProvider: 'cloudflare' }))
+
+  const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+  const workspaceTopology = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'workspace-topology.md'),
+    'utf8',
+  )
+
+  assert.match(agents, /- `server`: optional provider workspace/)
+  assert.match(agents, /- `backoffice`: optional Vite 기반 운영 도구/)
+  assert.match(agents, /packages\/contracts/)
+  assert.match(agents, /server-cloudflare\/SKILL\.md/)
+  assert.match(agents, /backoffice-react\/SKILL\.md/)
+  assert.match(agents, /trpc-boundary\/SKILL\.md/)
+  assert.doesNotMatch(agents, /server-supabase\/SKILL\.md/)
+  assert.doesNotMatch(agents, /server-firebase\/SKILL\.md/)
+  assert.match(docsIndex, /optional skills:/)
+  assert.match(docsIndex, /server-cloudflare/)
+  assert.match(docsIndex, /backoffice-react/)
+  assert.match(docsIndex, /trpc-boundary/)
+  assert.doesNotMatch(docsIndex, /server-supabase/)
+  assert.doesNotMatch(docsIndex, /server-firebase/)
+  assert.match(workspaceTopology, /- `server`: optional provider workspace/)
+  assert.match(workspaceTopology, /- `backoffice`: optional Vite \+ React 운영 도구/)
+  assert.match(
+    workspaceTopology,
+    /- `packages\/contracts`: optional tRPC boundary schema \/ type source/,
+  )
+  assert.match(
+    workspaceTopology,
+    /- `packages\/app-router`: optional tRPC router \/ `AppRouter` source/,
+  )
+  assert.match(workspaceTopology, /Cloudflare provider 운영 가이드/)
+  assert.doesNotMatch(workspaceTopology, /Supabase provider 운영 가이드/)
+})
+
+test('applyDocsTemplates can rerender docs after optional workspaces are added later', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints())
+  let agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  assert.doesNotMatch(agents, /server-cloudflare\/SKILL\.md/)
+  assert.doesNotMatch(agents, /backoffice React 작업/)
+
+  await materializeDocsWorkspaceState(targetRoot, {
+    hasBackoffice: true,
+    hasServer: true,
+  })
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints({ serverProvider: 'cloudflare' }))
+
+  agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
+
+  assert.match(agents, /server-cloudflare\/SKILL\.md/)
+  assert.match(agents, /backoffice-react\/SKILL\.md/)
+  assert.doesNotMatch(agents, /trpc-boundary\/SKILL\.md/)
+  assert.match(docsIndex, /server-cloudflare/)
+  assert.match(docsIndex, /backoffice-react/)
+  assert.doesNotMatch(docsIndex, /trpc-boundary/)
+})
+
 test('syncGeneratedSkills copies core skills, selected optional skills, and the claude mirror', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('yarn')
 
   await applyRootTemplates(targetRoot, tokens, ['frontend', 'backoffice', 'server'])
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncGeneratedSkills(targetRoot, tokens, {
+  await materializeDocsWorkspaceState(targetRoot, {
     hasBackoffice: true,
-    serverProvider: 'firebase',
-    hasTrpc: false,
+    hasServer: true,
   })
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints({ serverProvider: 'firebase' }))
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints({ serverProvider: 'firebase' }))
 
   const checkResult = spawnSync(process.execPath, ['./scripts/check-skills.mjs'], {
     cwd: targetRoot,
@@ -515,13 +693,13 @@ test('syncGeneratedSkills copies core skills, selected optional skills, and the 
 test('syncGeneratedSkills selects the provider and trpc skills without leaving stale entries', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
-
-  await applyDocsTemplates(targetRoot, tokens)
-  await syncGeneratedSkills(targetRoot, tokens, {
-    hasBackoffice: false,
-    serverProvider: 'cloudflare',
+  await materializeDocsWorkspaceState(targetRoot, {
+    hasServer: true,
     hasTrpc: true,
   })
+
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints({ serverProvider: 'cloudflare' }))
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints({ serverProvider: 'cloudflare' }))
 
   assert.equal(
     await pathExists(

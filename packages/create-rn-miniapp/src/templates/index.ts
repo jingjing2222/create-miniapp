@@ -1,6 +1,10 @@
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { toString as mdastToString } from 'mdast-util-to-string'
+import remarkParse from 'remark-parse'
+import remarkStringify from 'remark-stringify'
+import { unified } from 'unified'
 import { patchRootPackageJsonSource } from '../patching/package-json.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
@@ -31,10 +35,24 @@ export type TemplateTokens = {
 
 type GeneratedSkillsServerProvider = 'supabase' | 'cloudflare' | 'firebase'
 
-export type GeneratedSkillsOptions = {
+export type GeneratedWorkspaceHints = {
+  serverProvider: GeneratedSkillsServerProvider | null
+}
+
+export type GeneratedWorkspaceOptions = {
   hasBackoffice: boolean
   serverProvider: GeneratedSkillsServerProvider | null
   hasTrpc: boolean
+}
+
+type MarkdownNode = {
+  type: string
+  depth?: number
+  children?: MarkdownNode[]
+}
+
+type MarkdownRoot = MarkdownNode & {
+  children: MarkdownNode[]
 }
 
 type WorkspaceProjectJson = {
@@ -72,6 +90,10 @@ const FRONTEND_POLICY_CHECK_SCRIPT = 'node ./scripts/verify-frontend-routes.mjs'
 const SKILLS_SYNC_SCRIPT = 'node ./scripts/sync-skills.mjs'
 const SKILLS_CHECK_SCRIPT = 'node ./scripts/check-skills.mjs'
 const BINARY_TEMPLATE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+const MARKDOWN_RENDERER = unified().use(remarkParse).use(remarkStringify, {
+  bullet: '-',
+  listItemIndent: 'one',
+})
 
 const require = createRequire(import.meta.url)
 const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
@@ -107,6 +129,251 @@ function replaceTemplateTokens(source: string, tokens: TemplateTokens) {
     .replaceAll('{{packageManagerRunCommand}}', tokens.packageManagerRunCommand)
     .replaceAll('{{packageManagerExecCommand}}', tokens.packageManagerExecCommand)
     .replaceAll('{{verifyCommand}}', tokens.verifyCommand)
+}
+
+function getMarkdownNodeText(node: MarkdownNode) {
+  return mdastToString(node as never).trim()
+}
+
+function filterHeadingSections(
+  root: MarkdownRoot,
+  shouldKeepSection: (headingText: string) => boolean,
+) {
+  const nextChildren: MarkdownNode[] = []
+
+  for (let index = 0; index < root.children.length; index += 1) {
+    const node = root.children[index]
+
+    if (node.type === 'heading' && typeof node.depth === 'number') {
+      const headingText = getMarkdownNodeText(node)
+
+      if (!shouldKeepSection(headingText)) {
+        const headingDepth = node.depth
+
+        index += 1
+        while (index < root.children.length) {
+          const nextNode = root.children[index]
+
+          if (
+            nextNode.type === 'heading' &&
+            typeof nextNode.depth === 'number' &&
+            nextNode.depth <= headingDepth
+          ) {
+            index -= 1
+            break
+          }
+
+          index += 1
+        }
+
+        continue
+      }
+    }
+
+    nextChildren.push(node)
+  }
+
+  root.children = nextChildren
+}
+
+function filterMarkdownNode(
+  node: MarkdownNode,
+  shouldKeepNode: (node: MarkdownNode, text: string) => boolean,
+): MarkdownNode | null {
+  const text = getMarkdownNodeText(node)
+
+  if (!shouldKeepNode(node, text)) {
+    return null
+  }
+
+  if (!Array.isArray(node.children)) {
+    return node
+  }
+
+  const children = node.children
+    .map((child) => filterMarkdownNode(child, shouldKeepNode))
+    .filter((child): child is MarkdownNode => child !== null)
+
+  if (node.type === 'list' && children.length === 0) {
+    return null
+  }
+
+  if (node.type === 'listItem') {
+    if (text === 'import boundary:' && !children.some((child) => child.type === 'list')) {
+      return null
+    }
+
+    if (children.length === 0) {
+      return null
+    }
+  }
+
+  return { ...node, children }
+}
+
+function filterMarkdownTree(
+  root: MarkdownRoot,
+  shouldKeepNode: (node: MarkdownNode, text: string) => boolean,
+) {
+  root.children = root.children
+    .map((child) => filterMarkdownNode(child, shouldKeepNode))
+    .filter((child): child is MarkdownNode => child !== null)
+}
+
+function removeParagraphs(root: MarkdownRoot, shouldRemove: (text: string) => boolean) {
+  root.children = root.children.filter(
+    (node) => node.type !== 'paragraph' || !shouldRemove(getMarkdownNodeText(node)),
+  )
+}
+
+function hasListItem(root: MarkdownRoot, textToMatch: string) {
+  const stack: MarkdownNode[] = [...root.children]
+
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (!node) {
+      continue
+    }
+
+    if (node.type === 'listItem' && getMarkdownNodeText(node) === textToMatch) {
+      return true
+    }
+
+    if (Array.isArray(node.children)) {
+      stack.push(...node.children)
+    }
+  }
+
+  return false
+}
+
+function renderDynamicMarkdownSource(
+  relativePath: string,
+  source: string,
+  options: GeneratedWorkspaceOptions,
+) {
+  const root = MARKDOWN_RENDERER.parse(source) as MarkdownRoot
+
+  switch (relativePath) {
+    case 'AGENTS.md': {
+      filterMarkdownTree(root, (node, text) => {
+        if (node.type !== 'listItem') {
+          return true
+        }
+
+        switch (text) {
+          case 'server: optional provider workspace':
+            return options.serverProvider !== null
+          case 'backoffice: optional Vite 기반 운영 도구':
+            return options.hasBackoffice
+          case 'packages/contracts, packages/app-router: optional shared tRPC boundary packages':
+            return options.hasTrpc
+          case 'backoffice React 작업: .agents/skills/optional/backoffice-react/SKILL.md':
+            return options.hasBackoffice
+          case 'Cloudflare provider 작업: .agents/skills/optional/server-cloudflare/SKILL.md':
+            return options.serverProvider === 'cloudflare'
+          case 'Supabase provider 작업: .agents/skills/optional/server-supabase/SKILL.md':
+            return options.serverProvider === 'supabase'
+          case 'Firebase provider 작업: .agents/skills/optional/server-firebase/SKILL.md':
+            return options.serverProvider === 'firebase'
+          case 'tRPC boundary 변경: .agents/skills/optional/trpc-boundary/SKILL.md':
+            return options.hasTrpc
+          default:
+            return true
+        }
+      })
+      break
+    }
+    case 'docs/index.md': {
+      filterMarkdownTree(root, (node, text) => {
+        if (node.type !== 'listItem') {
+          return true
+        }
+
+        switch (text) {
+          case '.agents/skills/optional/backoffice-react/SKILL.md':
+            return options.hasBackoffice
+          case '.agents/skills/optional/server-cloudflare/SKILL.md':
+            return options.serverProvider === 'cloudflare'
+          case '.agents/skills/optional/server-supabase/SKILL.md':
+            return options.serverProvider === 'supabase'
+          case '.agents/skills/optional/server-firebase/SKILL.md':
+            return options.serverProvider === 'firebase'
+          case '.agents/skills/optional/trpc-boundary/SKILL.md':
+            return options.hasTrpc
+          default:
+            return true
+        }
+      })
+
+      if (
+        !hasListItem(root, '.agents/skills/optional/backoffice-react/SKILL.md') &&
+        !hasListItem(root, '.agents/skills/optional/server-cloudflare/SKILL.md') &&
+        !hasListItem(root, '.agents/skills/optional/server-supabase/SKILL.md') &&
+        !hasListItem(root, '.agents/skills/optional/server-firebase/SKILL.md') &&
+        !hasListItem(root, '.agents/skills/optional/trpc-boundary/SKILL.md')
+      ) {
+        removeParagraphs(root, (text) => text === 'optional skills:')
+      }
+      break
+    }
+    case 'docs/engineering/workspace-topology.md': {
+      filterHeadingSections(root, (headingText) => {
+        switch (headingText) {
+          case 'server':
+            return options.serverProvider !== null
+          case 'backoffice':
+            return options.hasBackoffice
+          case 'packages/contracts':
+          case 'packages/app-router':
+            return options.hasTrpc
+          default:
+            return true
+        }
+      })
+
+      filterMarkdownTree(root, (node, text) => {
+        if (node.type !== 'listItem') {
+          return true
+        }
+
+        switch (text) {
+          case 'server: optional provider workspace':
+            return options.serverProvider !== null
+          case 'backoffice: optional Vite + React 운영 도구':
+            return options.hasBackoffice
+          case 'packages/contracts: optional tRPC boundary schema / type source':
+          case 'packages/app-router: optional tRPC router / AppRouter source':
+            return options.hasTrpc
+          case 'provider 연결값은 각 workspace의 .env.local에서 읽는다.':
+          case 'server runtime 구현을 직접 import하지 않는다.':
+          case 'API / base URL ownership: provider workspace가 값을 정의하고 consumer workspace가 읽는다.':
+          case 'frontend ↔ server 직접 import 금지':
+            return options.serverProvider !== null
+          case 'backoffice가 기대하는 env와 연결값을 제공한다.':
+          case 'backoffice ↔ server 직접 import 금지':
+          case 'Backoffice React workflow: .agents/skills/optional/backoffice-react/SKILL.md':
+            return options.hasBackoffice
+          case 'shared contract가 필요하면 packages/contracts, packages/app-router로 올린다.':
+          case 'tRPC boundary change flow: .agents/skills/optional/trpc-boundary/SKILL.md':
+            return options.hasTrpc
+          case 'Cloudflare provider 운영 가이드: .agents/skills/optional/server-cloudflare/SKILL.md':
+            return options.serverProvider === 'cloudflare'
+          case 'Supabase provider 운영 가이드: .agents/skills/optional/server-supabase/SKILL.md':
+            return options.serverProvider === 'supabase'
+          case 'Firebase provider 운영 가이드: .agents/skills/optional/server-firebase/SKILL.md':
+            return options.serverProvider === 'firebase'
+          default:
+            return true
+        }
+      })
+      break
+    }
+    default:
+      return source
+  }
+
+  return String(MARKDOWN_RENDERER.stringify(root as never))
 }
 
 async function copyFileWithTokens(sourcePath: string, targetPath: string, tokens: TemplateTokens) {
@@ -1301,15 +1568,50 @@ export async function applyTrpcWorkspaceTemplate(
   await applyTrpcWorkspaceTemplateImpl(targetRoot, tokens, options)
 }
 
-export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTokens) {
+export async function resolveGeneratedWorkspaceOptions(
+  targetRoot: string,
+  hints: GeneratedWorkspaceHints,
+): Promise<GeneratedWorkspaceOptions> {
+  const hasBackoffice = await pathExists(path.join(targetRoot, 'backoffice'))
+  const hasServerWorkspace = await pathExists(path.join(targetRoot, 'server'))
+  const hasContractsWorkspace = await pathExists(path.join(targetRoot, CONTRACTS_WORKSPACE_PATH))
+  const hasAppRouterWorkspace = await pathExists(path.join(targetRoot, APP_ROUTER_WORKSPACE_PATH))
+
+  return {
+    hasBackoffice,
+    serverProvider: hasServerWorkspace ? hints.serverProvider : null,
+    hasTrpc: hasContractsWorkspace && hasAppRouterWorkspace,
+  }
+}
+
+async function renderDynamicMarkdownTemplate(
+  baseTemplateDir: string,
+  sourcePath: string,
+  targetPath: string,
+  tokens: TemplateTokens,
+  options: GeneratedWorkspaceOptions,
+) {
+  const contents = await readFile(sourcePath, 'utf8')
+  const relativePath = path.relative(baseTemplateDir, sourcePath).split(path.sep).join('/')
+  const renderedSource = renderDynamicMarkdownSource(
+    relativePath,
+    replaceTemplateTokens(contents, tokens),
+    options,
+  )
+
+  await mkdir(path.dirname(targetPath), { recursive: true })
+  await writeFile(targetPath, renderedSource, 'utf8')
+}
+
+export async function applyDocsTemplates(
+  targetRoot: string,
+  tokens: TemplateTokens,
+  hints: GeneratedWorkspaceHints,
+) {
   const templatesRoot = resolveTemplatesPackageRoot()
   const baseTemplateDir = path.join(templatesRoot, 'base')
+  const options = await resolveGeneratedWorkspaceOptions(targetRoot, hints)
 
-  await copyFileWithTokens(
-    path.join(baseTemplateDir, 'AGENTS.md'),
-    path.join(targetRoot, 'AGENTS.md'),
-    tokens,
-  )
   await copyFileWithTokens(
     path.join(baseTemplateDir, 'CLAUDE.md'),
     path.join(targetRoot, 'CLAUDE.md'),
@@ -1325,9 +1627,31 @@ export async function applyDocsTemplates(targetRoot: string, tokens: TemplateTok
     path.join(targetRoot, 'docs'),
     tokens,
   )
+
+  await renderDynamicMarkdownTemplate(
+    baseTemplateDir,
+    path.join(baseTemplateDir, 'AGENTS.md'),
+    path.join(targetRoot, 'AGENTS.md'),
+    tokens,
+    options,
+  )
+  await renderDynamicMarkdownTemplate(
+    baseTemplateDir,
+    path.join(baseTemplateDir, 'docs', 'index.md'),
+    path.join(targetRoot, 'docs', 'index.md'),
+    tokens,
+    options,
+  )
+  await renderDynamicMarkdownTemplate(
+    baseTemplateDir,
+    path.join(baseTemplateDir, 'docs', 'engineering', 'workspace-topology.md'),
+    path.join(targetRoot, 'docs', 'engineering', 'workspace-topology.md'),
+    tokens,
+    options,
+  )
 }
 
-function resolveGeneratedSkillTemplates(options: GeneratedSkillsOptions) {
+function resolveGeneratedSkillTemplates(options: GeneratedWorkspaceOptions) {
   const templates = ['core/miniapp', 'core/granite', 'core/tds']
 
   if (options.hasBackoffice) {
@@ -1348,8 +1672,9 @@ function resolveGeneratedSkillTemplates(options: GeneratedSkillsOptions) {
 export async function syncGeneratedSkills(
   targetRoot: string,
   tokens: TemplateTokens,
-  options: GeneratedSkillsOptions,
+  hints: GeneratedWorkspaceHints,
 ) {
+  const options = await resolveGeneratedWorkspaceOptions(targetRoot, hints)
   const skillsRoot = resolveSkillsPackageRoot()
   const canonicalTargetRoot = path.join(targetRoot, '.agents', 'skills')
   const claudeMirrorRoot = path.join(targetRoot, '.claude', 'skills')
