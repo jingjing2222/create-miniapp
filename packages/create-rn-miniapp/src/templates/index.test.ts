@@ -483,7 +483,7 @@ test('syncOptionalDocsTemplates adds the tRPC boundary type golden rule only whe
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
   const docsIndex = await readFile(path.join(targetRoot, 'docs', 'index.md'), 'utf8')
 
-  assert.match(agents, /8\. Boundary types from schema only:/)
+  assert.match(agents, /9\. Boundary types from schema only:/)
   assert.match(agents, /server-api-ssot-trpc/)
   assert.match(docsIndex, /Server API SSOT \(tRPC\)/)
   assert.equal(
@@ -1126,7 +1126,7 @@ test('syncOptionalDocsTemplates injects worktree docs and golden rule when workt
   )
 
   assert.match(agents, /worktree-workflow\.md/)
-  assert.match(agents, /8\. Worktree discipline:/)
+  assert.match(agents, /9\. Worktree discipline:/)
   assert.match(docsIndex, /Worktree workflow/)
   assert.match(harnessGuide, /git worktree add/)
   assert.doesNotMatch(
@@ -1153,6 +1153,6 @@ test('syncOptionalDocsTemplates numbers worktree golden rule after trpc when bot
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
 
-  assert.match(agents, /8\. Boundary types from schema only:/)
-  assert.match(agents, /9\. Worktree discipline:/)
+  assert.match(agents, /9\. Boundary types from schema only:/)
+  assert.match(agents, /10\. Worktree discipline:/)
 })

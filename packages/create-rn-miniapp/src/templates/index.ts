@@ -1243,7 +1243,7 @@ function renderOptionalAgentsSection(options: OptionalDocsOptions) {
 
 function renderOptionalGoldenRulesSection(options: OptionalDocsOptions) {
   const lines: string[] = []
-  let ruleNumber = 8
+  let ruleNumber = 9
 
   if (options.hasTrpc) {
     lines.push(
