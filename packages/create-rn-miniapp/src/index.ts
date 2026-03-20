@@ -29,20 +29,16 @@ function describeWorkspaceLayout(options: {
   ].join(', ')
 }
 
-function describeWorktreeSelection(options: { noGit: boolean; worktree?: boolean }) {
+function describeWorktreeSelection(options: { noGit: boolean; worktree: boolean }) {
   if (options.noGit) {
     return 'git을 안 만들기 때문에 이번엔 건너뛸게요'
   }
 
-  if (options.worktree === true) {
-    return '네, 마지막에 `main/` worktree로 바꿔둘게요'
+  if (options.worktree) {
+    return '네, `main/` worktree로 세팅할게요'
   }
 
-  if (options.worktree === false) {
-    return '아니요, single-root로 둘게요'
-  }
-
-  return '마지막 git 단계 직전에 물어볼게요'
+  return '아니요, single-root로 둘게요'
 }
 
 export async function main() {
