@@ -39,6 +39,12 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
       includeInReadme: false,
     },
     {
+      name: 'deno:install',
+      command: 'node ./scripts/supabase-install-deno.mjs',
+      readmeDescription: 'Supabase Edge Function용 최신 Deno를 설치하거나 업그레이드해요.',
+      includeInReadme: false,
+    },
+    {
       name: 'typecheck',
       command: 'node ./scripts/supabase-functions-typecheck.mjs',
       readmeDescription:

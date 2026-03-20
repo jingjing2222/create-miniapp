@@ -1252,6 +1252,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     path.join(targetRoot, 'server', 'scripts', 'supabase-functions-typecheck.mjs'),
     'utf8',
   )
+  const serverInstallDenoScript = await readFile(
+    path.join(targetRoot, 'server', 'scripts', 'supabase-install-deno.mjs'),
+    'utf8',
+  )
   const serverFunctionsDeployScript = await readFile(
     path.join(targetRoot, 'server', 'scripts', 'supabase-functions-deploy.mjs'),
     'utf8',
@@ -1290,6 +1294,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     serverPackageJson.scripts?.typecheck,
     'node ./scripts/supabase-functions-typecheck.mjs',
   )
+  assert.equal(
+    serverPackageJson.scripts?.['deno:install'],
+    'node ./scripts/supabase-install-deno.mjs',
+  )
   assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
   assert.equal(
     serverPackageJson.scripts?.['functions:serve'],
@@ -1311,9 +1319,15 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.match(serverDbApplyScript, /baseArgs = \["dlx","supabase","db","push"/)
   assert.match(serverDbApplyScript, /yarn/)
   assert.doesNotMatch(serverDbApplyScript, /value: string/)
+  assert.match(serverTypecheckScript, /os\.homedir\(\)/)
+  assert.match(serverTypecheckScript, /\.deno/)
+  assert.match(serverTypecheckScript, /resolveDenoCommand/)
   assert.match(serverTypecheckScript, /const denoCommand =/)
   assert.match(serverTypecheckScript, /\['check'/)
   assert.match(serverTypecheckScript, /path\.join\(serverRoot, 'supabase', 'functions'\)/)
+  assert.match(serverInstallDenoScript, /install\.sh/)
+  assert.match(serverInstallDenoScript, /install\.ps1/)
+  assert.match(serverInstallDenoScript, /deno upgrade/)
   assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
   assert.match(serverFunctionsDeployScript, /baseArgs = \["dlx","supabase","functions","deploy"/)
   assert.match(serverFunctionsDeployScript, /--project-ref/)
@@ -1373,6 +1387,10 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
   assert.equal(
     serverPackageJson.scripts?.typecheck,
     'node ./scripts/supabase-functions-typecheck.mjs',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.['deno:install'],
+    'node ./scripts/supabase-install-deno.mjs',
   )
   assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('npm'))
   assert.equal(
@@ -1434,6 +1452,10 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
   assert.equal(
     serverPackageJson.scripts?.typecheck,
     'node ./scripts/supabase-functions-typecheck.mjs',
+  )
+  assert.equal(
+    serverPackageJson.scripts?.['deno:install'],
+    'node ./scripts/supabase-install-deno.mjs',
   )
   assert.equal(packageJson.scripts?.verify, renderRootVerifyScript('bun'))
   assert.match(serverDbApplyScript, /bunx/)

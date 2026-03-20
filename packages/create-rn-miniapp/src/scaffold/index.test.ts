@@ -125,6 +125,7 @@ test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
   const plan = buildRootFinalizePlan({
     targetRoot,
     packageManager: 'pnpm',
+    serverProvider: null,
   })
 
   assert.deepEqual(
@@ -240,6 +241,7 @@ test('buildRootFinalizePlan adds yarn sdk generation after root install', () => 
   const plan = buildRootFinalizePlan({
     targetRoot,
     packageManager: 'yarn',
+    serverProvider: null,
   })
 
   assert.deepEqual(
@@ -259,10 +261,12 @@ test('buildRootFinalizePlan keeps npm and bun finalize steps minimal', () => {
   const npmPlan = buildRootFinalizePlan({
     targetRoot,
     packageManager: 'npm',
+    serverProvider: null,
   })
   const bunPlan = buildRootFinalizePlan({
     targetRoot,
     packageManager: 'bun',
+    serverProvider: null,
   })
 
   assert.deepEqual(
@@ -284,6 +288,26 @@ test('buildRootFinalizePlan keeps npm and bun finalize steps minimal', () => {
     command: 'bun',
     args: ['install'],
     label: '루트 bun 설치하기',
+  })
+})
+
+test('buildRootFinalizePlan installs latest Deno before biome when Supabase is selected', () => {
+  const targetRoot = path.join('/tmp', 'ebook')
+  const plan = buildRootFinalizePlan({
+    targetRoot,
+    packageManager: 'pnpm',
+    serverProvider: 'supabase',
+  })
+
+  assert.deepEqual(
+    plan.map((step) => step.label),
+    ['루트 pnpm 설치하기', 'server Deno 최신 버전 설치하기', '루트 biome로 코드 정리하기'],
+  )
+  assert.deepEqual(plan[1], {
+    cwd: targetRoot,
+    command: 'pnpm',
+    args: ['--dir', 'server', 'deno:install'],
+    label: 'server Deno 최신 버전 설치하기',
   })
 })
 

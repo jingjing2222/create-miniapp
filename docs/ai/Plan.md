@@ -1,3 +1,19 @@
+## 다음 작업: Supabase scaffold가 Deno latest를 자동 확보하게 만들기
+1. 문제
+   - Supabase server scaffold는 `deno check`를 쓰는 typecheck 스크립트를 만들지만, 생성 시점에 Deno runtime을 확보하지 않아 generated repo에서 바로 `typecheck`가 깨질 수 있다.
+   - 특히 같은 셸 세션에서는 PATH에 `deno`가 없을 수 있어서, 단순 안내 문구만으로는 scaffold 직후 사용성이 보장되지 않는다.
+2. 방향
+   - Supabase server에 `deno:install` script와 installer script를 생성하고, root finalize plan은 Supabase 선택 시 이를 실행해 최신 Deno를 설치 또는 업그레이드한다.
+   - Supabase functions typecheck script는 PATH의 `deno`뿐 아니라 기본 설치 경로(`~/.deno/bin/deno` 등)도 fallback으로 찾게 만든다.
+3. 테스트
+   - `src/scaffold/index.test.ts`에 Supabase finalize plan이 Deno install step을 포함하는 red 테스트를 먼저 추가한다.
+   - `src/templates/index.test.ts`에 Supabase server script 생성물에 `deno:install`과 fallback resolution이 들어가는 red 테스트를 먼저 추가한다.
+   - 수정 후 `pnpm verify`를 통과한다.
+4. 완료 기준
+   - Supabase 선택 생성물은 scaffold 과정에서 최신 Deno 설치/업그레이드 step을 가진다.
+   - generated Supabase typecheck script는 PATH 미반영 상태에서도 기본 설치 경로를 fallback으로 사용할 수 있다.
+   - `pnpm verify`를 통과한다.
+
 ## 다음 작업: generated route checker가 biome unsafe fix 뒤에도 깨지지 않게 만들기
 1. 문제
    - `scripts/verify-frontend-routes.mjs`는 생성 직후에는 유효하지만, generated repo에서 `biome check . --write --unsafe`를 돌리면 `new RegExp("...")`가 잘못된 regex literal로 바뀌어 parse error가 난다.

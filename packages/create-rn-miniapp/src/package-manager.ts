@@ -34,6 +34,8 @@ export type PackageManagerAdapter = {
   createGraniteApp(targetDirectory: string): PackageManagerCommand
   createViteApp(targetDirectory: string): PackageManagerCommand
   createCloudflareApp(targetDirectory: string): PackageManagerCommand
+  installInDirectory(directory: string): PackageManagerCommand
+  runScriptInDirectory(directory: string, script: string): PackageManagerCommand
   installInDirectoryCommand(directory: string): string
   runScriptInDirectoryCommand(directory: string, script: string): string
   dlxCommand(packageName: string, args: string[]): string
@@ -129,6 +131,12 @@ const pnpmAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('pnpm', ['--dir', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('pnpm', ['--dir', directory, script])
+  },
   installInDirectoryCommand(directory) {
     return `pnpm --dir ${directory} install`
   },
@@ -219,6 +227,12 @@ const yarnAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('yarn', ['--cwd', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('yarn', ['--cwd', directory, script])
+  },
   installInDirectoryCommand(directory) {
     return `yarn --cwd ${directory} install`
   },
@@ -306,6 +320,12 @@ const npmAdapter: PackageManagerAdapter = {
       '--accept-defaults',
     ])
   },
+  installInDirectory(directory) {
+    return withArgs('npm', ['--prefix', directory, 'install'])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('npm', ['--prefix', directory, 'run', script])
+  },
   installInDirectoryCommand(directory) {
     return `npm --prefix ${directory} install`
   },
@@ -388,6 +408,12 @@ const bunAdapter: PackageManagerAdapter = {
       '--no-git',
       '--accept-defaults',
     ])
+  },
+  installInDirectory(directory) {
+    return withArgs('bun', ['install', '--cwd', directory])
+  },
+  runScriptInDirectory(directory, script) {
+    return withArgs('bun', ['run', '--cwd', directory, script])
   },
   installInDirectoryCommand(directory) {
     return `bun install --cwd ${directory}`

@@ -214,6 +214,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     for (const command of buildRootFinalizePlan({
       targetRoot,
       packageManager: options.packageManager,
+      serverProvider: options.serverProvider,
     })) {
       log.step(command.label)
       await runCommand(command)
@@ -399,6 +400,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
     for (const command of buildRootFinalizePlan({
       targetRoot,
       packageManager: options.packageManager,
+      serverProvider: options.existingServerProvider ?? options.serverProvider,
     })) {
       log.step(command.label)
       await runCommand(command)
