@@ -1,3 +1,31 @@
+## 다음 작업: tds-ui self-refresh hook 추가
+
+### 목표
+- generated repo의 `.agents/skills/tds-ui`가 7일 이상 오래된 snapshot이면 외부 package/docs 기준으로 자동 최신화되게 만든다.
+- freshness check는 skill-local script(`scripts/ensure-fresh.mjs`, `scripts/refresh-catalog.mjs`)로 제공하고, `SKILL.md`와 `AGENTS.md`가 이 hook contract를 먼저 안내하게 만든다.
+- refresh 성공 시 `generated/catalog.json`, `generated/anomalies.json`, `generated/catalog.md`, `AGENTS.md`, `metadata.json`을 실제 repo 파일로 다시 쓰고 `.claude/skills` mirror까지 다시 맞춘다.
+- 저장 전 검증은 malformed output 방지에만 집중하고, 최신 package/docs가 실제로 바뀐 경우에는 canonical snapshot을 갱신할 수 있게 만든다.
+- refresh 실패 시에는 hard fail 없이 기존 snapshot으로 계속 진행하게 만든다.
+- `ensure-fresh.mjs`와 `refresh-catalog.mjs` entrypoint는 어떤 예외가 나도 warning만 남기고 `exit 0`으로 끝나게 만든다.
+
+### 작업 순서
+1. `packages/create-rn-miniapp/src/templates/index.test.ts`와 `src/scaffold/index.test.ts`에 freshness hook script tree, generated repo copy, stale auto-refresh, silent fallback red test를 추가한다.
+2. `packages/scaffold-skills/tds-ui/scripts/*`와 supporting lib를 추가해 npm registry + Toss Mini Docs 기반 refresh pipeline을 구현한다.
+3. refresh 결과를 malformed output 관점으로 검증하되, state model/doc URL/package version 같은 최신 사실 변화는 받아들일 수 있게 기준을 조정한다.
+4. generated repo에서 실제 refresh를 돌려 최신 upstream diff를 확인하고, canonical `generated/*`와 `metadata.json`을 그 결과로 갱신한다.
+5. malformed metadata와 direct `refresh-catalog.mjs` 실행까지 fail-open인지 red test로 잠근다.
+6. `packages/scaffold-skills/tds-ui/{SKILL.md,AGENTS.md,metadata.json,generated/catalog.md}`를 hook contract와 refresh metadata에 맞춰 갱신한다.
+7. targeted test 후 `pnpm verify`까지 다시 통과시키고 커밋한다.
+8. npm dist-tag가 `latest=1.3.8`, `next=2.0.2`인 현재 상태에서는 `latest`가 아직 `1.x`일 때만 `2.0.2`를 refresh target으로 우선 선택하는 예외를 둔다.
+
+### 완료 기준
+- generated repo의 `.agents/skills/tds-ui/scripts/ensure-fresh.mjs`가 stale metadata를 보고 refresh를 자동 실행한다.
+- refresh는 최신 `@toss/tds-react-native` 버전과 Toss Mini Docs를 다시 읽어 snapshot 파일을 갱신한다.
+- refresh는 저장 전에 malformed output 검증을 통과해야 하며, 최신 source가 바뀐 경우에는 그 사실을 snapshot에 반영한다.
+- `.claude/skills/tds-ui`에서 script를 실행해도 canonical `.agents/skills/tds-ui`가 갱신되고 mirror가 다시 sync된다.
+- refresh 실패 시 어떤 진입 경로에서도 warning만 남기고 exit 0으로 계속 진행하며 기존 snapshot을 유지한다.
+- `pnpm verify`를 통과한다.
+
 ## 다음 작업: 루트 README UX refresh
 
 ### 목표

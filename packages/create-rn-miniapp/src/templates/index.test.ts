@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -89,6 +90,284 @@ async function createTempTargetRoot(t: test.TestContext) {
   return targetRoot
 }
 
+async function writeJsonFile(targetPath: string, value: unknown) {
+  await writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+async function spawnNodeProcess(
+  command: string,
+  args: string[],
+  options: {
+    cwd: string
+    env?: NodeJS.ProcessEnv
+    timeoutMs?: number
+  },
+) {
+  return await new Promise<{
+    status: number | null
+    signal: NodeJS.Signals | null
+    stdout: string
+    stderr: string
+  }>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const stdoutChunks: string[] = []
+    const stderrChunks: string[] = []
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM')
+      reject(new Error(`command timed out after ${options.timeoutMs ?? 15_000}ms`))
+    }, options.timeoutMs ?? 15_000)
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk) => stdoutChunks.push(chunk))
+    child.stderr.on('data', (chunk) => stderrChunks.push(chunk))
+    child.on('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.on('close', (status, signal) => {
+      clearTimeout(timeout)
+      resolve({
+        status,
+        signal,
+        stdout: stdoutChunks.join(''),
+        stderr: stderrChunks.join(''),
+      })
+    })
+  })
+}
+
+async function createRegistryFixtureServer(
+  t: test.TestContext,
+  registryMetadata: Record<string, unknown>,
+) {
+  const server = createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1')
+
+    if (requestUrl.pathname === '/registry.json') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify(registryMetadata))
+      return
+    }
+
+    response.statusCode = 404
+    response.end('not found')
+  })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        resolve()
+      })
+    })
+  })
+
+  const address = server.address()
+  assert.ok(address && typeof address === 'object' && 'port' in address)
+
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+  }
+}
+
+function renderTdsUiDocsPage(options: { hrefs: string[]; propNames?: string[] }) {
+  const tsDoc =
+    options.propNames && options.propNames.length > 0
+      ? [
+          {
+            title: 'ComponentProps',
+            description: '',
+            items: options.propNames.map((name) => ({
+              name,
+              type: ['unknown'],
+              defaultValue: '-',
+              link: '-',
+              description: '',
+              required: false,
+            })),
+          },
+        ]
+      : []
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="ko">',
+    '<body>',
+    ...options.hrefs.map((href) => `<a href="${href}">${href}</a>`),
+    `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+      props: {
+        pageProps: {
+          ssg: {
+            tsDoc,
+          },
+        },
+      },
+    })}</script>`,
+    '</body>',
+    '</html>',
+  ].join('')
+}
+
+async function createTdsUiRefreshFixtureServer(
+  t: test.TestContext,
+  options?: {
+    radioWithoutDefaultValue?: boolean
+  },
+) {
+  const preferredVersion = '2.0.2'
+  const baselineCatalogPath = fileURLToPath(
+    new URL('../../../scaffold-skills/tds-ui/generated/catalog.json', import.meta.url),
+  )
+  const baselineCatalog = JSON.parse(await readFile(baselineCatalogPath, 'utf8')) as Array<{
+    name: string
+    rootExported: boolean
+    componentDirExists: boolean
+    docsStatus: string
+    docsSlug: string | null
+    docUrl: string | null
+    stateModel: {
+      controlled: string[]
+      uncontrolled: string[]
+    }
+  }>
+  const docsLinks = baselineCatalog
+    .filter((entry) => entry.docsStatus === 'public-docs' && entry.docUrl)
+    .map((entry) => new URL(entry.docUrl as string).pathname)
+  const docsPages = new Map<string, string>(
+    baselineCatalog
+      .filter((entry) => entry.docsStatus === 'public-docs' && entry.docUrl)
+      .map((entry) => {
+        const propNames = [...entry.stateModel.controlled, ...entry.stateModel.uncontrolled]
+          .filter((value, index, values) => values.indexOf(value) === index)
+          .filter(
+            (value) =>
+              !(
+                options?.radioWithoutDefaultValue &&
+                entry.name === 'radio' &&
+                value === 'defaultValue'
+              ),
+          )
+        return [
+          new URL(entry.docUrl as string).pathname,
+          renderTdsUiDocsPage({
+            hrefs: docsLinks,
+            propNames,
+          }),
+        ]
+      }),
+  )
+  const componentMeta = {
+    package: '@toss/tds-react-native',
+    version: preferredVersion,
+    prefix: '/dist/cjs/components/',
+    files: baselineCatalog
+      .filter((entry) => entry.componentDirExists)
+      .map((entry) => `/dist/cjs/components/${entry.name}/index.js`)
+      .map((filePath) => ({
+        path: filePath,
+        size: 1,
+        type: 'text/javascript',
+        integrity: 'sha256-test',
+      })),
+  }
+  const rootIndexSource = baselineCatalog
+    .filter((entry) => entry.rootExported)
+    .map((entry) => `__exportStar(require("./components/${entry.name}"), exports);`)
+    .concat(['__exportStar(require("./extensions/page-navbar"), exports);'])
+    .join('\n')
+
+  const server = createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1')
+
+    if (requestUrl.pathname === '/registry.json') {
+      response.setHeader('content-type', 'application/json')
+      response.end(
+        JSON.stringify({
+          'dist-tags': {
+            latest: '1.3.8',
+            next: preferredVersion,
+          },
+          versions: {
+            '1.3.8': {
+              dist: {
+                tarball: 'http://127.0.0.1/dummy-legacy.tgz',
+              },
+            },
+            [preferredVersion]: {
+              dist: {
+                tarball: 'http://127.0.0.1/dummy.tgz',
+              },
+            },
+          },
+        }),
+      )
+      return
+    }
+
+    if (
+      requestUrl.pathname === `/@toss/tds-react-native@${preferredVersion}/dist/cjs/components/` &&
+      requestUrl.search === '?meta'
+    ) {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify(componentMeta))
+      return
+    }
+
+    if (requestUrl.pathname === `/@toss/tds-react-native@${preferredVersion}/dist/cjs/index.js`) {
+      response.setHeader('content-type', 'text/javascript')
+      response.end(rootIndexSource)
+      return
+    }
+
+    const docsPage = docsPages.get(requestUrl.pathname)
+    if (docsPage) {
+      response.setHeader('content-type', 'text/html; charset=utf-8')
+      response.end(docsPage)
+      return
+    }
+
+    response.statusCode = 404
+    response.end('not found')
+  })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        resolve()
+      })
+    })
+  })
+
+  const address = server.address()
+  assert.ok(address && typeof address === 'object' && 'port' in address)
+
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+  }
+}
+
 async function listRelativeFiles(root: string, currentDir = ''): Promise<string[]> {
   const absoluteDir = currentDir ? path.join(root, currentDir) : root
   const entries = await readdir(absoluteDir, { withFileTypes: true })
@@ -161,6 +440,16 @@ const TDS_UI_ACCEPTANCE_CHECK_LINES = [
   '- "단계형 진행 UI" -> `stepper-row`를 추천하되 docs slug alias note를 반드시 붙인다. (`stepper`)',
 ]
 
+const TDS_UI_REFRESH_SCRIPT_FILES = [
+  'scripts/ensure-fresh.mjs',
+  'scripts/lib/builders.mjs',
+  'scripts/lib/external.mjs',
+  'scripts/lib/io.mjs',
+  'scripts/lib/render.mjs',
+  'scripts/lib/validate.mjs',
+  'scripts/refresh-catalog.mjs',
+]
+
 function renderTdsUiAgentsMarkdown() {
   return [
     '# tds-ui AGENTS (Generated)',
@@ -172,6 +461,13 @@ function renderTdsUiAgentsMarkdown() {
     ...['metadata.json', 'generated/catalog.json', 'generated/anomalies.json'].map(
       (filePath) => `- \`${filePath}\``,
     ),
+    '',
+    '## Freshness Hook',
+    '- 먼저 `node scripts/ensure-fresh.mjs`를 실행한다.',
+    '- `metadata.json.lastVerifiedAt`이 7일을 넘기면 최신 `@toss/tds-react-native`와 Toss Mini Docs 기준으로 refresh를 시도한다.',
+    '- refresh 산출물은 저장 전에 catalog/anomaly/metadata 계약 검증을 통과해야 한다.',
+    '- refresh가 성공하면 canonical `.agents/skills/tds-ui` snapshot을 갱신하고 `.claude/skills` mirror를 다시 sync한다.',
+    '- refresh가 실패하면 warning만 남기고 현재 snapshot으로 계속 진행한다.',
     '',
     '## Human References',
     ...TDS_UI_REFERENCE_FILES.map((filePath) => `- \`${filePath}\``),
@@ -196,9 +492,13 @@ function renderTdsUiCatalogProjection(
     rootImportPath: string
     selectionStatus: string
   }>,
+  metadata: {
+    packageVersion: string
+    lastVerifiedAt: string
+  },
 ) {
-  const metadataLine = '- package: `@toss/tds-react-native@2.0.2`'
-  const verifiedLine = '- last verified: `2026-03-19`'
+  const metadataLine = `- package: \`@toss/tds-react-native@${metadata.packageVersion}\``
+  const verifiedLine = `- last verified: \`${metadata.lastVerifiedAt}\``
   const truthSourceLine = '- truth source: `generated/catalog.json`'
   const totalLine = `- total components: \`${catalog.length}\``
   const clusterOrder = [
@@ -433,6 +733,7 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
     'rules/no-rn-primitive-when-tds-exists.md',
     'rules/screen-states-loading-error-empty.md',
     'rules/state-controlled-uncontrolled.md',
+    ...TDS_UI_REFRESH_SCRIPT_FILES,
     'SKILL.md',
   ]
 
@@ -448,6 +749,8 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   assert.match(skillSource, /generated\/anomalies\.json/)
   assert.match(skillSource, /references\/decision-matrix\.md/)
   assert.match(skillSource, /rules\/\*\.md/)
+  assert.match(skillSource, /node scripts\/ensure-fresh\.mjs/)
+  assert.match(skillSource, /7일|7 days/)
   assert.match(skillSource, /추천 컴포넌트/)
   assert.match(skillSource, /anomaly note/i)
   assert.match(skillSource, /incomplete answer/)
@@ -457,10 +760,15 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   const metadata = JSON.parse(await readFile(path.join(tdsUiRoot, 'metadata.json'), 'utf8')) as {
     package: { name: string; version: string }
     lastVerifiedAt: string
+    refreshPolicy?: { maxAgeDays: number; strategy: string }
   }
   assert.equal(metadata.package.name, '@toss/tds-react-native')
   assert.equal(metadata.package.version, '2.0.2')
-  assert.equal(metadata.lastVerifiedAt, '2026-03-19')
+  assert.equal(metadata.lastVerifiedAt, '2026-03-21')
+  assert.deepEqual(metadata.refreshPolicy, {
+    maxAgeDays: 7,
+    strategy: 'auto-refresh-latest',
+  })
 
   const catalog = JSON.parse(
     await readFile(path.join(tdsUiRoot, 'generated', 'catalog.json'), 'utf8'),
@@ -496,7 +804,13 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
     'utf8',
   )
 
-  assert.equal(catalogProjectionSource, renderTdsUiCatalogProjection(catalog))
+  assert.equal(
+    catalogProjectionSource,
+    renderTdsUiCatalogProjection(catalog, {
+      packageVersion: metadata.package.version,
+      lastVerifiedAt: metadata.lastVerifiedAt,
+    }),
+  )
 
   assert.equal(searchField?.cluster, 'input-choice')
   assert.equal(searchField?.selectionStatus, 'doc-backed')
@@ -519,7 +833,7 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
     searchField?.knownCaveats.includes('prefer over text-field when the primary intent is search'),
   )
   assert.equal(searchField?.packageVersion, '2.0.2')
-  assert.equal(searchField?.lastVerifiedAt, '2026-03-19')
+  assert.equal(searchField?.lastVerifiedAt, '2026-03-21')
 
   assert.equal(navbar?.cluster, 'list-navigation-layout')
   assert.equal(navbar?.selectionStatus, 'export-gap')
@@ -612,6 +926,446 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   for (const acceptanceCheckLine of TDS_UI_ACCEPTANCE_CHECK_LINES) {
     assert.match(policySummarySource, new RegExp(escapeRegExp(acceptanceCheckLine)))
   }
+})
+
+test('tds-ui refresh selector follows latest once latest reaches 2.x', async (t) => {
+  const { baseUrl } = await createRegistryFixtureServer(t, {
+    'dist-tags': {
+      latest: '2.0.3',
+      next: '2.0.2',
+    },
+    versions: {
+      '2.0.2': {
+        dist: {
+          tarball: 'http://127.0.0.1/dummy-2.0.2.tgz',
+        },
+      },
+      '2.0.3': {
+        dist: {
+          tarball: 'http://127.0.0.1/dummy-2.0.3.tgz',
+        },
+      },
+    },
+  })
+  const externalModulePath = fileURLToPath(
+    new URL('../../../scaffold-skills/tds-ui/scripts/lib/external.mjs', import.meta.url),
+  )
+  const { fetchLatestPackageVersion } = (await import(externalModulePath)) as {
+    fetchLatestPackageVersion: (env?: NodeJS.ProcessEnv) => Promise<string>
+  }
+
+  const selectedVersion = await fetchLatestPackageVersion({
+    ...process.env,
+    TDS_UI_REFRESH_REGISTRY_URL: `${baseUrl}/registry.json`,
+  })
+
+  assert.equal(selectedVersion, '2.0.3')
+})
+
+test('tds-ui ensure-fresh refreshes stale canonical data and resyncs the claude mirror', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+  const { baseUrl } = await createTdsUiRefreshFixtureServer(t)
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints())
+
+  const canonicalMetadataPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'metadata.json',
+  )
+  const canonicalMetadata = JSON.parse(await readFile(canonicalMetadataPath, 'utf8')) as {
+    name: string
+    version: string
+    package: { name: string; version: string }
+    truthSources: string[]
+    notes: string[]
+  }
+
+  await writeJsonFile(canonicalMetadataPath, {
+    ...canonicalMetadata,
+    lastVerifiedAt: '2026-03-01',
+    refreshPolicy: {
+      maxAgeDays: 7,
+      strategy: 'auto-refresh-latest',
+    },
+  })
+
+  const result = await spawnNodeProcess(
+    process.execPath,
+    [path.join('.claude', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs')],
+    {
+      cwd: targetRoot,
+      env: {
+        ...process.env,
+        TDS_UI_REFRESH_DOCS_SEED_URL: `${baseUrl}/tds-react-native/components/text-field/`,
+        TDS_UI_REFRESH_REGISTRY_URL: `${baseUrl}/registry.json`,
+        TDS_UI_REFRESH_TODAY: '2026-03-21',
+        TDS_UI_REFRESH_UNPKG_BASE_URL: baseUrl,
+      },
+      timeoutMs: 15_000,
+    },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+
+  const nextCanonicalMetadata = JSON.parse(await readFile(canonicalMetadataPath, 'utf8')) as {
+    package: { version: string }
+    lastVerifiedAt: string
+    refreshPolicy?: { maxAgeDays: number; strategy: string }
+  }
+  const nextMirrorMetadata = JSON.parse(
+    await readFile(path.join(targetRoot, '.claude', 'skills', 'tds-ui', 'metadata.json'), 'utf8'),
+  ) as typeof nextCanonicalMetadata
+  const nextCatalog = JSON.parse(
+    await readFile(
+      path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'generated', 'catalog.json'),
+      'utf8',
+    ),
+  ) as Array<{
+    name: string
+    selectionStatus: string
+    rootExported: boolean
+    componentDirExists: boolean
+    rootImportPath: string
+    docsStatus: string
+    docsSlug: string | null
+    docUrl: string | null
+    stateModel: {
+      controlled: string[]
+      uncontrolled: string[]
+    }
+    packageVersion: string
+    lastVerifiedAt: string
+  }>
+  const mirrorCatalogSource = await readFile(
+    path.join(targetRoot, '.claude', 'skills', 'tds-ui', 'generated', 'catalog.json'),
+    'utf8',
+  )
+  const canonicalCatalogSource = await readFile(
+    path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'generated', 'catalog.json'),
+    'utf8',
+  )
+  const nextAnomalies = JSON.parse(
+    await readFile(
+      path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'generated', 'anomalies.json'),
+      'utf8',
+    ),
+  ) as Record<string, Array<{ name: string }>>
+
+  assert.deepEqual(nextCanonicalMetadata, nextMirrorMetadata)
+  assert.equal(nextCanonicalMetadata.package.version, '2.0.2')
+  assert.equal(nextCanonicalMetadata.lastVerifiedAt, '2026-03-21')
+  assert.deepEqual(nextCanonicalMetadata.refreshPolicy, {
+    maxAgeDays: 7,
+    strategy: 'auto-refresh-latest',
+  })
+  assert.equal(mirrorCatalogSource, canonicalCatalogSource)
+
+  const textField = nextCatalog.find((entry) => entry.name === 'text-field')
+  const navbar = nextCatalog.find((entry) => entry.name === 'navbar')
+  const chart = nextCatalog.find((entry) => entry.name === 'chart')
+  const stepperRow = nextCatalog.find((entry) => entry.name === 'stepper-row')
+  const agreement = nextCatalog.find((entry) => entry.name === 'agreement')
+  const paragraph = nextCatalog.find((entry) => entry.name === 'paragraph')
+
+  assert.deepEqual(textField?.stateModel, {
+    controlled: ['value', 'onChange'],
+    uncontrolled: ['defaultValue'],
+  })
+  assert.equal(textField?.packageVersion, '2.0.2')
+  assert.equal(textField?.lastVerifiedAt, '2026-03-21')
+  assert.equal(navbar?.selectionStatus, 'export-gap')
+  assert.equal(navbar?.rootExported, false)
+  assert.equal(navbar?.componentDirExists, true)
+  assert.equal(navbar?.rootImportPath, '@toss/tds-react-native/extensions/page-navbar')
+  assert.equal(navbar?.docsStatus, 'public-docs')
+  assert.equal(chart?.docsSlug, 'Chart/bar-chart')
+  assert.equal(chart?.docUrl, `${baseUrl}/tds-react-native/components/Chart/bar-chart/`)
+  assert.equal(stepperRow?.docsSlug, 'stepper')
+  assert.equal(stepperRow?.docUrl, `${baseUrl}/tds-react-native/components/stepper/`)
+  assert.equal(agreement?.selectionStatus, 'export-only')
+  assert.equal(agreement?.docsStatus, 'no-public-docs')
+  assert.equal(paragraph?.selectionStatus, 'blocked')
+  assert.equal(paragraph?.componentDirExists, true)
+  assert.equal(paragraph?.rootExported, false)
+
+  assert.deepEqual(nextAnomalies['docs-slug-alias']?.map((entry) => entry.name).sort(), [
+    'chart',
+    'stepper-row',
+  ])
+  assert.deepEqual(
+    nextAnomalies['root-export-gap']?.map((entry) => entry.name),
+    ['navbar'],
+  )
+  assert.ok(
+    nextAnomalies['root-export-no-public-docs']?.some((entry) => entry.name === 'agreement'),
+  )
+  assert.ok(nextAnomalies['dir-only-weak']?.some((entry) => entry.name === 'paragraph'))
+})
+
+test('tds-ui ensure-fresh swallows refresh failures and keeps the current snapshot', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints())
+
+  const canonicalMetadataPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'metadata.json',
+  )
+  const canonicalCatalogPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'generated',
+    'catalog.json',
+  )
+  const metadata = JSON.parse(await readFile(canonicalMetadataPath, 'utf8')) as {
+    name: string
+    version: string
+    package: { name: string; version: string }
+    truthSources: string[]
+    notes: string[]
+  }
+
+  await writeJsonFile(canonicalMetadataPath, {
+    ...metadata,
+    lastVerifiedAt: '2026-03-01',
+    refreshPolicy: {
+      maxAgeDays: 7,
+      strategy: 'auto-refresh-latest',
+    },
+  })
+
+  const metadataBefore = await readFile(canonicalMetadataPath, 'utf8')
+  const catalogBefore = await readFile(canonicalCatalogPath, 'utf8')
+  const result = await spawnNodeProcess(
+    process.execPath,
+    [path.join('.agents', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs')],
+    {
+      cwd: targetRoot,
+      env: {
+        ...process.env,
+        TDS_UI_REFRESH_DOCS_SEED_URL: 'http://127.0.0.1:1/tds-react-native/components/text-field/',
+        TDS_UI_REFRESH_REGISTRY_URL: 'http://127.0.0.1:1/registry.json',
+        TDS_UI_REFRESH_TODAY: '2026-03-21',
+        TDS_UI_REFRESH_UNPKG_BASE_URL: 'http://127.0.0.1:1',
+      },
+      timeoutMs: 15_000,
+    },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(await readFile(canonicalMetadataPath, 'utf8'), metadataBefore)
+  assert.equal(await readFile(canonicalCatalogPath, 'utf8'), catalogBefore)
+})
+
+test('tds-ui ensure-fresh accepts live state-model drift and updates the snapshot', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+  const { baseUrl } = await createTdsUiRefreshFixtureServer(t, { radioWithoutDefaultValue: true })
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints())
+
+  const canonicalMetadataPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'metadata.json',
+  )
+  const canonicalCatalogPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'generated',
+    'catalog.json',
+  )
+  const metadata = JSON.parse(await readFile(canonicalMetadataPath, 'utf8')) as {
+    name: string
+    version: string
+    package: { name: string; version: string }
+    truthSources: string[]
+    notes: string[]
+  }
+
+  await writeJsonFile(canonicalMetadataPath, {
+    ...metadata,
+    lastVerifiedAt: '2026-03-01',
+    refreshPolicy: {
+      maxAgeDays: 7,
+      strategy: 'auto-refresh-latest',
+    },
+  })
+
+  const result = await spawnNodeProcess(
+    process.execPath,
+    [path.join('.agents', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs')],
+    {
+      cwd: targetRoot,
+      env: {
+        ...process.env,
+        TDS_UI_REFRESH_DOCS_SEED_URL: `${baseUrl}/tds-react-native/components/text-field/`,
+        TDS_UI_REFRESH_REGISTRY_URL: `${baseUrl}/registry.json`,
+        TDS_UI_REFRESH_TODAY: '2026-03-21',
+        TDS_UI_REFRESH_UNPKG_BASE_URL: baseUrl,
+      },
+      timeoutMs: 15_000,
+    },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+  const nextMetadata = JSON.parse(await readFile(canonicalMetadataPath, 'utf8')) as {
+    package: { version: string }
+    lastVerifiedAt: string
+  }
+  const nextCatalog = JSON.parse(await readFile(canonicalCatalogPath, 'utf8')) as Array<{
+    name: string
+    stateModel: {
+      controlled: string[]
+      uncontrolled: string[]
+    }
+    packageVersion: string
+    lastVerifiedAt: string
+  }>
+  const radio = nextCatalog.find((entry) => entry.name === 'radio')
+
+  assert.equal(nextMetadata.package.version, '2.0.2')
+  assert.equal(nextMetadata.lastVerifiedAt, '2026-03-21')
+  assert.deepEqual(radio?.stateModel, {
+    controlled: ['value', 'onChange'],
+    uncontrolled: [],
+  })
+  assert.equal(radio?.packageVersion, '2.0.2')
+  assert.equal(radio?.lastVerifiedAt, '2026-03-21')
+})
+
+test('tds-ui refresh-catalog swallows direct refresh failures and keeps the current snapshot', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints())
+
+  const canonicalMetadataPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'metadata.json',
+  )
+  const canonicalCatalogPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'generated',
+    'catalog.json',
+  )
+  const brokenMetadata = '{\n  "name": "tds-ui",\n'
+  await writeFile(canonicalMetadataPath, brokenMetadata, 'utf8')
+  const metadataBefore = await readFile(canonicalMetadataPath, 'utf8')
+  const catalogBefore = await readFile(canonicalCatalogPath, 'utf8')
+  const result = await spawnNodeProcess(
+    process.execPath,
+    [path.join('.agents', 'skills', 'tds-ui', 'scripts', 'refresh-catalog.mjs')],
+    {
+      cwd: targetRoot,
+      timeoutMs: 15_000,
+    },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(await readFile(canonicalMetadataPath, 'utf8'), metadataBefore)
+  assert.equal(await readFile(canonicalCatalogPath, 'utf8'), catalogBefore)
+})
+
+test('tds-ui refresh validator rejects malformed output shape before save', async () => {
+  const validatorModulePath = fileURLToPath(
+    new URL('../../../scaffold-skills/tds-ui/scripts/lib/validate.mjs', import.meta.url),
+  )
+  const { validateRefreshArtifacts } = (await import(validatorModulePath)) as {
+    validateRefreshArtifacts: (options: {
+      baselineCatalog: unknown[]
+      baselineAnomalies: Record<string, unknown>
+      previousMetadata: Record<string, unknown>
+      catalog: unknown[]
+      anomalies: Record<string, unknown>
+      metadata: Record<string, unknown>
+    }) => void
+  }
+  const tdsUiRoot = fileURLToPath(new URL('../../../scaffold-skills/tds-ui', import.meta.url))
+  const baselineCatalog = JSON.parse(
+    await readFile(path.join(tdsUiRoot, 'generated', 'catalog.json'), 'utf8'),
+  ) as Array<Record<string, unknown>>
+  const baselineAnomalies = JSON.parse(
+    await readFile(path.join(tdsUiRoot, 'generated', 'anomalies.json'), 'utf8'),
+  ) as Record<string, unknown>
+  const previousMetadata = JSON.parse(
+    await readFile(path.join(tdsUiRoot, 'metadata.json'), 'utf8'),
+  ) as Record<string, unknown>
+  const malformedCatalog = structuredClone(baselineCatalog)
+  malformedCatalog[0] = {
+    ...malformedCatalog[0],
+    unexpected: true,
+  }
+
+  assert.throws(() => {
+    validateRefreshArtifacts({
+      baselineCatalog,
+      baselineAnomalies,
+      previousMetadata,
+      catalog: malformedCatalog,
+      anomalies: structuredClone(baselineAnomalies),
+      metadata: structuredClone(previousMetadata),
+    })
+  }, /keys changed|unexpected/)
+})
+
+test('tds-ui ensure-fresh swallows malformed metadata and keeps the current snapshot', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+  await syncGeneratedSkills(targetRoot, tokens, createDocsHints())
+
+  const canonicalMetadataPath = path.join(
+    targetRoot,
+    '.agents',
+    'skills',
+    'tds-ui',
+    'metadata.json',
+  )
+  const brokenMetadata = '{\n  "name": "tds-ui",\n'
+  await writeFile(canonicalMetadataPath, brokenMetadata, 'utf8')
+
+  const result = await spawnNodeProcess(
+    process.execPath,
+    [path.join('.agents', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs')],
+    {
+      cwd: targetRoot,
+      timeoutMs: 15_000,
+    },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(await readFile(canonicalMetadataPath, 'utf8'), brokenMetadata)
 })
 
 test('frontend route verifier is rendered from frontend policy metadata instead of template source', async () => {
@@ -1780,6 +2534,18 @@ test('syncGeneratedSkills copies core skills, selected optional skills, and the 
     ),
     true,
   )
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs'),
+    ),
+    true,
+  )
+  assert.equal(
+    await pathExists(
+      path.join(targetRoot, '.claude', 'skills', 'tds-ui', 'scripts', 'refresh-catalog.mjs'),
+    ),
+    true,
+  )
 
   const syncedTdsSkill = await readFile(
     path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'SKILL.md'),
@@ -1794,6 +2560,7 @@ test('syncGeneratedSkills copies core skills, selected optional skills, and the 
 
   assert.match(syncedTdsSkill, /generated\/catalog\.json/)
   assert.match(syncedTdsSkill, /generated\/anomalies\.json/)
+  assert.match(syncedTdsSkill, /node scripts\/ensure-fresh\.mjs/)
   assert.ok(
     syncedCatalog.some(
       (entry) => entry.name === 'search-field' && entry.cluster === 'input-choice',

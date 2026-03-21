@@ -5,7 +5,14 @@
     "name": "@toss/tds-react-native",
     "version": "2.0.2"
   },
-  "lastVerifiedAt": "2026-03-19",
+  "lastVerifiedAt": "2026-03-21",
+  "refreshPolicy": {
+    "maxAgeDays": 7,
+    "strategy": "auto-refresh-latest"
+  },
   "truthSources": ["generated/catalog.json", "generated/anomalies.json"],
-  "notes": ["Update the package pin and verification date only when the catalog is regenerated."]
+  "notes": [
+    "Refresh prefers @toss/tds-react-native@2.0.2 only while the npm latest dist-tag still points at 1.x.",
+    "If auto refresh fails, continue with the last committed snapshot."
+  ]
 }

@@ -17,7 +17,7 @@
     "avoidWhen": ["immediate settings toggle", "single-choice selection"],
     "knownCaveats": ["prefer over agreement unless export-only evidence is required"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "dropdown",
@@ -37,7 +37,7 @@
     "avoidWhen": ["full-width single-choice list", "content section switch"],
     "knownCaveats": ["prefer radio or segmented-control when options should stay visible"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "keypad",
@@ -57,7 +57,7 @@
     "avoidWhen": ["simple increment/decrement quantity", "continuous range selection"],
     "knownCaveats": ["pair with amount-top when the amount itself is the hero surface"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "numeric-spinner",
@@ -77,7 +77,7 @@
     "avoidWhen": ["numeric keypad entry", "continuous range control"],
     "knownCaveats": ["default choice for quantity adjustment before considering slider"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "radio",
@@ -91,13 +91,13 @@
     "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/radio/",
     "stateModel": {
       "controlled": ["value", "onChange"],
-      "uncontrolled": ["defaultValue"]
+      "uncontrolled": []
     },
     "useWhen": ["single choice in a visible list", "option comparison with descriptions"],
     "avoidWhen": ["compressed filter chip selection", "content tab navigation"],
     "knownCaveats": ["prefer segmented-control only when options are short and compact"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "rating",
@@ -110,14 +110,14 @@
     "docsSlug": "rating",
     "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/rating/",
     "stateModel": {
-      "controlled": ["value", "onChange"],
-      "uncontrolled": ["defaultValue"]
+      "controlled": ["value", "onValueChange"],
+      "uncontrolled": []
     },
     "useWhen": ["score display", "user rating input"],
     "avoidWhen": ["general-purpose single choice", "continuous numeric range"],
     "knownCaveats": ["state model mirrors other value-based input components"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "search-field",
@@ -137,7 +137,7 @@
     "avoidWhen": ["free-form non-search text entry", "formatted field entry"],
     "knownCaveats": ["prefer over text-field when the primary intent is search"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "segmented-control",
@@ -150,14 +150,14 @@
     "docsSlug": "segmented-control",
     "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/segmented-control/",
     "stateModel": {
-      "controlled": ["value", "onChange"],
-      "uncontrolled": ["defaultValue"]
+      "controlled": ["value", "onValueChange"],
+      "uncontrolled": []
     },
     "useWhen": ["compact single choice", "short month-year or filter toggle"],
     "avoidWhen": ["many tabs with content panels", "verbose option labels"],
     "knownCaveats": ["review against radio and tab before choosing it"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "slider",
@@ -170,14 +170,14 @@
     "docsSlug": "slider",
     "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/slider/",
     "stateModel": {
-      "controlled": ["value", "onValueChange"],
-      "uncontrolled": ["defaultValue"]
+      "controlled": ["value", "onChange"],
+      "uncontrolled": []
     },
     "useWhen": ["continuous range selection", "brightness volume score adjustment"],
     "avoidWhen": ["integer quantity stepper", "keypad amount entry"],
     "knownCaveats": ["not the default for quantity control"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "switch",
@@ -197,7 +197,7 @@
     "avoidWhen": ["multi-select checklist", "single-choice among many options"],
     "knownCaveats": ["default choice for settings on/off; do not use as multi-select"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "tab",
@@ -217,7 +217,7 @@
     "avoidWhen": ["binary toggle", "simple single choice with no content switch"],
     "knownCaveats": ["use fluid when items are many or labels are long"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "text-field",
@@ -237,7 +237,7 @@
     "avoidWhen": ["search-primary field", "multi-choice selection"],
     "knownCaveats": ["use search-field instead when the primary intent is search"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "button",
@@ -257,7 +257,7 @@
     "avoidWhen": ["low-emphasis link action", "icon-only compact action"],
     "knownCaveats": ["always mention loading and disabled behavior"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "dialog",
@@ -277,7 +277,7 @@
     "avoidWhen": ["short non-blocking feedback", "page-level final result"],
     "knownCaveats": ["compare against toast, result, and error-page before choosing it"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "error-page",
@@ -297,7 +297,7 @@
     "avoidWhen": ["small inline error", "generic completion result"],
     "knownCaveats": ["prefer result when the page is not HTTP-status oriented"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "icon-button",
@@ -317,7 +317,7 @@
     "avoidWhen": ["primary call-to-action", "link-style low-emphasis action"],
     "knownCaveats": ["add an accessible label and sufficient touch target"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "loader",
@@ -337,7 +337,7 @@
     "avoidWhen": ["placeholder matching upcoming layout", "progress with percentage"],
     "knownCaveats": ["prefer skeleton when the final layout shape is already known"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "progress-bar",
@@ -357,7 +357,7 @@
     "avoidWhen": ["indeterminate waiting", "full result page"],
     "knownCaveats": ["use only when progress can be expressed numerically"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "result",
@@ -377,7 +377,7 @@
     "avoidWhen": ["HTTP-status specific error surface", "small toast feedback"],
     "knownCaveats": ["compare against error-page when the failure is status-code shaped"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "skeleton",
@@ -397,7 +397,7 @@
     "avoidWhen": ["simple spinner wait", "measurable progress"],
     "knownCaveats": ["prefer over loader when the final layout is known"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "text-button",
@@ -417,7 +417,7 @@
     "avoidWhen": ["primary CTA", "icon-only action"],
     "knownCaveats": ["compare against button and icon-button for emphasis and footprint"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "toast",
@@ -437,7 +437,7 @@
     "avoidWhen": ["blocking confirmation", "full-screen completion page"],
     "knownCaveats": ["default choice for task-complete notifications"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "board-row",
@@ -457,7 +457,7 @@
     "avoidWhen": ["plain list navigation row", "grid tile layout"],
     "knownCaveats": ["default choice for FAQ 펼침 목록"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "border",
@@ -477,7 +477,7 @@
     "avoidWhen": ["content card itself", "data summary row"],
     "knownCaveats": ["use as a utility, not as the primary content surface"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "grid-list",
@@ -497,7 +497,7 @@
     "avoidWhen": ["single-column navigation list", "accordion FAQ row"],
     "knownCaveats": ["prefer list/list-row when scan order should stay strictly vertical"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "list",
@@ -517,7 +517,7 @@
     "avoidWhen": ["grid tile layout", "two-column summary rows only"],
     "knownCaveats": ["pair with list-row as the default list baseline"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "list-footer",
@@ -537,7 +537,7 @@
     "avoidWhen": ["section heading", "content row item"],
     "knownCaveats": ["use only as an extension surface for an existing list"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "list-header",
@@ -557,7 +557,7 @@
     "avoidWhen": ["list item row", "footer extension action"],
     "knownCaveats": ["use for heading metadata, not for body content"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "list-row",
@@ -577,7 +577,7 @@
     "avoidWhen": ["key/value summary table", "accordion disclosure row"],
     "knownCaveats": ["compare against table-row for summary-heavy data"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "navbar",
@@ -597,7 +597,7 @@
     "avoidWhen": ["content tabs", "bottom action surface"],
     "knownCaveats": ["docs-backed but import path differs from the package root export"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "stepper-row",
@@ -617,7 +617,7 @@
     "avoidWhen": ["generic list row", "visual chart"],
     "knownCaveats": ["docs slug alias: `stepper-row` -> `stepper`"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "table-row",
@@ -637,7 +637,7 @@
     "avoidWhen": ["navigable list menu", "accordion disclosure"],
     "knownCaveats": ["compare against list-row when the row is mainly navigational"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "amount-top",
@@ -657,7 +657,7 @@
     "avoidWhen": ["small badge value", "plain long-form text content"],
     "knownCaveats": ["pair with keypad for transfer amount entry flows"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "asset",
@@ -677,7 +677,7 @@
     "avoidWhen": ["simple text badge", "navigation row layout"],
     "knownCaveats": ["use only when a framed media container is needed"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "badge",
@@ -697,7 +697,7 @@
     "avoidWhen": ["long disclaimer text", "hero amount summary"],
     "knownCaveats": ["best for short categorical emphasis"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "bottom-info",
@@ -717,7 +717,7 @@
     "avoidWhen": ["long article content", "primary CTA surface"],
     "knownCaveats": ["compare against post when the content becomes long-form prose"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "carousel",
@@ -737,7 +737,7 @@
     "avoidWhen": ["vertical navigation list", "single static hero content"],
     "knownCaveats": ["best when sequential swipe is part of the UX"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "chart",
@@ -757,7 +757,7 @@
     "avoidWhen": ["step flow summary", "plain numeric hero"],
     "knownCaveats": ["docs slug alias: `chart` -> `Chart/bar-chart`"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "gradient",
@@ -777,7 +777,7 @@
     "avoidWhen": ["semantic content block", "interaction component"],
     "knownCaveats": ["use only when a TDS visual utility is justified"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "highlight",
@@ -797,7 +797,7 @@
     "avoidWhen": ["plain article body", "simple separator"],
     "knownCaveats": ["use when the UI needs a specific highlighted teaching moment"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "post",
@@ -817,7 +817,7 @@
     "avoidWhen": ["short bottom disclaimer", "small badge or chip"],
     "knownCaveats": ["compare against bottom-info for legal or caution copy near the footer"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "shadow",
@@ -837,7 +837,7 @@
     "avoidWhen": ["primary content selection", "semantic layout choice"],
     "knownCaveats": ["use only when a TDS visual utility is justified"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "agreement",
@@ -860,7 +860,7 @@
     "avoidWhen": ["default multi-agreement recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "bottom-cta",
@@ -880,7 +880,7 @@
     "avoidWhen": ["unknown bottom action surface", "default bottom action recommendation"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "bottom-sheet",
@@ -903,7 +903,7 @@
     "avoidWhen": ["default dialog or sheet recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "fixed-bottom-cta",
@@ -926,7 +926,7 @@
     "avoidWhen": ["default bottom action recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "icon",
@@ -946,7 +946,7 @@
     "avoidWhen": ["default icon rendering recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "tooltip",
@@ -966,7 +966,7 @@
     "avoidWhen": ["default inline help recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "top",
@@ -986,7 +986,7 @@
     "avoidWhen": ["default top boundary recommendation without evidence"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "txt",
@@ -1009,7 +1009,7 @@
     "avoidWhen": ["new recommendation without evidence", "raw RN Text fallback"],
     "knownCaveats": ["export-only / docs-missing: provide a doc-backed fallback"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   },
   {
     "name": "paragraph",
@@ -1029,6 +1029,6 @@
     "avoidWhen": ["new screen recommendation", "default long-form text surface"],
     "knownCaveats": ["dir-only-weak: do not recommend by default"],
     "packageVersion": "2.0.2",
-    "lastVerifiedAt": "2026-03-19"
+    "lastVerifiedAt": "2026-03-21"
   }
 ]

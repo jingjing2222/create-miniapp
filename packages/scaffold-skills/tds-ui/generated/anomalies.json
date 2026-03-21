@@ -1,16 +1,16 @@
 {
   "docs-slug-alias": [
     {
-      "name": "chart",
-      "docsSlug": "Chart/bar-chart",
-      "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/Chart/bar-chart/",
-      "note": "Docs slug mismatch. Keep the component name `chart`, but link to the bar-chart docs leaf."
-    },
-    {
       "name": "stepper-row",
       "docsSlug": "stepper",
       "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/stepper/",
       "note": "Docs slug mismatch. Keep the component name `stepper-row`, but link to the stepper docs leaf."
+    },
+    {
+      "name": "chart",
+      "docsSlug": "Chart/bar-chart",
+      "docUrl": "https://tossmini-docs.toss.im/tds-react-native/components/Chart/bar-chart/",
+      "note": "Docs slug mismatch. Keep the component name `chart`, but link to the bar-chart docs leaf."
     }
   ],
   "root-export-gap": [

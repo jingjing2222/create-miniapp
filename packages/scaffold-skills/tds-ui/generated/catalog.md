@@ -1,7 +1,7 @@
 # tds-ui Catalog Projection (Generated)
 
 - package: `@toss/tds-react-native@2.0.2`
-- last verified: `2026-03-19`
+- last verified: `2026-03-21`
 - truth source: `generated/catalog.json`
 - total components: `51`
 
