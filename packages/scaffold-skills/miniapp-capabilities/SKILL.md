@@ -1,24 +1,30 @@
 ---
-name: miniapp
-description: MiniApp feature discovery, official Apps-in-Toss and Granite capability lookup, and pre-implementation checks
+name: miniapp-capabilities
+description: Use when you need MiniApp or AppInToss capability lookup, official API discovery, or pre-implementation capability checks. Do not use for route design, navigation structure, or TDS component choice.
 ---
 
-# MiniApp Skill
+# MiniApp Capabilities Skill
 
-이 Skill은 MiniApp 기능을 설계하거나 구현할 때 가장 먼저 씁니다.
+이 Skill은 MiniApp 기능의 존재 여부와 공식 API를 확인할 때 가장 먼저 씁니다.
 
-## 언제 쓰나
+## Use when
 
 - 필요한 기능이 MiniApp framework나 Granite에서 공식 지원되는지 확인할 때
 - 권한, 로딩, 에러, analytics 체크가 필요한 기능인지 빠르게 점검할 때
 - 공식 문서 진입점과 API 카탈로그를 함께 보고 싶을 때
+
+## Do not use for
+
+- route path, page entry, navigation 설계: `granite-routing`
+- TDS component 선택과 UI boundary: `tds-ui`
+- provider runtime layout이나 server 연결 상태 점검: provider skill
 
 ## 읽는 순서
 
 1. `references/feature-map.md`에서 필요한 기능 축이 존재하는지 먼저 찾는다.
 2. 정확한 URL, 타입, 에러, 제약은 `references/full-index.md`에서 확인한다.
 3. 라우팅, import, UI boundary 같은 강제 규칙은 `docs/engineering/frontend-policy.md`를 따른다.
-4. 페이지/route 설계는 `granite`, UI 컴포넌트 선택은 `tds` Skill로 넘긴다.
+4. 페이지/route 설계는 `granite-routing`, UI 컴포넌트 선택은 `tds-ui`로 넘긴다.
 
 ## 구현 전 체크
 

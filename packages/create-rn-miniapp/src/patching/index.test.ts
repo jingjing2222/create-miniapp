@@ -1706,7 +1706,17 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
-    { packageManager: 'pnpm', tokenGuideImageSourcePath },
+    {
+      packageManager: 'pnpm',
+      tokenGuideImageSourcePath,
+      state: {
+        serverProvider: 'cloudflare',
+        serverProjectMode: 'existing',
+        remoteInitialization: 'skipped',
+        trpc: false,
+        backoffice: false,
+      },
+    },
   )
 
   const packageJson = JSON.parse(await readFile(path.join(serverRoot, 'package.json'), 'utf8')) as {
@@ -1732,6 +1742,24 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
     path.join(serverRoot, 'scripts', 'cloudflare-deploy.mjs'),
     'utf8',
   )
+  const checkEnvScript = await readFile(path.join(serverRoot, 'scripts', 'check-env.mjs'), 'utf8')
+  const checkClientLinksScript = await readFile(
+    path.join(serverRoot, 'scripts', 'check-client-links.mjs'),
+    'utf8',
+  )
+  const printNextCommandsScript = await readFile(
+    path.join(serverRoot, 'scripts', 'print-next-commands.mjs'),
+    'utf8',
+  )
+  const scaffoldState = JSON.parse(
+    await readFile(path.join(serverRoot, '.create-rn-miniapp', 'state.json'), 'utf8'),
+  ) as {
+    serverProvider: string
+    serverProjectMode: string | null
+    remoteInitialization: string
+    trpc: boolean
+    backoffice: boolean
+  }
   const copiedTokenGuide = path.join(serverRoot, 'assets', 'cloudflare-api-token-guide.png')
 
   assert.equal(packageJson.name, 'server')
@@ -1756,6 +1784,10 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.match(readme, /Cloudflare Worker/)
   assert.match(readme, /D1/)
   assert.match(readme, /R2/)
+  assert.match(readme, /## Scaffold State/)
+  assert.match(readme, /\.create-rn-miniapp\/state\.json/)
+  assert.match(readme, /## Remote Ops/)
+  assert.match(readme, /print-next-commands\.mjs/)
   assert.match(readme, /wrangler\.jsonc/)
   assert.match(readme, /worker-configuration\.d\.ts/)
   assert.match(readme, /cd server && pnpm deploy/)
@@ -1775,6 +1807,18 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   )
   assert.match(deployScript, /CLOUDFLARE_API_TOKEN/)
   assert.match(deployScript, /CLOUDFLARE_ACCOUNT_ID/)
+  assert.deepEqual(scaffoldState, {
+    serverProvider: 'cloudflare',
+    serverProjectMode: 'existing',
+    remoteInitialization: 'skipped',
+    trpc: false,
+    backoffice: false,
+  })
+  assert.match(checkEnvScript, /state\.json/)
+  assert.match(checkEnvScript, /server\/README\.md/)
+  assert.match(checkClientLinksScript, /frontend/)
+  assert.match(checkClientLinksScript, /backoffice/)
+  assert.match(printNextCommandsScript, /remoteInitialization/)
   assert.deepEqual(
     extractReadmeScriptNames(readme),
     createCloudflareServerScriptCatalog({
@@ -1830,7 +1874,17 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
-    { packageManager: 'pnpm', trpc: true },
+    {
+      packageManager: 'pnpm',
+      trpc: true,
+      state: {
+        serverProvider: 'cloudflare',
+        serverProjectMode: 'create',
+        remoteInitialization: 'applied',
+        trpc: true,
+        backoffice: false,
+      },
+    },
   )
 
   const packageJson = JSON.parse(await readFile(path.join(serverRoot, 'package.json'), 'utf8')) as {
@@ -1848,6 +1902,12 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
     r2_buckets?: Array<Record<string, unknown>>
   }
   const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
+  const scaffoldState = JSON.parse(
+    await readFile(path.join(serverRoot, '.create-rn-miniapp', 'state.json'), 'utf8'),
+  ) as {
+    remoteInitialization: string
+    trpc: boolean
+  }
 
   assert.equal(packageJson.dependencies?.['@trpc/server'], '^11.13.4')
   assert.equal(packageJson.dependencies?.['@workspace/app-router'], 'workspace:*')
@@ -1883,7 +1943,11 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
   assert.match(readme, /route shape와 `AppRouter` 타입의 source of truth/)
   assert.match(readme, /wrangler\.vitest\.jsonc/)
   assert.match(readme, /local D1\/R2 binding/)
+  assert.match(readme, /## Scaffold State/)
+  assert.match(readme, /## Remote Ops/)
   assert.doesNotMatch(readme, /trpc:sync/)
+  assert.equal(scaffoldState.remoteInitialization, 'applied')
+  assert.equal(scaffoldState.trpc, true)
   assert.deepEqual(
     extractReadmeScriptNames(readme),
     createCloudflareServerScriptCatalog({
@@ -1932,6 +1996,13 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
         accessTokenGuideImageSourcePath1,
         accessTokenGuideImageSourcePath2,
       ],
+      state: {
+        serverProvider: 'supabase',
+        serverProjectMode: 'existing',
+        remoteInitialization: 'skipped',
+        trpc: false,
+        backoffice: false,
+      },
     },
   )
 
@@ -1941,12 +2012,21 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
     scripts?: Record<string, string>
   }
   const readme = await readFile(path.join(targetRoot, 'server', 'README.md'), 'utf8')
+  const scaffoldState = JSON.parse(
+    await readFile(path.join(targetRoot, 'server', '.create-rn-miniapp', 'state.json'), 'utf8'),
+  ) as {
+    serverProvider: string
+    serverProjectMode: string | null
+    remoteInitialization: string
+  }
   const copiedGuide1 = path.join(serverRoot, 'assets', 'supabase-access-token-guide1.png')
   const copiedGuide2 = path.join(serverRoot, 'assets', 'supabase-access-token-guide2.png')
 
   assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Supabase/)
+  assert.match(readme, /## Scaffold State/)
+  assert.match(readme, /## Remote Ops/)
   assert.match(readme, /supabase\/config\.toml/)
   assert.match(readme, /supabase\/migrations\//)
   assert.match(readme, /supabase\/functions\/api\/index\.ts/)
@@ -1966,6 +2046,13 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /## Supabase access token/)
   assert.match(readme, /SUPABASE_ACCESS_TOKEN=/)
   assert.match(readme, /dashboard\/account\/tokens/)
+  assert.deepEqual(scaffoldState, {
+    serverProvider: 'supabase',
+    serverProjectMode: 'existing',
+    remoteInitialization: 'skipped',
+    trpc: false,
+    backoffice: false,
+  })
   assert.match(
     readme,
     /!\[Supabase access token 발급 화면 1\]\(\.\/assets\/supabase-access-token-guide1\.png\)/,
@@ -2016,7 +2103,16 @@ test('patchSupabaseServerWorkspace ignores trpc wiring and keeps provider-native
       packageManagerExecCommand: 'pnpm exec',
       verifyCommand: 'pnpm verify',
     },
-    { packageManager: 'pnpm' },
+    {
+      packageManager: 'pnpm',
+      state: {
+        serverProvider: 'supabase',
+        serverProjectMode: 'create',
+        remoteInitialization: 'applied',
+        trpc: false,
+        backoffice: false,
+      },
+    },
   )
 
   const serverPackageJson = JSON.parse(
@@ -2110,6 +2206,13 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
         serviceAccountGuideImageSourcePath1,
         serviceAccountGuideImageSourcePath2,
       ],
+      state: {
+        serverProvider: 'firebase',
+        serverProjectMode: 'create',
+        remoteInitialization: 'applied',
+        trpc: false,
+        backoffice: false,
+      },
     },
   )
 
@@ -2117,6 +2220,17 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
     targets?: Record<string, { command?: string }>
   }
   const readme = await readFile(path.join(serverRoot, 'README.md'), 'utf8')
+  const checkClientLinksScript = await readFile(
+    path.join(serverRoot, 'scripts', 'check-client-links.mjs'),
+    'utf8',
+  )
+  const scaffoldState = JSON.parse(
+    await readFile(path.join(serverRoot, '.create-rn-miniapp', 'state.json'), 'utf8'),
+  ) as {
+    serverProvider: string
+    serverProjectMode: string | null
+    remoteInitialization: string
+  }
   const rootGitignore = await readFile(path.join(targetRoot, '.gitignore'), 'utf8')
   const rootBiome = JSON.parse(await readFile(path.join(targetRoot, 'biome.json'), 'utf8')) as {
     files?: {
@@ -2138,6 +2252,8 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
   assert.equal(projectJson.targets?.build?.command, 'pnpm --dir server build')
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Firebase Functions/)
+  assert.match(readme, /## Scaffold State/)
+  assert.match(readme, /## Remote Ops/)
   assert.match(readme, /server\/functions\/src\/index\.ts/)
   assert.match(readme, /firestore\.rules/)
   assert.match(readme, /firestore:ensure/)
@@ -2150,6 +2266,7 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
   assert.match(readme, /getPublicStatus/)
   assert.match(readme, /frontend\/src\/lib\/firebase\.ts/)
   assert.match(readme, /frontend\/src\/lib\/firestore\.ts/)
+  assert.match(readme, /frontend\/src\/lib\/functions\.ts/)
   assert.match(readme, /frontend\/src\/lib\/storage\.ts/)
   assert.match(readme, /MINIAPP_FIREBASE_API_KEY/)
   assert.match(readme, /VITE_FIREBASE_API_KEY/)
@@ -2170,6 +2287,13 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
     readme,
     /!\[Firebase service account 발급 화면 2\]\(\.\/assets\/firebase-service-account-guide2\.png\)/,
   )
+  assert.deepEqual(scaffoldState, {
+    serverProvider: 'firebase',
+    serverProjectMode: 'create',
+    remoteInitialization: 'applied',
+    trpc: false,
+    backoffice: false,
+  })
   assert.deepEqual(
     extractReadmeScriptNames(readme),
     createFirebaseServerScriptCatalog({
@@ -2179,6 +2303,11 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
       .filter((entry) => entry.includeInReadme !== false)
       .map((entry) => entry.name),
   )
+  assert.match(checkClientLinksScript, /frontend\/src\/lib\/firebase\.ts/)
+  assert.match(checkClientLinksScript, /frontend\/src\/lib\/firestore\.ts/)
+  assert.match(checkClientLinksScript, /frontend\/src\/lib\/functions\.ts/)
+  assert.match(checkClientLinksScript, /frontend\/src\/lib\/public-app-status\.ts/)
+  assert.match(checkClientLinksScript, /frontend\/src\/lib\/storage\.ts/)
   assert.equal(await readFile(copiedLoginCiGuide, 'utf8'), 'firebase-login-ci')
   assert.equal(await readFile(copiedServiceAccountGuide1, 'utf8'), 'firebase-service-account-1')
   assert.equal(await readFile(copiedServiceAccountGuide2, 'utf8'), 'firebase-service-account-2')
@@ -2224,7 +2353,16 @@ test('patchFirebaseServerWorkspace adds firebase-only yarn packageExtensions to 
       packageManagerExecCommand: 'yarn exec',
       verifyCommand: 'yarn verify',
     },
-    { packageManager: 'yarn' },
+    {
+      packageManager: 'yarn',
+      state: {
+        serverProvider: 'firebase',
+        serverProjectMode: null,
+        remoteInitialization: 'not-run',
+        trpc: false,
+        backoffice: false,
+      },
+    },
   )
 
   const yarnrc = await readFile(path.join(targetRoot, '.yarnrc.yml'), 'utf8')

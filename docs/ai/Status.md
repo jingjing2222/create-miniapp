@@ -1,3 +1,58 @@
+## 2026-03-21 — Skill taxonomy SSoT follow-up fix
+- 상태
+  - 검수에서 나온 SSoT drift를 후속 수정했다.
+  - 기존 server가 있는 repo에서 `--add`를 실행해도 `server/.create-rn-miniapp/state.json`의 `serverProjectMode`와 `remoteInitialization`이 보존되도록 바로잡았다.
+  - 루트 계약 문서가 더 이상 존재하지 않는 `packages/scaffold-templates/base/AGENTS.md`를 가리키지 않게 수정했다.
+  - server README의 `Remote Ops`와 `print-next-commands.mjs`가 provider별 script catalog를 공통 source로 보도록 정리했다.
+- 반영한 변경
+  - `packages/create-rn-miniapp/src/server-project.ts`
+    - scaffold state 경로 상수와 state manifest read helper 추가
+  - `packages/create-rn-miniapp/src/workspace-inspector.ts`
+  - `packages/create-rn-miniapp/src/cli.ts`
+  - `packages/create-rn-miniapp/src/scaffold/{types.ts,index.ts}`
+    - 기존 repo inspection 결과의 state manifest를 add flow에 전달하고 보존하도록 수정
+  - `packages/create-rn-miniapp/src/server-script-catalog.ts`
+  - `packages/create-rn-miniapp/src/patching/server.ts`
+    - remote ops 후보 명령을 script catalog `remoteOp` metadata에서 파생하도록 정리
+  - `AGENTS.md`
+  - `docs/ai/Plan.md`
+    - code-owned generated AGENTS 계약과 새 taxonomy 기준으로 문서 정리
+  - `packages/create-rn-miniapp/src/{workspace-inspector,cli,templates}.test.ts`
+    - state manifest inspection, 루트 AGENTS 계약, remote ops SSoT 회귀 테스트 추가
+- 검증
+  - `pnpm --filter create-rn-miniapp test -- src/workspace-inspector.test.ts src/templates/index.test.ts src/cli.test.ts` ✅
+
+## 2026-03-21 — Skill taxonomy migration
+- 상태
+  - Skill 기준 이름을 `backoffice-react`, `miniapp-capabilities`, `granite-routing`, `tds-ui`, `cloudflare-worker`, `supabase-project`, `firebase-functions`, `trpc-boundary`로 재정렬했다.
+  - 생성물 entrypoint 문서, `.agents/skills`, `.claude/skills` mirror, generator metadata가 새 이름만 가리키도록 정리했다.
+  - provider skill에서 instance state와 원격 mutate 절차를 제거하고, 생성된 repo의 `server/.create-rn-miniapp/state.json`과 `server/README.md`가 scaffold 상태와 remote ops 안내를 소유하게 옮겼다.
+- 반영한 변경
+  - `AGENTS.md`
+  - `README.md`
+    - 루트 계약 문서와 사용자 안내를 새 Skill 기준 이름에 맞춰 재작성
+  - `packages/scaffold-skills/*`
+    - `miniapp`, `granite`, `tds`, `server-cloudflare`, `server-supabase`, `server-firebase` 디렉터리 rename
+    - 각 `SKILL.md` frontmatter `name` / `description` 재작성
+    - provider reference를 `overview`, `local-dev`, `client-connection`, `troubleshooting`로 분해
+  - `packages/create-rn-miniapp/src/templates/{skills,feature-catalog,frontend-policy}.ts`
+    - 새 taxonomy와 mirror 경로를 기준으로 skill 렌더링 갱신
+  - `packages/create-rn-miniapp/src/scaffold/index.ts`
+  - `packages/create-rn-miniapp/src/scaffold/helpers.ts`
+  - `packages/create-rn-miniapp/src/providers/index.ts`
+  - `packages/create-rn-miniapp/src/server-project.ts`
+    - create/add 경로에서 provider scaffold state를 계산하고 다시 렌더링하는 흐름 정리
+  - `packages/create-rn-miniapp/src/patching/server.ts`
+    - `server/.create-rn-miniapp/state.json`
+    - `server/scripts/check-env.mjs`
+    - `server/scripts/check-client-links.mjs`
+    - `server/scripts/print-next-commands.mjs`
+    - `server/README.md`의 `Scaffold State`, `Remote Ops` 섹션 추가
+  - `packages/create-rn-miniapp/src/{templates,scaffold,patching,release}.test.ts`
+    - rename snapshot, mirror 일치, old name 부재, provider state/script 생성 검증 추가
+- 검증
+  - `pnpm verify` ✅
+
 ## 2026-03-19 — Implement.md 제거와 Plan 중심 하네스 정리
 - 상태
   - 생성 템플릿 문서군에서 `Implement.md`를 제거하고 구현 계획 책임을 `Plan.md`로 흡수했다.

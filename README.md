@@ -72,6 +72,11 @@ pnpm verify
 
 생성이 끝나면 생성물 루트 `AGENTS.md`의 `Start Here` 순서를 먼저 따라가세요. 그 흐름대로 `docs/ai/*`, `docs/index.md`, `docs/product/기능명세서.md`를 확인한 뒤, 해당 작업에 맞는 `.agents/skills/*`를 선택해서 구현을 이끌어가면 돼요.
 
+현재 Skill 이름, 라벨, docs path, optional 선택 기준은 `packages/create-rn-miniapp/src/templates/skill-catalog.ts`가 소유해요.
+
+- generated `.agents/skills`와 `.claude/skills`는 이 catalog에서 같이 렌더돼요.
+- `.claude/skills`는 이 기준 이름을 그대로 mirror해요.
+
 ## CLI 옵션
 
 - `--package-manager <pnpm|yarn|npm|bun>`: 생성과 루트 monorepo에 사용할 package manager를 명시할 수 있어요.
@@ -103,6 +108,8 @@ pnpm verify
 `cloudflare`를 고르면 tRPC overlay도 같이 이어줄지 물어봐요. tRPC를 고르면 shared boundary package와 router package를 기준으로 client workspace는 그 타입만 가져가도록 맞춰줘요.
 
 provider별 세부 생성물과 운영 순서는 생성된 `server/README.md`, 루트 `AGENTS.md`, `docs/index.md`를 기준으로 보면 됩니다.
+
+provider가 있는 생성물은 `server/.create-rn-miniapp/state.json`도 같이 만들어서 `serverProvider`, `serverProjectMode`, `remoteInitialization`, `trpc`, `backoffice` 상태를 기록해요. 원격 명령 전에는 이 파일과 `server/README.md`를 먼저 보면 됩니다.
 
 ## 기존 워크스페이스에 추가하기
 

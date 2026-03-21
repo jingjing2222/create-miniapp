@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import type { ServerScaffoldState } from '../server-project.js'
 import {
   ensureBackofficeFirebaseBootstrap,
   ensureBackofficeCloudflareBootstrap,
@@ -34,10 +35,14 @@ type ProviderPlanOptions = {
   packageManager: PackageManager
 }
 
-type ProviderPatchOptions = {
+type ProviderWorkspaceOptions = {
   targetRoot: string
   tokens: TemplateTokens
   packageManager: PackageManager
+}
+
+type ProviderPatchOptions = ProviderWorkspaceOptions & {
+  state: ServerScaffoldState
   trpc?: boolean
 }
 
@@ -48,7 +53,7 @@ export type ServerProviderAdapter = {
   detect(rootDir: string): Promise<boolean>
   buildCreatePlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
   buildAddPlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
-  prepareServerWorkspace?(options: ProviderPatchOptions): Promise<void>
+  prepareServerWorkspace?(options: ProviderWorkspaceOptions): Promise<void>
   patchServerWorkspace(options: ProviderPatchOptions): Promise<void>
   bootstrapFrontend?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
   bootstrapBackoffice?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
@@ -95,6 +100,7 @@ const supabaseAdapter: ServerProviderAdapter = {
   async patchServerWorkspace(options) {
     await patchSupabaseServerWorkspace(options.targetRoot, options.tokens, {
       packageManager: options.packageManager,
+      state: options.state,
     })
   },
   async bootstrapFrontend(options) {
@@ -136,6 +142,8 @@ const cloudflareAdapter: ServerProviderAdapter = {
   async patchServerWorkspace(options) {
     await patchCloudflareServerWorkspace(options.targetRoot, options.tokens, {
       packageManager: options.packageManager,
+      state: options.state,
+      trpc: options.trpc,
     })
   },
   async bootstrapFrontend(options) {
@@ -165,6 +173,7 @@ const firebaseAdapter: ServerProviderAdapter = {
   async patchServerWorkspace(options) {
     await patchFirebaseServerWorkspace(options.targetRoot, options.tokens, {
       packageManager: options.packageManager,
+      state: options.state,
     })
   },
   async bootstrapFrontend(options) {

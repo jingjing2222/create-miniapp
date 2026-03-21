@@ -880,6 +880,7 @@ test('resolveAddCliOptions detects additive targets from an existing workspace',
       hasBackoffice: false,
       hasTrpc: false,
       serverProvider: null,
+      serverScaffoldState: null,
     },
   )
 
@@ -930,6 +931,7 @@ test('resolveAddCliOptions accepts explicit server-provider in yes mode', async 
       hasBackoffice: false,
       hasTrpc: false,
       serverProvider: null,
+      serverScaffoldState: null,
     },
   )
 
@@ -983,6 +985,7 @@ test('resolveAddCliOptions can add trpc to an existing cloudflare server workspa
       hasBackoffice: false,
       hasTrpc: false,
       serverProvider: 'cloudflare',
+      serverScaffoldState: null,
     },
   )
 
@@ -1042,6 +1045,7 @@ test('resolveAddCliOptions does not ask for trpc when the existing server is sup
       hasBackoffice: false,
       hasTrpc: false,
       serverProvider: 'supabase',
+      serverScaffoldState: null,
     },
   )
 
@@ -1103,6 +1107,7 @@ test('resolveAddCliOptions asks whether to remove existing cloudflare api helper
         hasBackoffice: true,
         hasTrpc: false,
         serverProvider: 'cloudflare',
+        serverScaffoldState: null,
       },
     )
 
@@ -1153,6 +1158,7 @@ test('resolveAddCliOptions keeps existing cloudflare api helpers in yes mode', a
         hasBackoffice: false,
         hasTrpc: false,
         serverProvider: 'cloudflare',
+        serverScaffoldState: null,
       },
     )
 
@@ -1200,6 +1206,7 @@ test('resolveAddCliOptions rejects server-project-mode without server-provider',
           hasBackoffice: false,
           hasTrpc: false,
           serverProvider: null,
+          serverScaffoldState: null,
         },
       ),
     /`--server-project-mode`는 `server` provider를 선택했을 때만 사용할 수 있습니다\./,

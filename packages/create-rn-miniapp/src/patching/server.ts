@@ -2,10 +2,21 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
+  getProviderClientContract,
+  PROVIDER_CLIENT_CONTRACTS,
+  resolveProviderClientLinkFiles,
+} from '../provider-client-contract.js'
+import {
+  SERVER_SCAFFOLD_STATE_DIR,
+  SERVER_SCAFFOLD_STATE_RELATIVE_PATH,
+  type ServerScaffoldState,
+} from '../server-project.js'
+import {
   createCloudflareServerScriptCatalog,
   createFirebaseServerScriptCatalog,
   createServerScriptRecord,
   createSupabaseServerScriptCatalog,
+  renderServerRemoteOpsCommands,
   renderServerReadmeScriptLines,
   type ServerScriptCatalogEntry,
 } from '../server-script-catalog.js'
@@ -77,28 +88,33 @@ const FIREBASE_YARN_PACKAGE_EXTENSION_BLOCK = [
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
 const SUPABASE_MANAGEMENT_API_DOC_URL = 'https://supabase.com/docs/reference/api/introduction'
 const SUPABASE_ACCESS_TOKEN_GUIDE_ASSET_CANDIDATES = [
-  'server-supabase/assets/supabase-access-token-guide1.png',
-  'server-supabase/assets/supabase-access-token-guide2.png',
+  'supabase-project/assets/supabase-access-token-guide1.png',
+  'supabase-project/assets/supabase-access-token-guide2.png',
 ] as const
 const CLOUDFLARE_TOKEN_GUIDE_ASSET_CANDIDATES = [
-  'server-cloudflare/assets/cloudflare-api-token-guide.png',
-  'server-cloudflare/assets/cloudflare-api-token-guide.jpg',
-  'server-cloudflare/assets/cloudflare-api-token-guide.jpeg',
-  'server-cloudflare/assets/cloudflare-api-token-guide.webp',
-  'server-cloudflare/assets/cloudflare-api-token-guide.gif',
+  'cloudflare-worker/assets/cloudflare-api-token-guide.png',
+  'cloudflare-worker/assets/cloudflare-api-token-guide.jpg',
+  'cloudflare-worker/assets/cloudflare-api-token-guide.jpeg',
+  'cloudflare-worker/assets/cloudflare-api-token-guide.webp',
+  'cloudflare-worker/assets/cloudflare-api-token-guide.gif',
 ] as const
 const FIREBASE_LOGIN_CI_GUIDE_ASSET_CANDIDATES = [
-  'server-firebase/assets/firebase-login-ci-guide.png',
+  'firebase-functions/assets/firebase-login-ci-guide.png',
 ] as const
 const FIREBASE_SERVICE_ACCOUNT_GUIDE_ASSET_CANDIDATES = [
-  'server-firebase/assets/firebase-service-account-guide1.png',
-  'server-firebase/assets/firebase-service-account-guide2.png',
+  'firebase-functions/assets/firebase-service-account-guide1.png',
+  'firebase-functions/assets/firebase-service-account-guide2.png',
 ] as const
 const SERVER_GUIDE_ASSET_TARGET_DIR = 'assets'
 const FIREBASE_CLI_DOC_URL = 'https://firebase.google.com/docs/cli'
 const FIREBASE_ADMIN_SETUP_URL = 'https://firebase.google.com/docs/admin/setup'
 const GOOGLE_CLOUD_SERVICE_ACCOUNTS_CONSOLE_URL =
   'https://console.cloud.google.com/iam-admin/serviceaccounts'
+const SERVER_SCAFFOLD_READ_ONLY_SCRIPTS = [
+  'scripts/check-env.mjs',
+  'scripts/check-client-links.mjs',
+  'scripts/print-next-commands.mjs',
+] as const
 
 async function copyGuideAssets(
   serverRoot: string,
@@ -130,6 +146,231 @@ async function copyGuideAssets(
   }
 
   return copiedPaths
+}
+
+async function writeServerScaffoldStateFile(serverRoot: string, state: ServerScaffoldState) {
+  await mkdir(path.join(serverRoot, SERVER_SCAFFOLD_STATE_DIR), { recursive: true })
+  await writeFile(
+    path.join(serverRoot, SERVER_SCAFFOLD_STATE_RELATIVE_PATH),
+    `${JSON.stringify(state, null, 2)}\n`,
+    'utf8',
+  )
+}
+
+export async function writeServerScaffoldState(targetRoot: string, state: ServerScaffoldState) {
+  const serverRoot = path.join(targetRoot, 'server')
+
+  if (!(await pathExists(serverRoot))) {
+    return
+  }
+
+  await writeServerScaffoldStateFile(serverRoot, state)
+}
+
+function renderServerCheckEnvScriptSource() {
+  const providerEnvKeys = Object.fromEntries(
+    Object.entries(PROVIDER_CLIENT_CONTRACTS).map(([provider, contract]) => [
+      provider,
+      contract.serverEnvKeys,
+    ]),
+  )
+  const statePathExpr = '$' + '{statePath}'
+  const readmeRelativePathExpr = '$' + '{readmeRelativePath}'
+  const readmePathExpr = '$' + '{readmePath}'
+  const envStatusExpr = '$' + "{existsSync(envPath) ? 'present' : 'missing'}"
+  const envPathExpr = '$' + '{envPath}'
+  const missingKeysExpr = '$' + "{missingKeys.join(', ')}"
+
+  return [
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    `const PROVIDER_ENV_KEYS = ${JSON.stringify(providerEnvKeys, null, 2)}`,
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    `const statePath = path.join(serverRoot, ${JSON.stringify(SERVER_SCAFFOLD_STATE_RELATIVE_PATH)})`,
+    "const readmeRelativePath = 'server/README.md'",
+    "const readmePath = path.join(serverRoot, 'README.md')",
+    "const envPath = path.join(serverRoot, '.env.local')",
+    '',
+    'function readJson(filePath) {',
+    "  return JSON.parse(readFileSync(filePath, 'utf8'))",
+    '}',
+    '',
+    'function parseEnv(filePath) {',
+    '  const source = readFileSync(filePath, "utf8")',
+    '  const env = {}',
+    '',
+    '  for (const line of source.split(/\\r?\\n/)) {',
+    '    const trimmed = line.trim()',
+    "    if (!trimmed || trimmed.startsWith('#')) continue",
+    "    const separatorIndex = trimmed.indexOf('=')",
+    '    if (separatorIndex <= 0) continue',
+    '    env[trimmed.slice(0, separatorIndex)] = trimmed.slice(separatorIndex + 1).trim()',
+    '  }',
+    '',
+    '  return env',
+    '}',
+    '',
+    'if (!existsSync(statePath)) {',
+    `  console.error(\`[server] missing scaffold state: ${statePathExpr}\`)`,
+    '  process.exit(1)',
+    '}',
+    '',
+    'const state = readJson(statePath)',
+    'const env = existsSync(envPath) ? parseEnv(envPath) : {}',
+    'const providerKeys = PROVIDER_ENV_KEYS[state.serverProvider] ?? []',
+    'const missingKeys = providerKeys.filter((key) => !(env[key] ?? "").trim())',
+    '',
+    `console.log(\`[server] state: ${statePathExpr}\`)`,
+    `console.log(\`[server] readme: ${readmeRelativePathExpr} (${readmePathExpr})\`)`,
+    `console.log(\`[server] env: ${envStatusExpr} (${envPathExpr})\`)`,
+    '',
+    'if (missingKeys.length === 0) {',
+    "  console.log('[server] required provider env keys look present')",
+    '} else {',
+    `  console.log(\`[server] missing env keys: ${missingKeysExpr}\`)`,
+    '}',
+    '',
+  ].join('\n')
+}
+
+function renderServerCheckClientLinksScriptSource() {
+  const providerClientFiles = Object.fromEntries(
+    (Object.keys(PROVIDER_CLIENT_CONTRACTS) as Array<keyof typeof PROVIDER_CLIENT_CONTRACTS>).map(
+      (provider) => [
+        provider,
+        {
+          default: resolveProviderClientLinkFiles(provider, { trpc: false, backoffice: false }),
+          trpc: resolveProviderClientLinkFiles(provider, { trpc: true, backoffice: false }),
+          backofficeDefault: resolveProviderClientLinkFiles(provider, {
+            trpc: false,
+            backoffice: true,
+          }).filter((filePath) => filePath.startsWith('backoffice/')),
+          backofficeTrpc: resolveProviderClientLinkFiles(provider, {
+            trpc: true,
+            backoffice: true,
+          }).filter((filePath) => filePath.startsWith('backoffice/')),
+        },
+      ],
+    ),
+  )
+  const statePathExpr = '$' + '{statePath}'
+  const fileStatusExpr = '$' + "{existsSync(absolutePath) ? 'ok' : 'missing'}"
+  const relativePathExpr = '$' + '{relativePath}'
+
+  return [
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    `const PROVIDER_CLIENT_FILES = ${JSON.stringify(providerClientFiles, null, 2)}`,
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    "const repoRoot = path.resolve(serverRoot, '..')",
+    `const statePath = path.join(serverRoot, ${JSON.stringify(SERVER_SCAFFOLD_STATE_RELATIVE_PATH)})`,
+    '',
+    'if (!existsSync(statePath)) {',
+    `  console.error(\`[server] missing scaffold state: ${statePathExpr}\`)`,
+    '  process.exit(1)',
+    '}',
+    '',
+    "const state = JSON.parse(readFileSync(statePath, 'utf8'))",
+    'const providerFiles = PROVIDER_CLIENT_FILES[state.serverProvider] ?? {}',
+    'const frontendFiles = state.trpc ? providerFiles.trpc ?? [] : providerFiles.default ?? []',
+    'const backofficeFiles = state.backoffice',
+    '  ? state.trpc',
+    '    ? providerFiles.backofficeTrpc ?? []',
+    '    : providerFiles.backofficeDefault ?? []',
+    '  : []',
+    'const expectedFiles = [...frontendFiles, ...backofficeFiles]',
+    '',
+    'for (const relativePath of expectedFiles) {',
+    '  const absolutePath = path.join(repoRoot, relativePath)',
+    `  console.log(\`[server] ${fileStatusExpr}: ${relativePathExpr}\`)`,
+    '}',
+    '',
+  ].join('\n')
+}
+
+function renderServerPrintNextCommandsScriptSource(nextCommands: string[]) {
+  const statePathExpr = '$' + '{statePath}'
+  const remoteInitializationExpr = '$' + '{state.remoteInitialization}'
+  const commandExpr = '$' + '{command}'
+
+  return [
+    "import { existsSync, readFileSync } from 'node:fs'",
+    "import path from 'node:path'",
+    "import { fileURLToPath } from 'node:url'",
+    '',
+    `const NEXT_COMMANDS = ${JSON.stringify(nextCommands, null, 2)}`,
+    "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
+    `const statePath = path.join(serverRoot, ${JSON.stringify(SERVER_SCAFFOLD_STATE_RELATIVE_PATH)})`,
+    '',
+    'if (!existsSync(statePath)) {',
+    `  console.error(\`[server] missing scaffold state: ${statePathExpr}\`)`,
+    '  process.exit(1)',
+    '}',
+    '',
+    "const state = JSON.parse(readFileSync(statePath, 'utf8'))",
+    'const nextCommands = NEXT_COMMANDS',
+    '',
+    `console.log(\`[server] state: ${statePathExpr}\`)`,
+    `console.log(\`[server] remoteInitialization=${remoteInitializationExpr}\`)`,
+    "console.log('[server] read-only checks first:')",
+    "console.log('- node ./scripts/check-env.mjs')",
+    "console.log('- node ./scripts/check-client-links.mjs')",
+    "console.log('- read server/README.md')",
+    "console.log('[server] remote ops candidates:')",
+    'for (const command of nextCommands) {',
+    `  console.log(\`- ${commandExpr}\`)`,
+    '}',
+    '',
+  ].join('\n')
+}
+
+async function writeServerScaffoldSupportFiles(
+  serverRoot: string,
+  state: ServerScaffoldState,
+  nextCommands: string[],
+) {
+  await writeServerScaffoldStateFile(serverRoot, state)
+  await writeTextFile(
+    path.join(serverRoot, 'scripts', 'check-env.mjs'),
+    renderServerCheckEnvScriptSource(),
+  )
+  await writeTextFile(
+    path.join(serverRoot, 'scripts', 'check-client-links.mjs'),
+    renderServerCheckClientLinksScriptSource(),
+  )
+  await writeTextFile(
+    path.join(serverRoot, 'scripts', 'print-next-commands.mjs'),
+    renderServerPrintNextCommandsScriptSource(nextCommands),
+  )
+}
+
+function renderServerScaffoldStateSection() {
+  return [
+    '## Scaffold State',
+    '',
+    `- scaffold 상태의 source of truth는 \`server/${SERVER_SCAFFOLD_STATE_RELATIVE_PATH}\`예요.`,
+    '- provider skill을 읽거나 원격 명령을 실행하기 전에 이 파일과 이 README를 먼저 확인해요.',
+    `- read-only 확인용으로 ${SERVER_SCAFFOLD_READ_ONLY_SCRIPTS.map((filePath) => `\`node ./${filePath}\``).join(', ')}를 먼저 실행해요.`,
+    '- state에는 provider, project mode, remoteInitialization, tRPC, backoffice 포함 여부가 들어 있어요.',
+  ]
+}
+
+function renderServerRemoteOpsSection(commands: string[]) {
+  return [
+    '## Remote Ops',
+    '',
+    '- 아래 명령은 원격 상태를 바꿔요.',
+    '- 실행 전에는 `server/.create-rn-miniapp/state.json`과 `server/README.md`를 먼저 확인해요.',
+    ...commands.map((command) => `- 후보 명령: \`${command}\``),
+  ]
+}
+
+function formatEnvKeys(keys: string[]) {
+  return keys.map((key) => `\`${key}\``).join(', ')
 }
 
 async function copyCloudflareTokenGuideAsset(
@@ -256,9 +497,16 @@ function renderSupabaseServerReadme(options?: {
   scriptCatalog: ServerScriptCatalogEntry[]
   accessTokenGuideImagePaths?: string[] | null
 }) {
+  const contract = getProviderClientContract('supabase')
   const scriptLines = renderServerReadmeScriptLines(
     options?.scriptCatalog ?? [],
     options?.packageManagerRunCommand ?? 'pnpm',
+  )
+  const remoteOpsLines = renderServerRemoteOpsSection(
+    renderServerRemoteOpsCommands(
+      options?.scriptCatalog ?? [],
+      options?.packageManagerRunCommand ?? 'pnpm',
+    ),
   )
 
   return [
@@ -280,6 +528,8 @@ function renderSupabaseServerReadme(options?: {
     '  package.json',
     '```',
     '',
+    ...renderServerScaffoldStateSection(),
+    '',
     '## 주요 스크립트',
     '',
     ...scriptLines,
@@ -287,12 +537,12 @@ function renderSupabaseServerReadme(options?: {
     '## Miniapp / Backoffice 연결',
     '',
     '- miniapp frontend는 `frontend/src/lib/supabase.ts`에서 Supabase client를 생성해요.',
-    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
-    '- frontend `scaffold.preset.ts`가 `.env.local` 값을 읽어 `MINIAPP_SUPABASE_URL`, `MINIAPP_SUPABASE_PUBLISHABLE_KEY`를 주입하고, `granite.config.ts`는 그 scaffold preset만 연결해요.',
+    `- miniapp frontend \`.env.local\`은 \`${contract.frontend.envFile}\`에 두고 ${formatEnvKeys(contract.frontend.envKeys)}를 사용해요.`,
+    `- frontend \`scaffold.preset.ts\`가 \`.env.local\` 값을 읽어 ${formatEnvKeys(contract.frontend.envKeys)}를 주입하고, \`granite.config.ts\`는 그 scaffold preset만 연결해요.`,
     `- miniapp frontend는 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\` 형태로 Edge Function을 호출할 수 있어요.`,
     '- backoffice가 있으면 `backoffice/src/lib/supabase.ts`에서 별도 browser client를 생성해요.',
-    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
-    '- backoffice도 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`를 사용해요.',
+    `- backoffice \`.env.local\`은 \`${contract.backoffice.envFile}\`에 두고 ${formatEnvKeys(contract.backoffice.envKeys)}를 사용해요.`,
+    `- backoffice도 ${formatEnvKeys(contract.backoffice.envKeys)}를 사용해요.`,
     `- backoffice도 동일하게 \`supabase.functions.invoke('${SUPABASE_DEFAULT_FUNCTION_NAME}')\`를 사용할 수 있어요.`,
     '',
     '## 운영 메모',
@@ -303,6 +553,8 @@ function renderSupabaseServerReadme(options?: {
     '- 기존 프로젝트에서 원격 초기화를 허용했다면 `db:apply`, `functions:deploy`까지 이어서 반영해요.',
     '- 다른 Edge Function을 추가하려면 `supabase functions new <name> --workdir .`로 생성한 뒤 `functions:deploy`를 다시 실행하면 돼요.',
     '- frontend/backoffice의 `.env.local`은 server provisioning 결과와 같은 Supabase project를 가리키게 맞춰두는 걸 권장해요.',
+    '',
+    ...remoteOpsLines,
     '',
     '## Supabase access token',
     '',
@@ -333,10 +585,17 @@ function renderCloudflareServerReadme(options?: {
   tokenGuideImagePath?: string | null
   trpc?: boolean
 }) {
+  const contract = getProviderClientContract('cloudflare')
   const trpcEnabled = options?.trpc === true
   const scriptLines = renderServerReadmeScriptLines(
     options?.scriptCatalog ?? [],
     options?.packageManagerRunCommand ?? 'pnpm',
+  )
+  const remoteOpsLines = renderServerRemoteOpsSection(
+    renderServerRemoteOpsCommands(
+      options?.scriptCatalog ?? [],
+      options?.packageManagerRunCommand ?? 'pnpm',
+    ),
   )
 
   return [
@@ -358,14 +617,16 @@ function renderCloudflareServerReadme(options?: {
     '  package.json',
     '```',
     '',
+    ...renderServerScaffoldStateSection(),
+    '',
     '## 주요 스크립트',
     '',
     ...scriptLines,
     '',
     '## Miniapp / Backoffice 연결',
     '',
-    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_API_BASE_URL`을 사용해요.',
-    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_API_BASE_URL`을 사용해요.',
+    `- miniapp frontend \`.env.local\`은 \`${contract.frontend.envFile}\`에 두고 ${formatEnvKeys(contract.frontend.envKeys)}를 사용해요.`,
+    `- backoffice \`.env.local\`은 \`${contract.backoffice.envFile}\`에 두고 ${formatEnvKeys(contract.backoffice.envKeys)}를 사용해요.`,
     '- provisioning이 성공하면 frontend/backoffice `.env.local`에 Worker URL이 자동으로 기록돼요.',
     `- Worker 코드는 \`${CLOUDFLARE_D1_BINDING_NAME}\` D1 binding과 \`${CLOUDFLARE_R2_BINDING_NAME}\` R2 binding을 사용할 수 있어요.`,
     ...(trpcEnabled
@@ -383,6 +644,8 @@ function renderCloudflareServerReadme(options?: {
     '- 기존 Worker에 연결하면 먼저 원격 초기화 여부를 물어봐요. 원격 초기화를 건너뛰면 Worker 재배포와 `workers.dev` 활성화는 자동으로 하지 않아요.',
     '- `wrangler.jsonc`는 원격 deploy 기준 설정이고, `wrangler.vitest.jsonc`는 local D1/R2 binding으로 테스트를 돌리기 위한 설정이에요.',
     ...(trpcEnabled ? [TRPC_SERVER_README_OPERATION_NOTE] : []),
+    '',
+    ...remoteOpsLines,
     '',
     '## Cloudflare API token',
     '',
@@ -412,9 +675,16 @@ function renderFirebaseServerReadme(options?: {
   loginCiGuideImagePath?: string | null
   serviceAccountGuideImagePaths?: string[] | null
 }) {
+  const contract = getProviderClientContract('firebase')
   const scriptLines = renderServerReadmeScriptLines(
     options?.scriptCatalog ?? [],
     options?.packageManagerRunCommand ?? 'pnpm',
+  )
+  const remoteOpsLines = renderServerRemoteOpsSection(
+    renderServerRemoteOpsCommands(
+      options?.scriptCatalog ?? [],
+      options?.packageManagerRunCommand ?? 'pnpm',
+    ),
   )
 
   return [
@@ -440,18 +710,20 @@ function renderFirebaseServerReadme(options?: {
     '  package.json',
     '```',
     '',
+    ...renderServerScaffoldStateSection(),
+    '',
     '## 주요 스크립트',
     '',
     ...scriptLines,
     '',
     '## Miniapp / Backoffice 연결',
     '',
-    '- miniapp frontend는 `frontend/src/lib/firebase.ts`, `frontend/src/lib/firestore.ts`, `frontend/src/lib/storage.ts`에서 Firebase Web SDK를 초기화해요.',
-    '- miniapp frontend `.env.local`은 `frontend/.env.local`에 두고 `MINIAPP_FIREBASE_API_KEY`, `MINIAPP_FIREBASE_AUTH_DOMAIN`, `MINIAPP_FIREBASE_PROJECT_ID`, `MINIAPP_FIREBASE_STORAGE_BUCKET`, `MINIAPP_FIREBASE_MESSAGING_SENDER_ID`, `MINIAPP_FIREBASE_APP_ID`, `MINIAPP_FIREBASE_MEASUREMENT_ID`, `MINIAPP_FIREBASE_FUNCTION_REGION`를 사용해요.',
+    '- miniapp frontend는 `frontend/src/lib/firebase.ts`, `frontend/src/lib/firestore.ts`, `frontend/src/lib/functions.ts`, `frontend/src/lib/public-app-status.ts`, `frontend/src/lib/storage.ts`에서 Firebase Web SDK와 public status fallback 흐름을 초기화해요.',
+    `- miniapp frontend \`.env.local\`은 \`${contract.frontend.envFile}\`에 두고 ${formatEnvKeys(contract.frontend.envKeys)}를 사용해요.`,
     '- frontend `scaffold.preset.ts`는 `process.cwd()` 기준으로 `.env.local` 값을 읽어 같은 `MINIAPP_FIREBASE_*` 값을 주입하고, `granite.config.ts`는 그 scaffold preset만 연결해요.',
     '- `frontend/src/lib/public-app-status.ts`는 Firestore direct read를 먼저 시도하고, 권한 오류가 나면 `getPublicStatus` callable function으로 fallback 해요.',
     '- backoffice가 있으면 `backoffice/src/lib/firebase.ts`, `backoffice/src/lib/firestore.ts`, `backoffice/src/lib/storage.ts`가 같은 Firebase project를 사용해요.',
-    '- backoffice `.env.local`은 `backoffice/.env.local`에 두고 `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`를 사용해요.',
+    `- backoffice \`.env.local\`은 \`${contract.backoffice.envFile}\`에 두고 ${formatEnvKeys(contract.backoffice.envKeys)}를 사용해요.`,
     '',
     '## 운영 메모',
     '',
@@ -460,6 +732,8 @@ function renderFirebaseServerReadme(options?: {
     '- `server/.env.local`의 `FIREBASE_TOKEN` 또는 `GOOGLE_APPLICATION_CREDENTIALS`를 채우면 비대화형 deploy에 사용할 수 있어요.',
     '- `server/functions/package.json`의 Node runtime은 Firebase 지원 범위에 맞춰 `22`를 사용해요.',
     '- `server/functions/src/index.ts`는 `api` HTTP 함수와 `getPublicStatus` callable function을 함께 배포해요.',
+    '',
+    ...remoteOpsLines,
     '',
     '## Firebase deploy auth',
     '',
@@ -651,6 +925,7 @@ export async function patchSupabaseServerWorkspace(
   tokens: TemplateTokens,
   options: Pick<WorkspacePatchOptions, 'packageManager'> & {
     accessTokenGuideImageSourcePaths?: string[] | null
+    state: ServerScaffoldState
   },
 ) {
   const serverRoot = path.join(targetRoot, 'server')
@@ -660,7 +935,12 @@ export async function patchSupabaseServerWorkspace(
     SUPABASE_ACCESS_TOKEN_GUIDE_ASSET_CANDIDATES,
   )
   const supabaseScriptCatalog = createSupabaseServerScriptCatalog(tokens.packageManager)
+  const remoteOpsCommands = renderServerRemoteOpsCommands(
+    supabaseScriptCatalog,
+    tokens.packageManagerRunCommand,
+  )
   await applyServerPackageTemplate(targetRoot, tokens)
+  await writeServerScaffoldSupportFiles(serverRoot, options.state, remoteOpsCommands)
   await writeTextFile(
     path.join(serverRoot, 'README.md'),
     renderSupabaseServerReadme({
@@ -680,6 +960,7 @@ export async function patchCloudflareServerWorkspace(
   options: Pick<WorkspacePatchOptions, 'packageManager'> & {
     tokenGuideImageSourcePath?: string | null
     trpc?: boolean
+    state: ServerScaffoldState
   },
 ) {
   const serverRoot = path.join(targetRoot, 'server')
@@ -706,7 +987,12 @@ export async function patchCloudflareServerWorkspace(
       ? normalizeVitestTestScript(packageJson.scripts.test)
       : null,
   })
+  const remoteOpsCommands = renderServerRemoteOpsCommands(
+    cloudflareScripts,
+    tokens.packageManagerRunCommand,
+  )
 
+  await writeServerScaffoldSupportFiles(serverRoot, options.state, remoteOpsCommands)
   await patchPackageJsonFile(packageJsonPath, {
     upsertTopLevel: [
       {
@@ -773,6 +1059,7 @@ export async function patchFirebaseServerWorkspace(
   options: Pick<WorkspacePatchOptions, 'packageManager'> & {
     loginCiGuideImageSourcePath?: string | null
     serviceAccountGuideImageSourcePaths?: string[] | null
+    state: ServerScaffoldState
   },
 ) {
   const serverRoot = path.join(targetRoot, 'server')
@@ -793,7 +1080,12 @@ export async function patchFirebaseServerWorkspace(
     packageManager: tokens.packageManager,
     firestoreRegion: FIREBASE_DEFAULT_FUNCTION_REGION,
   })
+  const remoteOpsCommands = renderServerRemoteOpsCommands(
+    firebaseScriptCatalog,
+    tokens.packageManagerRunCommand,
+  )
 
+  await writeServerScaffoldSupportFiles(serverRoot, options.state, remoteOpsCommands)
   await writeTextFile(
     path.join(serverRoot, 'README.md'),
     renderFirebaseServerReadme({

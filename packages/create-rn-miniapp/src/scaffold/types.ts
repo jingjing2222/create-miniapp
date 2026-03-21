@@ -1,6 +1,6 @@
 import type { CliPrompter } from '../cli.js'
 import type { PackageManager } from '../package-manager.js'
-import type { ServerProjectMode } from '../server-project.js'
+import type { ServerProjectMode, ServerScaffoldState } from '../server-project.js'
 import type { ServerProvider } from '../providers/index.js'
 
 export type ScaffoldOptions = {
@@ -25,6 +25,7 @@ export type AddWorkspaceOptions = {
   appName: string
   displayName: string
   existingServerProvider: ServerProvider | null
+  existingServerScaffoldState: ServerScaffoldState | null
   existingHasBackoffice: boolean
   existingHasTrpc: boolean
   serverProvider: ServerProvider | null

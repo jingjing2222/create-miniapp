@@ -5,6 +5,7 @@ export type ServerScriptCatalogEntry = {
   command: string
   readmeDescription: string
   includeInReadme?: boolean
+  remoteOp?: boolean
 }
 
 export function createServerScriptRecord(entries: ServerScriptCatalogEntry[]) {
@@ -21,6 +22,15 @@ export function renderServerReadmeScriptLines(
       (entry) =>
         `- \`cd server && ${packageManagerRunCommand} ${entry.name}\`: ${entry.readmeDescription}`,
     )
+}
+
+export function renderServerRemoteOpsCommands(
+  entries: ServerScriptCatalogEntry[],
+  packageManagerRunCommand: string,
+) {
+  return entries
+    .filter((entry) => entry.remoteOp === true)
+    .map((entry) => `cd server && ${packageManagerRunCommand} ${entry.name}`)
 }
 
 export function createSupabaseServerScriptCatalog(packageManager: PackageManager) {
@@ -55,6 +65,7 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
       command: 'node ./scripts/supabase-db-apply.mjs',
       readmeDescription:
         '`server/.env.local`의 `SUPABASE_DB_PASSWORD`를 사용해 linked remote project에 migration을 적용해요.',
+      remoteOp: true,
     },
     {
       name: 'db:apply:remote',
@@ -79,6 +90,7 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
       command: 'node ./scripts/supabase-functions-deploy.mjs',
       readmeDescription:
         '`server/.env.local`의 `SUPABASE_PROJECT_REF`를 사용해 Edge Functions를 원격 Supabase project에 배포해요.',
+      remoteOp: true,
     },
     {
       name: 'db:apply:local',
@@ -126,6 +138,7 @@ export function createCloudflareServerScriptCatalog(options: {
       command: options.deployCommand,
       readmeDescription:
         '`server/.env.local`의 auth 값을 읽고 `wrangler.jsonc` 기준으로 원격 Worker를 배포해요.',
+      remoteOp: true,
     },
   ] satisfies ServerScriptCatalogEntry[]
 
@@ -198,6 +211,7 @@ export function createFirebaseServerScriptCatalog(options: {
       command: `${installFunctionsCommand} && node ./scripts/firebase-functions-deploy.mjs`,
       readmeDescription:
         '`server/.env.local`의 auth 값을 읽고 Firebase Functions + Firestore 리소스를 현재 project로 배포해요.',
+      remoteOp: true,
     },
     {
       name: 'deploy:firestore',
@@ -214,6 +228,7 @@ export function createFirebaseServerScriptCatalog(options: {
       name: 'setup:public-status',
       command: `${adapter.runScript('firestore:ensure')} && ${adapter.runScript('deploy:firestore')} && ${adapter.runScript('seed:public-status')}`,
       readmeDescription: 'Firestore 생성, rules 배포, seed 문서 작성을 한 번에 실행해요.',
+      remoteOp: true,
     },
     {
       name: 'logs',
