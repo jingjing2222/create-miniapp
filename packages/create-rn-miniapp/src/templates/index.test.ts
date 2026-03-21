@@ -738,13 +738,30 @@ test('package manager adapters do not expose the legacy rootVerifyScript helper'
   }
 })
 
+test('README opens with user value and points readers to the next action', async () => {
+  const readmeSource = await readFile(
+    fileURLToPath(new URL('../../../../README.md', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(readmeSource, /## 이런 경우에 잘 맞아요/)
+  assert.match(readmeSource, /## 빠른 시작/)
+  assert.match(readmeSource, /## 생성한 다음엔 이렇게 보면 돼요/)
+  assert.match(readmeSource, /생성한 뒤에는 루트 `AGENTS\.md`의 `Start Here`부터 보면 돼요\./)
+  assert.ok(readmeSource.indexOf('## 빠른 시작') < readmeSource.indexOf('## 자주 쓰는 옵션'))
+  assert.ok(
+    readmeSource.indexOf('## 생성한 다음엔 이렇게 보면 돼요') <
+      readmeSource.indexOf('## 자주 쓰는 옵션'),
+  )
+})
+
 test('README defers generated repo onboarding order to AGENTS Start Here', async () => {
   const readmeSource = await readFile(
     fileURLToPath(new URL('../../../../README.md', import.meta.url)),
     'utf8',
   )
 
-  assert.match(readmeSource, /`AGENTS\.md`의 `Start Here`/)
+  assert.match(readmeSource, /생성한 뒤에는 루트 `AGENTS\.md`의 `Start Here`부터 보면 돼요\./)
   assert.doesNotMatch(
     readmeSource,
     /docs\/product\/기능명세서\.md.*docs\/ai\/Plan\.md.*docs\/index\.md/s,
@@ -766,10 +783,7 @@ test('README does not hand-maintain generated root tree, helper scripts, or prov
     readmeSource,
     /SUPABASE_PROJECT_REF|CLOUDFLARE_ACCOUNT_ID|FIREBASE_PROJECT_ID|workers\.dev|supabase\/functions\/api\/index\.ts/,
   )
-  assert.match(
-    readmeSource,
-    /정확한 생성 구조와 provider별 세부 파일\/스크립트\/env 키는 생성된 repo 문서를 기준으로 보면 돼요\./,
-  )
+  assert.match(readmeSource, /자세한 생성 구조와 운영 방식은 생성된 repo 문서를 보면 돼요\./)
 })
 
 test('README treats generated skills as a first-class scaffold output and avoids opaque English jargon', async () => {
@@ -778,13 +792,12 @@ test('README treats generated skills as a first-class scaffold output and avoids
     'utf8',
   )
 
-  assert.match(
-    readmeSource,
-    /공식 scaffold 위에 `AGENTS\.md`, `CLAUDE\.md`, `docs\/\*`, `\.agents\/skills`, `\.claude\/skills`를 자동으로 만들어줘요\./,
-  )
-  assert.match(readmeSource, /문서와 Skill까지 한 번에 갖춘 실행 기반/)
+  assert.match(readmeSource, /공식 scaffold 위에 필요한 운영 문서와 Skill을 함께 준비해줘요\./)
+  assert.match(readmeSource, /문서와 Skill까지 함께 준비해주는 CLI/)
   assert.doesNotMatch(readmeSource, /canonical/i)
   assert.doesNotMatch(readmeSource, /source of truth/i)
+  assert.doesNotMatch(readmeSource, /생성물 계약/)
+  assert.doesNotMatch(readmeSource, /Provider IaC/)
 })
 
 test('root AGENTS follows the code-owned generated AGENTS contract', async () => {
@@ -812,7 +825,39 @@ test('root docs do not hand-maintain canonical skill name lists', async () => {
   assert.match(agentsSource, /skill-catalog\.ts/)
   assert.doesNotMatch(readmeSource, /^- core:/m)
   assert.doesNotMatch(readmeSource, /^- optional:/m)
-  assert.match(readmeSource, /skill-catalog\.ts/)
+  assert.doesNotMatch(readmeSource, /skill-catalog\.ts/)
+})
+
+test('README keeps maintainer-only implementation language out of the user guide', async () => {
+  const readmeSource = await readFile(
+    fileURLToPath(new URL('../../../../README.md', import.meta.url)),
+    'utf8',
+  )
+
+  assert.doesNotMatch(readmeSource, /## 생성물 계약/)
+  assert.doesNotMatch(readmeSource, /## Provider IaC/)
+  assert.doesNotMatch(readmeSource, /렌더/)
+  assert.doesNotMatch(readmeSource, /catalog가 소유해요/)
+  assert.doesNotMatch(readmeSource, /skill-catalog\.ts/)
+  assert.match(readmeSource, /자세한 생성 구조와 운영 방식은 생성된 repo 문서를 보면 돼요\./)
+})
+
+test('README groups common actions before advanced details', async () => {
+  const readmeSource = await readFile(
+    fileURLToPath(new URL('../../../../README.md', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(readmeSource, /## 자주 쓰는 옵션/)
+  assert.match(readmeSource, /## 필요할 때만 보는 옵션/)
+  assert.match(readmeSource, /## server provider 고르기/)
+  assert.match(readmeSource, /## 기존 워크스페이스에 나중에 붙이기/)
+  assert.ok(
+    readmeSource.indexOf('## 자주 쓰는 옵션') < readmeSource.indexOf('## 필요할 때만 보는 옵션'),
+  )
+  assert.ok(
+    readmeSource.indexOf('## server provider 고르기') < readmeSource.indexOf('## 생성 기준'),
+  )
 })
 
 test('server remote ops are derived from shared script metadata instead of hardcoded provider tables', async () => {
