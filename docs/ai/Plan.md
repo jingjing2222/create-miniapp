@@ -1,3 +1,16 @@
+## 진행 예정: Patch changeset 추가
+
+### 목표
+- 이미 머지 준비가 끝난 skill taxonomy migration 브랜치에 patch changeset을 추가한다.
+- 공개 배포 대상 패키지 중 실제 변경이 있는 패키지만 포함한다.
+- changeset 설명은 한국어로 작성하고, 커밋 후 원격 브랜치와 PR에 반영한다.
+
+### 작업 순서
+1. 현재 diff 기준으로 배포 대상 패키지를 확정한다.
+2. `.changeset/*.md` 파일을 추가해 patch bump와 한국어 릴리스 요약을 기록한다.
+3. `pnpm verify`를 다시 실행해 최종 상태를 확인한다.
+4. changeset 커밋을 만들고 현재 PR 브랜치에 푸시한다.
+
 ## 진행 예정: Skill taxonomy SSoT audit
 
 ### 목표
