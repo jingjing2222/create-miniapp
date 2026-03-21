@@ -4,6 +4,7 @@ import { readGraniteConfigMetadata } from './patching/ast/index.js'
 import { toDefaultDisplayName } from './layout.js'
 import type { PackageManager } from './package-manager.js'
 import { detectServerProvider, type ServerProvider } from './providers/index.js'
+import { readServerScaffoldState, type ServerScaffoldState } from './server-project.js'
 import { pathExists } from './templates/filesystem.js'
 
 type RootPackageJson = {
@@ -19,6 +20,7 @@ export type WorkspaceInspection = {
   hasBackoffice: boolean
   hasTrpc: boolean
   serverProvider: ServerProvider | null
+  serverScaffoldState: ServerScaffoldState | null
 }
 
 function parsePackageManagerField(value: string | undefined): PackageManager {
@@ -72,6 +74,7 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
     (await pathExists(path.join(resolvedRootDir, 'packages', 'app-router', 'package.json'))) ||
     (await pathExists(path.join(resolvedRootDir, 'packages', 'trpc', 'package.json')))
   const serverProvider = hasServer ? await detectServerProvider(resolvedRootDir) : null
+  const serverScaffoldState = hasServer ? await readServerScaffoldState(resolvedRootDir) : null
 
   return {
     rootDir: resolvedRootDir,
@@ -82,5 +85,6 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
     hasBackoffice,
     hasTrpc,
     serverProvider,
+    serverScaffoldState,
   }
 }

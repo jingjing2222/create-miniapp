@@ -4,12 +4,12 @@
   "version": "0.1.0",
   "files": [
     "backoffice-react",
-    "granite",
-    "miniapp",
-    "server-cloudflare",
-    "server-firebase",
-    "server-supabase",
-    "tds",
+    "cloudflare-worker",
+    "firebase-functions",
+    "granite-routing",
+    "miniapp-capabilities",
+    "supabase-project",
+    "tds-ui",
     "trpc-boundary"
   ],
   "publishConfig": {

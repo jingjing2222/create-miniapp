@@ -3,7 +3,11 @@ import { isCancel, log, select, text } from '@clack/prompts'
 import yargs from 'yargs'
 import { assertValidAppName, toDefaultDisplayName } from './layout.js'
 import { PACKAGE_MANAGERS, type PackageManager } from './package-manager.js'
-import { SERVER_PROJECT_MODES, type ServerProjectMode } from './server-project.js'
+import {
+  SERVER_PROJECT_MODES,
+  type ServerProjectMode,
+  type ServerScaffoldState,
+} from './server-project.js'
 import {
   SERVER_PROVIDERS,
   SERVER_PROVIDER_OPTIONS,
@@ -89,6 +93,7 @@ export type ResolvedAddCliOptions = {
   appName: string
   displayName: string
   existingServerProvider: ServerProvider | null
+  existingServerScaffoldState: ServerScaffoldState | null
   existingHasBackoffice: boolean
   existingHasTrpc: boolean
   serverProvider: ServerProvider | null
@@ -539,6 +544,7 @@ export async function resolveAddCliOptions(
     appName: inspection.appName,
     displayName: inspection.displayName,
     existingServerProvider: inspection.serverProvider,
+    existingServerScaffoldState: inspection.serverScaffoldState,
     existingHasBackoffice: inspection.hasBackoffice,
     existingHasTrpc: inspection.hasTrpc,
     serverProvider: normalizedServerProvider,

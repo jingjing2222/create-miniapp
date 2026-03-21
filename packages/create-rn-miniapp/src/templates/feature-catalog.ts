@@ -98,28 +98,28 @@ export const WORKSPACE_FEATURE_CATALOG: WorkspaceFeatureDefinition[] = [
   {
     enabled: (options) => options.serverProvider === 'cloudflare',
     optionalSkill: {
-      templateDir: 'server-cloudflare',
-      docsPath: '.agents/skills/server-cloudflare/SKILL.md',
-      agentsLabel: 'Cloudflare provider 작업',
-      topologyLabel: 'Cloudflare provider 운영 가이드',
+      templateDir: 'cloudflare-worker',
+      docsPath: '.agents/skills/cloudflare-worker/SKILL.md',
+      agentsLabel: 'Cloudflare Worker 작업',
+      topologyLabel: 'Cloudflare Worker 운영 가이드',
     },
   },
   {
     enabled: (options) => options.serverProvider === 'supabase',
     optionalSkill: {
-      templateDir: 'server-supabase',
-      docsPath: '.agents/skills/server-supabase/SKILL.md',
-      agentsLabel: 'Supabase provider 작업',
-      topologyLabel: 'Supabase provider 운영 가이드',
+      templateDir: 'supabase-project',
+      docsPath: '.agents/skills/supabase-project/SKILL.md',
+      agentsLabel: 'Supabase project 작업',
+      topologyLabel: 'Supabase 프로젝트 운영 가이드',
     },
   },
   {
     enabled: (options) => options.serverProvider === 'firebase',
     optionalSkill: {
-      templateDir: 'server-firebase',
-      docsPath: '.agents/skills/server-firebase/SKILL.md',
-      agentsLabel: 'Firebase provider 작업',
-      topologyLabel: 'Firebase provider 운영 가이드',
+      templateDir: 'firebase-functions',
+      docsPath: '.agents/skills/firebase-functions/SKILL.md',
+      agentsLabel: 'Firebase Functions 작업',
+      topologyLabel: 'Firebase Functions 운영 가이드',
     },
   },
   {

@@ -5,11 +5,17 @@ import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../
 import { getPackageManagerAdapter } from '../package-manager.js'
 import { patchBackofficeWorkspace } from '../patching/backoffice.js'
 import { patchFrontendWorkspace } from '../patching/frontend.js'
+import { writeServerScaffoldState } from '../patching/server.js'
 import { ensureEmptyDirectory, pathExists } from '../templates/filesystem.js'
 import { applyRootTemplates, syncRootWorkspaceManifest } from '../templates/root.js'
 import { syncGeneratedSkills } from '../templates/skills.js'
 import { applyDocsTemplates } from '../templates/docs.js'
-import type { ProvisioningNote } from '../server-project.js'
+import type {
+  ProvisioningNote,
+  ServerProjectMode,
+  ServerRemoteInitializationState,
+  ServerScaffoldState,
+} from '../server-project.js'
 import { buildRootFinalizePlan, buildRootGitSetupPlan } from './orders.js'
 import {
   maybeFinalizeCloudflareProvisioning,
@@ -36,10 +42,96 @@ export {
 } from './orders.js'
 export { buildCreateExecutionOrder, buildCreateLifecycleOrder } from './orders.js'
 
+function resolveRequestedRemoteInitializationState(options: {
+  serverProjectMode: ServerProjectMode | null
+  skipServerProvisioning: boolean
+}): ServerRemoteInitializationState {
+  if (options.skipServerProvisioning || options.serverProjectMode === null) {
+    return 'not-run'
+  }
+
+  return options.serverProjectMode === 'create' ? 'applied' : 'skipped'
+}
+
+function buildServerScaffoldState(options: {
+  serverProvider: 'supabase' | 'cloudflare' | 'firebase' | null
+  serverProjectMode: ServerProjectMode | null
+  remoteInitialization: ServerRemoteInitializationState
+  trpc: boolean
+  backoffice: boolean
+}): ServerScaffoldState | null {
+  if (!options.serverProvider) {
+    return null
+  }
+
+  return {
+    serverProvider: options.serverProvider,
+    serverProjectMode: options.serverProjectMode,
+    remoteInitialization: options.remoteInitialization,
+    trpc: options.trpc,
+    backoffice: options.backoffice,
+  }
+}
+
+function buildAddInitialServerState(options: {
+  existingState: ServerScaffoldState | null
+  existingServerProvider: 'supabase' | 'cloudflare' | 'firebase' | null
+  serverProvider: 'supabase' | 'cloudflare' | 'firebase' | null
+  serverProjectMode: ServerProjectMode | null
+  skipServerProvisioning: boolean
+  withServer: boolean
+  withTrpc: boolean
+  existingHasTrpc: boolean
+  withBackoffice: boolean
+  existingHasBackoffice: boolean
+}) {
+  const serverProvider = options.withServer
+    ? options.serverProvider
+    : (options.serverProvider ?? options.existingServerProvider)
+
+  if (!serverProvider) {
+    return null
+  }
+
+  if (options.withServer) {
+    return buildServerScaffoldState({
+      serverProvider,
+      serverProjectMode: options.serverProjectMode,
+      remoteInitialization: resolveRequestedRemoteInitializationState({
+        serverProjectMode: options.serverProjectMode,
+        skipServerProvisioning: options.skipServerProvisioning,
+      }),
+      trpc: options.withTrpc,
+      backoffice: options.withBackoffice || options.existingHasBackoffice,
+    })
+  }
+
+  return {
+    serverProvider,
+    serverProjectMode: options.existingState?.serverProjectMode ?? null,
+    remoteInitialization: options.existingState?.remoteInitialization ?? 'not-run',
+    trpc: options.withTrpc || options.existingState?.trpc === true || options.existingHasTrpc,
+    backoffice:
+      options.withBackoffice ||
+      options.existingState?.backoffice === true ||
+      options.existingHasBackoffice,
+  } satisfies ServerScaffoldState
+}
+
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
   const targetRoot = path.resolve(options.outputDir, options.appName)
   const notes: ProvisioningNote[] = []
   const trpcEnabled = options.withTrpc && options.serverProvider === 'cloudflare'
+  const initialServerState = buildServerScaffoldState({
+    serverProvider: options.serverProvider,
+    serverProjectMode: options.serverProjectMode,
+    remoteInitialization: resolveRequestedRemoteInitializationState({
+      serverProjectMode: options.serverProjectMode,
+      skipServerProvisioning: options.skipServerProvisioning,
+    }),
+    trpc: trpcEnabled,
+    backoffice: options.withBackoffice,
+  })
   const tokens = createTemplateTokens({
     appName: options.appName,
     displayName: options.displayName,
@@ -97,6 +189,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     tokens,
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
+    state: initialServerState,
     trpc: trpcEnabled,
   })
 
@@ -203,6 +296,42 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     })),
   )
 
+  const finalServerState = buildServerScaffoldState({
+    serverProvider: options.serverProvider,
+    serverProjectMode:
+      provisionedSupabaseProject?.mode ??
+      provisionedCloudflareWorker?.mode ??
+      provisionedFirebaseProject?.mode ??
+      options.serverProjectMode,
+    remoteInitialization:
+      options.serverProvider === 'supabase'
+        ? provisionedSupabaseProject
+          ? provisionedSupabaseProject.didApplyRemoteDb ||
+            provisionedSupabaseProject.didDeployEdgeFunctions
+            ? 'applied'
+            : 'skipped'
+          : (initialServerState?.remoteInitialization ?? 'not-run')
+        : options.serverProvider === 'cloudflare'
+          ? provisionedCloudflareWorker
+            ? provisionedCloudflareWorker.didInitializeRemoteContent
+              ? 'applied'
+              : 'skipped'
+            : (initialServerState?.remoteInitialization ?? 'not-run')
+          : options.serverProvider === 'firebase'
+            ? provisionedFirebaseProject
+              ? provisionedFirebaseProject.didInitializeRemoteContent
+                ? 'applied'
+                : 'skipped'
+              : (initialServerState?.remoteInitialization ?? 'not-run')
+            : 'not-run',
+    trpc: trpcEnabled,
+    backoffice: await pathExists(path.join(targetRoot, 'backoffice')),
+  })
+
+  if (finalServerState) {
+    await writeServerScaffoldState(targetRoot, finalServerState)
+  }
+
   if (!options.noGit) {
     for (const command of buildRootGitSetupPlan({ targetRoot })) {
       log.step(command.label)
@@ -234,6 +363,18 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
   })
   const trpcServerProvider = options.serverProvider ?? options.existingServerProvider
   const trpcEnabled = options.withTrpc && trpcServerProvider === 'cloudflare'
+  const initialServerState = buildAddInitialServerState({
+    existingState: options.existingServerScaffoldState,
+    existingServerProvider: options.existingServerProvider,
+    serverProvider: options.serverProvider,
+    serverProjectMode: options.serverProjectMode,
+    skipServerProvisioning: options.skipServerProvisioning,
+    withServer: options.withServer,
+    withTrpc: trpcEnabled,
+    existingHasTrpc: options.existingHasTrpc,
+    withBackoffice: options.withBackoffice,
+    existingHasBackoffice: options.existingHasBackoffice,
+  })
 
   if (options.withServer) {
     await mkdir(path.join(targetRoot, 'server'), { recursive: true })
@@ -273,6 +414,7 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
       : trpcEnabled
         ? options.existingServerProvider
         : null,
+    state: initialServerState,
     trpc: trpcEnabled,
   })
 
@@ -394,6 +536,43 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
         serverProvider: options.serverProvider,
       })),
     )
+  }
+
+  const finalServerState = buildServerScaffoldState({
+    serverProvider: finalServerProvider,
+    serverProjectMode:
+      provisionedSupabaseProject?.mode ??
+      provisionedCloudflareWorker?.mode ??
+      provisionedFirebaseProject?.mode ??
+      initialServerState?.serverProjectMode ??
+      options.serverProjectMode,
+    remoteInitialization:
+      finalServerProvider === 'supabase'
+        ? provisionedSupabaseProject
+          ? provisionedSupabaseProject.didApplyRemoteDb ||
+            provisionedSupabaseProject.didDeployEdgeFunctions
+            ? 'applied'
+            : 'skipped'
+          : (initialServerState?.remoteInitialization ?? 'not-run')
+        : finalServerProvider === 'cloudflare'
+          ? provisionedCloudflareWorker
+            ? provisionedCloudflareWorker.didInitializeRemoteContent
+              ? 'applied'
+              : 'skipped'
+            : (initialServerState?.remoteInitialization ?? 'not-run')
+          : finalServerProvider === 'firebase'
+            ? provisionedFirebaseProject
+              ? provisionedFirebaseProject.didInitializeRemoteContent
+                ? 'applied'
+                : 'skipped'
+              : (initialServerState?.remoteInitialization ?? 'not-run')
+            : 'not-run',
+    trpc: await pathExists(path.join(targetRoot, 'packages', 'contracts')),
+    backoffice: await pathExists(path.join(targetRoot, 'backoffice')),
+  })
+
+  if (finalServerState) {
+    await writeServerScaffoldState(targetRoot, finalServerState)
   }
 
   if (!options.skipInstall) {

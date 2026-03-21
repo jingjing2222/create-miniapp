@@ -41,7 +41,15 @@ const EXPECTED_DOCS_TREE = [
 
 const EXPECTED_SCRIPTS_TREE = ['check-skills.mjs', 'sync-skills.mjs', 'verify-frontend-routes.mjs']
 
-const CORE_SKILLS = ['granite', 'miniapp', 'tds']
+const CORE_SKILLS = ['granite-routing', 'miniapp-capabilities', 'tds-ui']
+const LEGACY_SKILL_NAMES = [
+  'miniapp',
+  'granite',
+  'tds',
+  'server-cloudflare',
+  'server-supabase',
+  'server-firebase',
+]
 const REMOVED_ENGINEERING_DOCS = [
   'appsintoss-granite-api-index.md',
   'appsintoss-granite-full-api-index.md',
@@ -161,28 +169,28 @@ test('migration scaffold combinations generate docs, skills, and the claude mirr
       serverProvider: 'cloudflare',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['server-cloudflare'],
+      expectedOptionalSkills: ['cloudflare-worker'],
     },
     {
       label: 'base + server-supabase',
       serverProvider: 'supabase',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['server-supabase'],
+      expectedOptionalSkills: ['supabase-project'],
     },
     {
       label: 'base + server-firebase',
       serverProvider: 'firebase',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['server-firebase'],
+      expectedOptionalSkills: ['firebase-functions'],
     },
     {
       label: 'base + trpc',
       serverProvider: 'cloudflare',
       withBackoffice: false,
       withTrpc: true,
-      expectedOptionalSkills: ['server-cloudflare', 'trpc-boundary'],
+      expectedOptionalSkills: ['cloudflare-worker', 'trpc-boundary'],
     },
   ]
 
@@ -221,6 +229,53 @@ test('migration scaffold combinations generate docs, skills, and the claude mirr
       expectedSkills,
       combo.label,
     )
+
+    for (const legacySkillName of LEGACY_SKILL_NAMES) {
+      assert.equal(
+        await pathExists(path.join(targetRoot, '.agents', 'skills', legacySkillName, 'SKILL.md')),
+        false,
+        `${combo.label}: ${legacySkillName}`,
+      )
+    }
+
+    if (combo.serverProvider === 'cloudflare') {
+      for (const referenceName of [
+        'overview.md',
+        'local-dev.md',
+        'client-connection.md',
+        'troubleshooting.md',
+      ]) {
+        assert.equal(
+          await pathExists(
+            path.join(
+              targetRoot,
+              '.agents',
+              'skills',
+              'cloudflare-worker',
+              'references',
+              referenceName,
+            ),
+          ),
+          true,
+          `${combo.label}: cloudflare-worker/${referenceName}`,
+        )
+      }
+
+      assert.equal(
+        await pathExists(
+          path.join(
+            targetRoot,
+            '.agents',
+            'skills',
+            'cloudflare-worker',
+            'references',
+            'provider-guide.md',
+          ),
+        ),
+        false,
+        `${combo.label}: cloudflare-worker/provider-guide.md`,
+      )
+    }
 
     for (const removedDoc of REMOVED_ENGINEERING_DOCS) {
       assert.equal(

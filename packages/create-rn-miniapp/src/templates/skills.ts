@@ -8,7 +8,7 @@ import {
 import { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
 import type { GeneratedWorkspaceOptions, GeneratedWorkspaceHints, TemplateTokens } from './types.js'
 
-export type CoreSkillId = 'miniapp' | 'granite' | 'tds'
+export type CoreSkillId = 'miniapp-capabilities' | 'granite-routing' | 'tds-ui'
 
 export type CoreSkillDefinition = SkillReferenceDefinition & {
   id: CoreSkillId
@@ -19,32 +19,32 @@ export type CoreSkillDefinition = SkillReferenceDefinition & {
 
 export const CORE_SKILL_DEFINITIONS: CoreSkillDefinition[] = [
   {
-    id: 'miniapp',
-    templateDir: 'miniapp',
-    docsPath: '.agents/skills/miniapp/SKILL.md',
+    id: 'miniapp-capabilities',
+    templateDir: 'miniapp-capabilities',
+    docsPath: '.agents/skills/miniapp-capabilities/SKILL.md',
     agentsLabel: 'MiniApp capability / 공식 API 탐색',
     topologyLabel: 'MiniApp capability',
     frontendPolicyReferenceLabel: '기능 축과 공식 문서 진입',
-    frontendPolicyReferencePath: '.agents/skills/miniapp/SKILL.md',
+    frontendPolicyReferencePath: '.agents/skills/miniapp-capabilities/SKILL.md',
   },
   {
-    id: 'granite',
-    templateDir: 'granite',
-    docsPath: '.agents/skills/granite/SKILL.md',
+    id: 'granite-routing',
+    templateDir: 'granite-routing',
+    docsPath: '.agents/skills/granite-routing/SKILL.md',
     agentsLabel: 'route / page / navigation 패턴',
     topologyLabel: 'Granite page/route patterns',
     frontendPolicyReferenceLabel: 'route / navigation 패턴',
-    frontendPolicyReferencePath: '.agents/skills/granite/SKILL.md',
+    frontendPolicyReferencePath: '.agents/skills/granite-routing/SKILL.md',
   },
   {
-    id: 'tds',
-    templateDir: 'tds',
-    docsPath: '.agents/skills/tds/SKILL.md',
+    id: 'tds-ui',
+    templateDir: 'tds-ui',
+    docsPath: '.agents/skills/tds-ui/SKILL.md',
     agentsLabel: 'TDS UI 선택과 form 패턴',
     topologyLabel: 'TDS UI selection',
     frontendPolicyReferenceLabel: 'TDS component 선택',
-    frontendPolicyReferencePath: '.agents/skills/tds/SKILL.md',
-    referenceCatalogPath: '.agents/skills/tds/references/catalog.md',
+    frontendPolicyReferencePath: '.agents/skills/tds-ui/SKILL.md',
+    referenceCatalogPath: '.agents/skills/tds-ui/references/catalog.md',
   },
 ]
 

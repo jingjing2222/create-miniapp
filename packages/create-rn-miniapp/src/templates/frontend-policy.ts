@@ -15,9 +15,9 @@ type FrontendPolicyRestrictionDefinition = {
   reactNativeImportNames?: string[]
 }
 
-const MINIAPP_CORE_SKILL = getCoreSkillDefinition('miniapp')
-const GRANITE_CORE_SKILL = getCoreSkillDefinition('granite')
-const TDS_CORE_SKILL = getCoreSkillDefinition('tds')
+const MINIAPP_CORE_SKILL = getCoreSkillDefinition('miniapp-capabilities')
+const GRANITE_CORE_SKILL = getCoreSkillDefinition('granite-routing')
+const TDS_CORE_SKILL = getCoreSkillDefinition('tds-ui')
 
 const FRONTEND_POLICY_SOURCE_EXTENSIONS = [
   '.ts',

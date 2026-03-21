@@ -117,6 +117,82 @@ test('inspectWorkspace detects cloudflare server workspaces from wrangler config
   assert.equal(inspection.serverProvider, 'cloudflare')
 })
 
+test('inspectWorkspace reads existing scaffold state manifest when present', async (t) => {
+  const targetRoot = await createTempWorkspace(t)
+
+  await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'server', '.create-rn-miniapp'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'package.json'),
+    JSON.stringify(
+      {
+        packageManager: getTestPackageManagerField('pnpm'),
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'frontend', 'granite.config.ts'),
+    [
+      "import { appsInToss } from '@apps-in-toss/framework/plugins'",
+      "import { defineConfig } from '@granite-js/react-native/config'",
+      '',
+      'export default defineConfig({',
+      '  appName: "ebook-miniapp",',
+      '  plugins: [',
+      '    appsInToss({',
+      '      brand: {',
+      '        displayName: "전자책 미니앱",',
+      '      },',
+      '    }),',
+      '  ],',
+      '})',
+      '',
+    ].join('\n'),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'server', 'wrangler.jsonc'),
+    '{\n  "name": "server"\n}\n',
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'server', '.create-rn-miniapp', 'state.json'),
+    JSON.stringify(
+      {
+        serverProvider: 'cloudflare',
+        serverProjectMode: 'create',
+        remoteInitialization: 'applied',
+        trpc: true,
+        backoffice: false,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+
+  const inspection = (await inspectWorkspace(targetRoot)) as {
+    serverScaffoldState?: {
+      serverProvider: string
+      serverProjectMode: string | null
+      remoteInitialization: string
+      trpc: boolean
+      backoffice: boolean
+    } | null
+  }
+
+  assert.deepEqual(inspection.serverScaffoldState, {
+    serverProvider: 'cloudflare',
+    serverProjectMode: 'create',
+    remoteInitialization: 'applied',
+    trpc: true,
+    backoffice: false,
+  })
+})
+
 test('inspectWorkspace detects firebase server workspaces from firebase config', async (t) => {
   const targetRoot = await createTempWorkspace(t)
 

@@ -1,11 +1,24 @@
 ---
 name: backoffice-react
-description: Backoffice React/Vite state, rendering, async flow, and bundle discipline
+description: Use when you are changing the optional backoffice React/Vite workspace, its state flow, or bundle boundaries. Do not use for MiniApp route work, provider runtime layout, or tRPC contract order.
 ---
 
 # Backoffice React Skill
 
 `backoffice`를 수정할 때 사용하는 Skill입니다.
+
+## Use when
+
+- Vite 기반 `backoffice` 화면, state, async flow, render boundary를 수정할 때
+- table/search/form처럼 브라우저 운영 화면을 나눠야 할 때
+- bundle 크기나 lazy import 경계를 점검할 때
+
+## Do not use for
+
+- MiniApp capability 탐색: `miniapp-capabilities`
+- Granite route/page/navigation 설계: `granite-routing`
+- TDS UI 선택: `tds-ui`
+- provider runtime layout, 원격 상태, client 연결 점검: provider skill
 
 ## 읽는 순서
 

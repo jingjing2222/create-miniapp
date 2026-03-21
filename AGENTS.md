@@ -13,18 +13,27 @@
 - Planner: `docs/ai/Plan.md`
 - Status: `docs/ai/Status.md`
 - CLI package: `packages/create-rn-miniapp`
+- Generated AGENTS renderer: `packages/create-rn-miniapp/src/templates/docs.ts`
+- Skill package: `packages/scaffold-skills`
 - Template package: `packages/scaffold-templates`
-- Template AGENTS: `packages/scaffold-templates/base/AGENTS.md`
+- Template CLAUDE: `packages/scaffold-templates/base/CLAUDE.md`
 
 ## Workspace Mental Model
 - `packages/create-rn-miniapp`: generator CLI
 - `packages/scaffold-templates`: generated repo에 복사할 하네스/문서 템플릿
+- `packages/scaffold-skills`: generated repo에 복사할 canonical skill source
+
+## Canonical Skills
+- core: `miniapp-capabilities`, `granite-routing`, `tds-ui`
+- optional: `backoffice-react`, `cloudflare-worker`, `supabase-project`, `firebase-functions`, `trpc-boundary`
+- mirror contract: generated repo는 `.agents/skills`를 정본으로 두고 `.claude/skills`를 같은 이름으로 mirror한다.
 
 ## Generator Principle
 1. Granite, Vite, Supabase scaffold는 공식 CLI로 생성한다.
 2. 이 저장소는 scaffold 결과물을 template으로 들고 있지 않는다.
-3. template으로 유지하는 것은 AGENTS, docs/ai, docs/product 같은 하네스 문서다.
-4. MiniApp frontend 스캐폴딩 기준은 AppInToss React Native 튜토리얼과 `@apps-in-toss/framework` 초기화 절차를 source of truth로 둔다.
+3. generated `AGENTS.md`, `docs/index.md`, `docs/engineering/*`는 `packages/create-rn-miniapp/src/templates/docs.ts`가 code-owned로 렌더링한다.
+4. template으로 유지하는 것은 `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/ai`, `docs/product` 같은 하네스 문서다.
+5. MiniApp frontend 스캐폴딩 기준은 AppInToss React Native 튜토리얼과 `@apps-in-toss/framework` 초기화 절차를 source of truth로 둔다.
 
 ## Verify Gate
 - `pnpm format:check`

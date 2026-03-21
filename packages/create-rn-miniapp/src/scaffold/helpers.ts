@@ -2,6 +2,7 @@ import path from 'node:path'
 import { log } from '@clack/prompts'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import { getServerProviderAdapter, type ServerProvider } from '../providers/index.js'
+import type { ServerScaffoldState } from '../server-project.js'
 import { APP_ROUTER_WORKSPACE_PATH, CONTRACTS_WORKSPACE_PATH } from '../trpc-workspace-metadata.js'
 import { pathExists, writeWorkspaceNpmrc } from '../templates/filesystem.js'
 import { applyTrpcWorkspaceTemplate } from '../templates/trpc.js'
@@ -84,9 +85,14 @@ export async function maybePatchServerWorkspace(options: {
   tokens: TemplateTokens
   packageManager: PackageManager
   serverProvider: ServerProvider | null
+  state: ServerScaffoldState | null
   trpc: boolean
 }) {
-  if (!options.serverProvider || !(await pathExists(path.join(options.targetRoot, 'server')))) {
+  if (
+    !options.serverProvider ||
+    !options.state ||
+    !(await pathExists(path.join(options.targetRoot, 'server')))
+  ) {
     return
   }
 
@@ -96,6 +102,7 @@ export async function maybePatchServerWorkspace(options: {
     targetRoot: options.targetRoot,
     tokens: options.tokens,
     packageManager: options.packageManager,
+    state: options.state,
     trpc: options.trpc,
   })
 }
