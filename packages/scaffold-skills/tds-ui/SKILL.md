@@ -66,6 +66,8 @@ version: 2.0.0
    - docs URL
    - root export module
    - anomaly note 여부
+   - 위 7항 중 하나라도 빠지면 `incomplete answer`로 간주한다.
+   - export-only를 추천할 때는 반드시 doc-backed fallback도 같이 적는다.
 9. TDS로 대체 가능한 RN primitive를 직접 추천하지 않는다.
 
 ## Default selection map

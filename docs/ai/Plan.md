@@ -10,6 +10,11 @@
 - `AGENTS.md`와 `generated/catalog.md`를 truth source projection/generated output 계약으로 명시한다.
 - 위 두 항목을 red test로 잠근 뒤 `pnpm verify`까지 다시 통과시킨다.
 
+### 후속 보정 2
+- acceptance prompt 검증이 positive mapping만 보지 않도록, 대안 배제와 anomaly note 요구까지 같은 계약에서 직접 검사한다.
+- output contract 7항 중 하나라도 빠지면 incomplete answer로 본다는 문구를 `SKILL.md`, `AGENTS.md`, local reference, 테스트에 명시한다.
+- export-only 추천 시 doc-backed fallback 강제를 output contract enforcement로 다시 잠근다.
+
 ### 작업 순서
 1. `tds-ui` 패키지 구조를 `SKILL.md`, `AGENTS.md`, `metadata.json`, `generated/*`, `references/*`, `rules/*` 기준으로 재편한다.
 2. current export/docs 상태를 `generated/catalog.json`, `generated/anomalies.json`, `references/decision-matrix.md`, `references/export-gaps.md`에 decision cluster 용어로 고정한다.

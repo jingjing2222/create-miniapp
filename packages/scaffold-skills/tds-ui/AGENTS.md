@@ -35,3 +35,7 @@
 5. loading / error / empty / disabled / a11y 체크
 6. docs URL + root export module
 7. anomaly note 또는 export-only / docs-missing note
+
+## Contract Enforcement
+- 위 7항 중 하나라도 빠지면 incomplete answer로 간주한다.
+- export-only 추천 시에는 반드시 doc-backed fallback도 같이 적는다.
