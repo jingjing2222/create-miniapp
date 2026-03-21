@@ -1,16 +1,14 @@
-# tds-ui AGENTS
+# tds-ui AGENTS (Generated)
 
-이 문서는 `tds-ui` decision skill의 generated output index다.
-수정 기준은 이 파일이 아니라 아래 truth source들이다.
+이 파일은 `metadata.json`, `generated/catalog.json`, `generated/anomalies.json`에서 파생된 generated output이다.
+수정은 truth source를 바꾼 뒤 재생성된 결과만 반영한다.
 
 ## Truth Sources
-
 - `metadata.json`
 - `generated/catalog.json`
 - `generated/anomalies.json`
 
 ## Human References
-
 - `references/decision-matrix.md`
 - `references/form-patterns.md`
 - `references/layout-and-navigation.md`
@@ -20,7 +18,6 @@
 - `references/policy-summary.md`
 
 ## Review Rules
-
 - `rules/catalog-doc-backed-first.md`
 - `rules/catalog-export-gap-handling.md`
 - `rules/state-controlled-uncontrolled.md`
@@ -31,7 +28,6 @@
 - `rules/accessibility-interactive-elements.md`
 
 ## Answer Contract
-
 1. 추천 컴포넌트
 2. 선택 이유
 3. 가장 가까운 대안과 왜 아닌지

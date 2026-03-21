@@ -5,6 +5,11 @@
 - `generated/catalog.json`을 truth source로 두고 anomaly, references, rules, output contract를 패키지 내부에서 모두 닫는다.
 - 생성물과 generator metadata가 `.agents/skills/tds-ui`, `.claude/skills/tds-ui`만 가리키게 맞춘다.
 
+### 후속 보정
+- acceptance prompt 세트를 패키지 내부 문서에 exact phrase로 고정한다.
+- `AGENTS.md`와 `generated/catalog.md`를 truth source projection/generated output 계약으로 명시한다.
+- 위 두 항목을 red test로 잠근 뒤 `pnpm verify`까지 다시 통과시킨다.
+
 ### 작업 순서
 1. `tds-ui` 패키지 구조를 `SKILL.md`, `AGENTS.md`, `metadata.json`, `generated/*`, `references/*`, `rules/*` 기준으로 재편한다.
 2. current export/docs 상태를 `generated/catalog.json`, `generated/anomalies.json`, `references/decision-matrix.md`, `references/export-gaps.md`에 decision cluster 용어로 고정한다.

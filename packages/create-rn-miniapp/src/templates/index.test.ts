@@ -108,6 +108,134 @@ async function listRelativeFiles(root: string, currentDir = ''): Promise<string[
   return files
 }
 
+const TDS_UI_REFERENCE_FILES = [
+  'references/decision-matrix.md',
+  'references/form-patterns.md',
+  'references/layout-and-navigation.md',
+  'references/feedback-and-loading.md',
+  'references/display-patterns.md',
+  'references/export-gaps.md',
+  'references/policy-summary.md',
+]
+
+const TDS_UI_RULE_FILES = [
+  'rules/catalog-doc-backed-first.md',
+  'rules/catalog-export-gap-handling.md',
+  'rules/state-controlled-uncontrolled.md',
+  'rules/screen-states-loading-error-empty.md',
+  'rules/no-rn-primitive-when-tds-exists.md',
+  'rules/export-only-gated.md',
+  'rules/navbar-import-gap.md',
+  'rules/accessibility-interactive-elements.md',
+]
+
+const TDS_UI_OUTPUT_CONTRACT_LINES = [
+  '1. 추천 컴포넌트',
+  '2. 선택 이유',
+  '3. 가장 가까운 대안과 왜 아닌지',
+  '4. controlled / uncontrolled 패턴',
+  '5. loading / error / empty / disabled / a11y 체크',
+  '6. docs URL + root export module',
+  '7. anomaly note 또는 export-only / docs-missing note',
+]
+
+const TDS_UI_ACCEPTANCE_PROMPTS = [
+  '"검색어 입력 후 목록 필터링 화면" -> search-field + list + list-row',
+  '"약관 여러 개 동의" -> checkbox',
+  '"알림 설정 on/off" -> switch',
+  '"월간 / 연간 전환" -> segmented-control',
+  '"콘텐츠 탭 5개 이상 전환" -> tab + fluid',
+  '"송금 금액 입력" -> amount-top + keypad',
+  '"수량 조절" -> numeric-spinner',
+  '"작업 완료 알림" -> toast',
+  '"성공/실패 전체 화면" -> result',
+  '"404/500 오류 화면" -> error-page',
+  '"FAQ 펼침 목록" -> board-row',
+  '"상단 네비게이션" -> navbar',
+  '"막대 차트" -> chart',
+  '"단계형 진행 UI" -> stepper-row',
+]
+
+function renderTdsUiAgentsMarkdown() {
+  return [
+    '# tds-ui AGENTS (Generated)',
+    '',
+    '이 파일은 `metadata.json`, `generated/catalog.json`, `generated/anomalies.json`에서 파생된 generated output이다.',
+    '수정은 truth source를 바꾼 뒤 재생성된 결과만 반영한다.',
+    '',
+    '## Truth Sources',
+    ...['metadata.json', 'generated/catalog.json', 'generated/anomalies.json'].map(
+      (filePath) => `- \`${filePath}\``,
+    ),
+    '',
+    '## Human References',
+    ...TDS_UI_REFERENCE_FILES.map((filePath) => `- \`${filePath}\``),
+    '',
+    '## Review Rules',
+    ...TDS_UI_RULE_FILES.map((filePath) => `- \`${filePath}\``),
+    '',
+    '## Answer Contract',
+    ...TDS_UI_OUTPUT_CONTRACT_LINES,
+    '',
+  ].join('\n')
+}
+
+function renderTdsUiCatalogProjection(
+  catalog: Array<{
+    name: string
+    cluster: string
+    docsSlug: string | null
+    rootImportPath: string
+    selectionStatus: string
+  }>,
+) {
+  const metadataLine = '- package: `@toss/tds-react-native@2.0.2`'
+  const verifiedLine = '- last verified: `2026-03-19`'
+  const truthSourceLine = '- truth source: `generated/catalog.json`'
+  const totalLine = `- total components: \`${catalog.length}\``
+  const clusterOrder = [
+    'input-choice',
+    'actions-feedback',
+    'list-navigation-layout',
+    'content-display',
+    'guarded-export-only',
+    'blocked-by-default',
+  ]
+  const clusterNotes: Record<string, string[]> = {
+    'list-navigation-layout': [
+      '- anomaly: `navbar` is docs-backed, but use the catalog `rootImportPath`',
+      '- anomaly: `stepper-row` docs slug is `stepper`',
+    ],
+    'content-display': ['- anomaly: `chart` docs slug is `Chart/bar-chart`'],
+    'guarded-export-only': [
+      '- gate these by default and include a doc-backed fallback in the answer',
+    ],
+    'blocked-by-default': ['- do not recommend by default'],
+  }
+
+  return [
+    '# tds-ui Catalog Projection (Generated)',
+    '',
+    metadataLine,
+    verifiedLine,
+    truthSourceLine,
+    totalLine,
+    '',
+    ...clusterOrder.flatMap((cluster) => {
+      const entries = catalog
+        .filter((entry) => entry.cluster === cluster)
+        .map((entry) => entry.name)
+      return [
+        `## ${cluster} (${entries.length})`,
+        '',
+        `- ${entries.map((entry) => `\`${entry}\``).join(', ')}`,
+        ...(clusterNotes[cluster] ?? []),
+        '',
+      ]
+    }),
+  ].join('\n')
+}
+
 const NX_ROOT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/nx-schema.json'
 const NX_PROJECT_SCHEMA_URL =
@@ -303,12 +431,18 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   assert.deepEqual(await listRelativeFiles(tdsUiRoot), expectedFiles)
 
   const skillSource = await readFile(path.join(tdsUiRoot, 'SKILL.md'), 'utf8')
+  const agentsSource = await readFile(path.join(tdsUiRoot, 'AGENTS.md'), 'utf8')
+  const policySummarySource = await readFile(
+    path.join(tdsUiRoot, 'references', 'policy-summary.md'),
+    'utf8',
+  )
   assert.match(skillSource, /generated\/catalog\.json/)
   assert.match(skillSource, /generated\/anomalies\.json/)
   assert.match(skillSource, /references\/decision-matrix\.md/)
   assert.match(skillSource, /rules\/\*\.md/)
   assert.match(skillSource, /추천 컴포넌트/)
   assert.match(skillSource, /anomaly note/i)
+  assert.equal(agentsSource, renderTdsUiAgentsMarkdown())
 
   const metadata = JSON.parse(await readFile(path.join(tdsUiRoot, 'metadata.json'), 'utf8')) as {
     package: { name: string; version: string }
@@ -347,6 +481,12 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   const paragraph = catalog.find((entry) => entry.name === 'paragraph')
   const chart = catalog.find((entry) => entry.name === 'chart')
   const stepperRow = catalog.find((entry) => entry.name === 'stepper-row')
+  const catalogProjectionSource = await readFile(
+    path.join(tdsUiRoot, 'generated', 'catalog.md'),
+    'utf8',
+  )
+
+  assert.equal(catalogProjectionSource, renderTdsUiCatalogProjection(catalog))
 
   assert.equal(searchField?.cluster, 'input-choice')
   assert.equal(searchField?.selectionStatus, 'doc-backed')
@@ -453,6 +593,10 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
     assert.match(ruleSource, /reference:/, ruleFile)
     assert.match(ruleSource, /## Incorrect/, ruleFile)
     assert.match(ruleSource, /## Correct/, ruleFile)
+  }
+
+  for (const acceptancePrompt of TDS_UI_ACCEPTANCE_PROMPTS) {
+    assert.match(policySummarySource, new RegExp(escapeRegExp(acceptancePrompt)))
   }
 })
 

@@ -15,3 +15,20 @@
 5. loading / error / empty / disabled / a11y 체크
 6. docs URL + root export module
 7. anomaly note 또는 export-only / docs-missing note
+
+## Acceptance Prompts
+
+- "검색어 입력 후 목록 필터링 화면" -> search-field + list + list-row
+- "약관 여러 개 동의" -> checkbox
+- "알림 설정 on/off" -> switch
+- "월간 / 연간 전환" -> segmented-control
+- "콘텐츠 탭 5개 이상 전환" -> tab + fluid
+- "송금 금액 입력" -> amount-top + keypad
+- "수량 조절" -> numeric-spinner
+- "작업 완료 알림" -> toast
+- "성공/실패 전체 화면" -> result
+- "404/500 오류 화면" -> error-page
+- "FAQ 펼침 목록" -> board-row
+- "상단 네비게이션" -> navbar
+- "막대 차트" -> chart
+- "단계형 진행 UI" -> stepper-row
