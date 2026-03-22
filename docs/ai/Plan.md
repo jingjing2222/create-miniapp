@@ -1,3 +1,16 @@
+## 다음 작업: README 사용 사례 bullet을 목적 중심 카피로 정리
+
+### 목표
+- 루트 README `이런 경우에 잘 맞아요` 섹션이 DX 설명보다 사용자 목적 중심으로 읽히게 만든다.
+- 어색한 장점 설명 bullet은 줄이고, MiniApp 개발에 필요한 skill을 생성과 동시에 넣고 싶을 때라는 직접적인 use case로 바꾼다.
+- 관련 README 회귀 테스트와 `pnpm verify`를 확인한 뒤 `main`에 단일 목적 커밋으로 push한다.
+
+### 작업 순서
+1. 현재 README와 테스트가 어떤 use case 문구를 고정하는지 다시 확인한다.
+2. README bullet을 목적 중심 문구로 정리하고, 중복되거나 약한 DX 설명은 제거한다.
+3. 관련 테스트 기대값을 새 카피에 맞게 갱신하고 `pnpm verify`로 확인한다.
+4. 변경을 단일 목적 커밋으로 정리하고 `origin/main`에 push한다.
+
 ## 다음 작업: README skills 섹션에 skill id와 용도 목록 노출
 
 ### 목표

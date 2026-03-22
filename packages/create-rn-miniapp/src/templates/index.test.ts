@@ -966,22 +966,20 @@ test('README leads with server SaaS setup value before skill wording', async () 
     readmeSource,
     /선택한 server provider 기준으로 프로젝트 생성\/연결, 기본 원격 작업, frontend\/backoffice `\.env\.local` 반영까지 이어줘요\./,
   )
-  assert.match(
-    readmeSource,
-    /MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때/,
-  )
+  assert.match(readmeSource, /미니앱 개발에 필요한 스킬을 생성과 동시에 넣고 싶을 때/)
   assert.match(readmeSource, /## skills 전략/)
   assert.ok(
     readmeSource.indexOf(
       '서버 인프라 SaaS를 따로 세팅하지 않고, 생성 단계에서 바로 연동까지 끝내고 싶을 때',
-    ) <
-      readmeSource.indexOf(
-        'MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때',
-      ),
+    ) < readmeSource.indexOf('미니앱 개발에 필요한 스킬을 생성과 동시에 넣고 싶을 때'),
   )
   assert.doesNotMatch(
     readmeSource,
     /사람과 에이전트가 같은 문서와 Skill을 보면서 바로 작업하고 싶을 때/,
+  )
+  assert.doesNotMatch(
+    readmeSource,
+    /MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때/,
   )
 })
 
