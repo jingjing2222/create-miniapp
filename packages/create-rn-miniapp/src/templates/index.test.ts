@@ -2471,7 +2471,11 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
     seedPublicStatusSource,
     /function loadLocalEnv\(filePath: string\): Record<string, string> \{/,
   )
-  assert.match(seedPublicStatusSource, /return parseEnv\(readFileSync\(filePath, 'utf8'\)\)/)
+  assert.match(seedPublicStatusSource, /const env = parseEnv\(readFileSync\(filePath, 'utf8'\)\)/)
+  assert.match(
+    seedPublicStatusSource,
+    /Object\.entries\(env\)\.filter\(\(entry\): entry is \[string, string\] => typeof entry\[1\] === 'string'\)/,
+  )
   assert.match(seedPublicStatusSource, /FIREBASE_PROJECT_ID is required/)
   assert.doesNotMatch(functionEntry, new RegExp(FIREBASE_DEFAULT_FUNCTION_REGION))
   assert.match(deployScript, /FIREBASE_PROJECT_ID/)
