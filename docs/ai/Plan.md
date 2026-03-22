@@ -1,3 +1,15 @@
+## 다음 작업: frontend policy 항상-on 변경을 release metadata에 반영
+
+### 목표
+- 현재 브랜치의 frontend policy 변경을 changeset과 PR 설명에 정확히 반영한다.
+- 공개 패키지는 `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 두 개만 patch로 올린다.
+- verify 결과까지 확인한 뒤 브랜치를 푸시하고 PR을 연다.
+
+### 작업 순서
+1. changeset을 새로 추가해 두 패키지 patch와 변경 요약을 한국어로 적는다.
+2. `pnpm verify` 결과를 다시 확인하고 커밋 상태를 점검한다.
+3. 브랜치를 푸시하고 한국어 PR title/body를 현재 변경 범위 기준으로 작성한다.
+
 ## 다음 작업: frontend policy를 skill 설치 상태와 분리
 
 ### 목표
