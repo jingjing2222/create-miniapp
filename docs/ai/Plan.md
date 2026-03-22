@@ -1,3 +1,16 @@
+## 다음 작업: server README에 pinned CLI 버전 기입
+
+### 목표
+- 생성되거나 patch되는 각 `server/README.md`에 이 workspace가 어떤 pinned CLI 버전 기준으로 스캐폴딩/프로비저닝됐는지 설명과 함께 남긴다.
+- provider별로 실제 의존한 CLI만 노출한다.
+- template 경로와 patch 경로가 같은 helper를 써서 버전 표기 contract가 한 곳에서만 관리되게 만든다.
+
+### 작업 순서
+1. Cloudflare/Firebase/Supabase server README 회귀 테스트를 먼저 깨뜨려서 버전 섹션과 설명 문구를 고정한다.
+2. pinned CLI source of truth는 `external-tooling.ts`를 그대로 쓰고, README용 공통 renderer helper를 추가한다.
+3. `templates/server.ts`와 `patching/server.ts`가 같은 helper로 provider별 CLI 버전 섹션을 렌더하게 바꾼다.
+4. `pnpm verify`로 회귀를 확인한다.
+
 ## 다음 작업: runtime dedent 잔여 authored block 재감사
 
 ### 목표

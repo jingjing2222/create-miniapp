@@ -23,6 +23,7 @@ import {
   renderServerReadmeScriptLines,
   type ServerScriptCatalogEntry,
 } from '../server-script-catalog.js'
+import { renderServerReadmeCliVersionsSection } from '../server-readme-cli-versions.js'
 import {
   pathExists,
   removePathIfExists,
@@ -491,6 +492,8 @@ function renderSupabaseServerReadme(options?: {
     \`\`\`
     
     ${(renderServerScaffoldStateSection()).join('\n')}
+
+    ${renderServerReadmeCliVersionsSection('supabase')}
     
     ## 주요 스크립트
     
@@ -575,6 +578,8 @@ function renderCloudflareServerReadme(options?: {
     \`\`\`
     
     ${(renderServerScaffoldStateSection()).join('\n')}
+
+    ${renderServerReadmeCliVersionsSection('cloudflare')}
     
     ## 주요 스크립트
     
@@ -667,6 +672,8 @@ function renderFirebaseServerReadme(options?: {
     \`\`\`
     
     ${(renderServerScaffoldStateSection()).join('\n')}
+
+    ${renderServerReadmeCliVersionsSection('firebase')}
     
     ## 주요 스크립트
     
