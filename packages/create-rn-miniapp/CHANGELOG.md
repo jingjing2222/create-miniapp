@@ -1,5 +1,50 @@
 # create-rn-miniapp
 
+## 0.1.4
+
+### Patch Changes
+
+- b333233: 런타임에서 사람이 직접 작성한 여러 줄 문자열 렌더링을 `dedent` helper 기준으로 정리했어요.
+
+  `patching/*`, `templates/*`, `providers/*` 전반의 사람이 직접 작성한 여러 줄 블록을
+  `dedent`/`dedentWithTrailingNewline`으로 통일하고,
+  정적 배열 리터럴 `join('\n')`를 막는 회귀 테스트도 추가해서 같은 패턴이 다시 들어오지 않게 했어요.
+
+- 0b81f05: 루트 README와 생성된 프로젝트 README의 skills 안내를 더 간단하게 정리했어요.
+
+  여러 skill을 한 번에 설치하는 예시 대신, 필요한 skill 하나만 바로 설치해볼 수 있는 예시를 보여주도록 바꿨어요.
+  설치 뒤에 자주 쓰는 `npx skills list`, `npx skills check`, `npx skills update`도 한 줄로 짧게 안내해요.
+
+- 04455fc: 직접 구현하던 generic plumbing을 표준 라이브러리 기준으로 정리했어요.
+
+  - skill frontmatter 파싱을 `gray-matter`로 교체했어요.
+  - JSONC와 root `package.json` patching을 `jsonc-parser` edit API 기반으로 바꿔 comment와 순서를 보존해요.
+  - 명령 실행을 `execa`로 교체해서 오류 메시지와 실행기 호환성을 표준화했어요.
+  - Cloudflare provisioning의 직접 `fetch`/envelope 처리를 공식 Cloudflare SDK 기반으로 줄였어요.
+
+- 839033e: Wrangler, Supabase, Firebase provisioning parser와 generated server env loader를 더 안정적으로 정리했습니다.
+
+  - Supabase JSON output은 mixed stdout을 더 이상 추측 파싱하지 않고 structured stdout만 읽습니다.
+  - Firebase add-firebase 재시도 안내는 package manager에 맞는 명령으로 파생되고, Cloud Build 기본 service account는 stdout 전용 형식으로 더 엄격하게 해석합니다.
+  - Cloudflare auth는 `wrangler auth token --json` structured output을 우선 사용하고, generated server script의 env loader는 shared renderer 한 곳에서만 관리합니다.
+
+- b333233: 생성기가 실행 시점의 최신 외부 CLI 동작에 덜 흔들리도록 외부 CLI 명세를 저장소가 직접 소유하는 매니페스트로 고정했어요.
+
+  `wrangler`, `firebase-tools`, `supabase`, `create-cloudflare` 같은 외부 CLI 호출을 정확한 버전 명세로 렌더하고,
+  루트 workspace topology도 하드코딩된 디렉터리 순회 대신 실제 매니페스트 순서를 기준으로 읽도록 바꿨어요.
+
+- 6215db7: 스캐폴딩 런타임 계약과 생성 템플릿 계약이 서로 다른 source를 보지 않도록 정리했어요.
+
+  - package manager별 script 실행 문법을 adapter 기준으로 한 곳에서만 파생되게 맞췄어요.
+  - create/add flow의 server provider, tRPC 활성화, finalize 흐름 판단을 shared helper로 모았어요.
+  - provider 공용 JSON parser와 Supabase bootstrap command builder를 shared module로 분리해서 provider 간 구현 누수를 줄였어요.
+  - generated README, server README, root docs 렌더링이 같은 metadata와 script catalog를 기준으로 움직이게 정리했어요.
+  - 루트 Yarn 설정은 local cache 기준을 기본으로 두고, 워크스페이스별 `.yarnrc.yml`에 의존하지 않게 맞췄어요.
+
+- Updated dependencies [0b81f05]
+- Updated dependencies [6215db7]
+  - @create-rn-miniapp/scaffold-templates@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
