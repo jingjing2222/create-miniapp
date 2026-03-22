@@ -18,7 +18,13 @@ import {
   renderRootReadmeProviderSection,
   renderRootReadmeSkillsSection,
 } from '../root-readme.js'
-import { SKILL_CATALOG } from './skill-catalog.js'
+import {
+  SKILLS_CHECK_COMMAND,
+  SKILLS_LIST_COMMAND,
+  SKILLS_UPDATE_COMMAND,
+} from '../skills-contract.js'
+import { renderSkillsAddCommand } from '../skills-install.js'
+import { CORE_SKILL_DEFINITIONS, SKILL_CATALOG } from './skill-catalog.js'
 import { getTestPackageManagerField } from '../test-support/package-manager.js'
 import * as templateModule from './index.js'
 import {
@@ -35,6 +41,7 @@ import {
   syncRootWorkspaceManifest,
   type TemplateTokens,
 } from './index.js'
+import { renderSharedFrontendPolicyReferenceMarkdown } from './frontend-policy.js'
 
 async function materializeDocsWorkspaceState(
   targetRoot: string,
@@ -994,6 +1001,9 @@ test('README treats generated skills as a first-class scaffold output and avoids
     fileURLToPath(new URL('../../../../README.md', import.meta.url)),
     'utf8',
   )
+  const expectedCoreInstallCommand = renderSkillsAddCommand(
+    CORE_SKILL_DEFINITIONS.map((skill) => skill.id),
+  )
 
   assert.match(
     readmeSource,
@@ -1013,21 +1023,13 @@ test('README treats generated skills as a first-class scaffold output and avoids
     readmeSource,
     /이 저장소의 `skills\/`에는 MiniApp 작업에 맞춘 skill source가 들어 있고, 생성된 repo `README\.md`가 추천 목록을 자동으로 보여줘요\./,
   )
-  assert.match(
-    readmeSource,
-    /npx skills add jingjing2222\/create-rn-miniapp --skill miniapp-capabilities --skill granite-routing --skill tds-ui --copy/,
-  )
-  assert.match(readmeSource, /- `miniapp-capabilities`/)
-  assert.match(readmeSource, /- `granite-routing`/)
-  assert.match(readmeSource, /- `tds-ui`/)
-  assert.match(readmeSource, /- `backoffice-react`/)
-  assert.match(readmeSource, /- `cloudflare-worker`/)
-  assert.match(readmeSource, /- `supabase-project`/)
-  assert.match(readmeSource, /- `firebase-functions`/)
-  assert.match(readmeSource, /- `trpc-boundary`/)
-  assert.match(readmeSource, /npx skills list/)
-  assert.match(readmeSource, /npx skills check/)
-  assert.match(readmeSource, /npx skills update/)
+  assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
+  for (const skill of SKILL_CATALOG) {
+    assert.match(readmeSource, new RegExp(`- \`${escapeRegExp(skill.id)}\``))
+  }
+  for (const command of [SKILLS_LIST_COMMAND, SKILLS_CHECK_COMMAND, SKILLS_UPDATE_COMMAND]) {
+    assert.match(readmeSource, new RegExp(escapeRegExp(command)))
+  }
   assert.doesNotMatch(readmeSource, /canonical/i)
   assert.doesNotMatch(readmeSource, /source of truth/i)
   assert.doesNotMatch(readmeSource, /생성물 계약/)
@@ -1081,6 +1083,17 @@ test('skill references do not hardcode the project-local skills root when siblin
   assert.match(routingPatternsSource, /`miniapp-capabilities` skill의 full index/)
 })
 
+test('shared frontend policy reference stays synced with the frontend policy renderer', async () => {
+  const sharedReferenceSource = await readFile(
+    fileURLToPath(
+      new URL('../../../../skills/shared/references/frontend-policy.md', import.meta.url),
+    ),
+    'utf8',
+  )
+
+  assert.equal(sharedReferenceSource, renderSharedFrontendPolicyReferenceMarkdown())
+})
+
 test('root AGENTS follows the code-owned generated AGENTS contract', async () => {
   const agentsSource = await readFile(
     fileURLToPath(new URL('../../../../AGENTS.md', import.meta.url)),
@@ -1100,19 +1113,19 @@ test('README lists scaffolded skills in user-facing groups without leaking maint
     fileURLToPath(new URL('../../../../README.md', import.meta.url)),
     'utf8',
   )
+  const expectedCoreInstallCommand = renderSkillsAddCommand(
+    CORE_SKILL_DEFINITIONS.map((skill) => skill.id),
+  )
 
   assert.doesNotMatch(agentsSource, /^- core:/m)
   assert.doesNotMatch(agentsSource, /^- optional:/m)
   assert.match(agentsSource, /skill-catalog\.ts/)
   assert.match(agentsSource, /Skill source: `skills`/)
   assert.match(readmeSource, /생성된 repo `README\.md`가 추천 목록을 자동으로 보여줘요\./)
-  assert.match(
-    readmeSource,
-    /npx skills add jingjing2222\/create-rn-miniapp --skill miniapp-capabilities --skill granite-routing --skill tds-ui --copy/,
-  )
-  assert.match(readmeSource, /- `backoffice-react`/)
-  assert.match(readmeSource, /- `cloudflare-worker`/)
-  assert.match(readmeSource, /- `trpc-boundary`/)
+  assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
+  for (const skillId of ['backoffice-react', 'cloudflare-worker', 'trpc-boundary']) {
+    assert.match(readmeSource, new RegExp(`- \`${escapeRegExp(skillId)}\``))
+  }
   assert.doesNotMatch(readmeSource, /^- core:/m)
   assert.doesNotMatch(readmeSource, /^- optional:/m)
   assert.doesNotMatch(readmeSource, /skill-catalog\.ts/)
@@ -1281,9 +1294,9 @@ test('applyDocsTemplates keeps AGENTS skill-free and renders README onboarding w
   assert.doesNotMatch(repoContract, /\.claude\/skills/)
   assert.match(readme, /## skills 전략/)
   assert.match(readme, /npx skills add/)
-  assert.match(readme, /npx skills list/)
-  assert.match(readme, /npx skills check/)
-  assert.match(readme, /npx skills update/)
+  for (const command of [SKILLS_LIST_COMMAND, SKILLS_CHECK_COMMAND, SKILLS_UPDATE_COMMAND]) {
+    assert.match(readme, new RegExp(escapeRegExp(command)))
+  }
   assert.doesNotMatch(frontendPolicy, /\.agents\/skills\//)
   assert.match(frontendPolicy, /UI는 TDS를 사용한다\./)
   assert.match(

@@ -1,3 +1,15 @@
+## 다음 작업: 남은 skill/shared reference SSoT 드리프트 제거
+
+### 목표
+- `skills/shared/references/frontend-policy.md`처럼 live markdown이 코드 상수와 따로 움직이는 경로를 code-owned renderer 기준으로 정리한다.
+- root README / generated README / skill install 관련 테스트에서 repo slug, skill id 목록, skills command를 수동 문자열로 반복하는 부분을 source 값에서 파생되게 줄인다.
+- 이번 턴은 live contract만 대상으로 수정하고, 기록성 changelog/과거 plan은 제외한다.
+
+### 작업 순서
+1. shared frontend policy reference와 skills README/assertion 드리프트를 red test로 먼저 고정한다.
+2. renderer + sync script를 추가하고, 테스트 기대값을 shared source에서 파생되게 바꾼다.
+3. `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리하고 푸시한다.
+
 ## 다음 작업: skill catalog를 source skill frontmatter에서 파생
 
 ### 목표

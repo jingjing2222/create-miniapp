@@ -14,7 +14,11 @@ import {
   renderSkillsAddCommand,
   resolveRecommendedSkillIds,
 } from './skills-install.js'
-import { SKILLS_SOURCE_REPO } from './skills-contract.js'
+import { SKILLS_LIST_COMMAND, SKILLS_SOURCE_REPO } from './skills-contract.js'
+
+function escapeRegExp(source: string) {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 test('normalizeSelectedSkillIds keeps known ids and removes duplicates', () => {
   assert.deepEqual(normalizeSelectedSkillIds(['tds-ui', 'cloudflare-worker', 'tds-ui']), [
@@ -42,9 +46,14 @@ test('resolveRecommendedSkillIds returns a flat recommended list for the current
 })
 
 test('renderSkillsAddCommand produces the standard npx skills command', () => {
+  const expectedCommand = ['npx', 'skills', 'add', SKILLS_SOURCE_REPO]
+    .concat(['--skill', 'miniapp-capabilities', '--skill', 'granite-routing', '--skill', 'tds-ui'])
+    .concat(['--copy'])
+    .join(' ')
+
   assert.equal(
     renderSkillsAddCommand(['miniapp-capabilities', 'granite-routing', 'tds-ui']),
-    'npx skills add jingjing2222/create-rn-miniapp --skill miniapp-capabilities --skill granite-routing --skill tds-ui --copy',
+    expectedCommand,
   )
 })
 
@@ -59,11 +68,14 @@ test('skills source repo slug is derived from the published package repository',
     'utf8',
   )
 
-  assert.equal(SKILLS_SOURCE_REPO, 'jingjing2222/create-rn-miniapp')
+  assert.equal(
+    SKILLS_SOURCE_REPO,
+    packageJson.repository?.url?.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''),
+  )
   assert.equal(packageJson.repository?.url, 'https://github.com/jingjing2222/create-rn-miniapp.git')
   assert.doesNotMatch(
     skillsContractSource,
-    /export const SKILLS_SOURCE_REPO = 'jingjing2222\/create-rn-miniapp'/,
+    new RegExp(escapeRegExp(`export const SKILLS_SOURCE_REPO = '${SKILLS_SOURCE_REPO}'`)),
   )
 })
 
@@ -77,7 +89,7 @@ test('renderInstalledSkillsSummary renders discovered project-local skill paths'
       'project-local skills를 설치했어요.',
       '- miniapp-capabilities: `.agents/skills/miniapp-capabilities`',
       '- tds-ui: `skills/tds-ui`',
-      '필요하면 `npx skills list`로 다시 확인해 주세요.',
+      `필요하면 \`${SKILLS_LIST_COMMAND}\`로 다시 확인해 주세요.`,
     ].join('\n'),
   )
 })
