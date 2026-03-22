@@ -1,3 +1,15 @@
+## 다음 작업: frontend policy를 skill 설치 상태와 분리
+
+### 목표
+- root biome lint와 generated `docs/engineering/frontend-policy.md`가 skill 설치 여부에 따라 달라지지 않게 한다.
+- TDS 우선, Granite routing 규칙은 MiniApp 공용 계약으로 고정하고, skill은 README onboarding만 담당하게 줄인다.
+- skill-aware 경로 reference를 기대하던 테스트를 먼저 공용 정책 기준으로 바꾼 뒤 구현을 맞춘다.
+
+### 작업 순서
+1. root biome/frontend policy가 skill 설치 여부와 무관하게 같은 메시지를 가져야 한다는 red test로 바꾼다.
+2. `frontend-policy.ts`, `root.ts`, 관련 docs 렌더에서 installed skill 기반 분기를 제거한다.
+3. targeted test와 `pnpm verify`를 다시 통과시키고 커밋한다.
+
 ## 다음 작업: root README skills 안내를 배포 기준으로 전환
 
 ### 목표
