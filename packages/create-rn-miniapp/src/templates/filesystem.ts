@@ -36,17 +36,6 @@ export function resolveTemplatesPackageRoot() {
   )
 }
 
-export function resolveSkillsPackageRoot() {
-  return resolvePackageRoot('@create-rn-miniapp/agent-skills', '../../../agent-skills/package.json')
-}
-
-export function resolveSkillsManagerPackageRoot() {
-  return resolvePackageRoot(
-    '@create-rn-miniapp/skills-manager',
-    '../../../skills-manager/package.json',
-  )
-}
-
 export function replaceTemplateTokens(
   source: string,
   tokens: TemplateTokens,

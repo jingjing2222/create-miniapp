@@ -14,13 +14,12 @@ import {
   serverProviderSupportsTrpc,
   type ServerProvider,
 } from './providers/index.js'
+import type { SkillId } from './templates/skill-catalog.js'
 import {
-  getSkillDefinition,
-  OPTIONAL_SKILL_DEFINITIONS,
-  resolveSelectedOptionalSkillDefinitions,
-  type OptionalSkillId,
-  type SkillId,
-} from './templates/skill-catalog.js'
+  normalizeSelectedSkillIds,
+  resolveRecommendedSkillIds,
+  resolveSelectableSkills,
+} from './skills-install.js'
 import { pathExists } from './templates/filesystem.js'
 import type { WorkspaceInspection } from './workspace-inspector.js'
 
@@ -29,7 +28,7 @@ export type ParsedCliArgs = {
   packageManager?: PackageManager
   name?: string
   displayName?: string
-  extraSkills?: string[]
+  skills?: string[]
   noGit?: boolean
   serverProvider?: ServerProvider
   serverProjectMode?: ServerProjectMode
@@ -103,7 +102,7 @@ export type ResolvedCliOptions = {
   packageManager: PackageManager
   appName: string
   displayName: string
-  manualExtraSkills: OptionalSkillId[]
+  selectedSkills: SkillId[]
   noGit: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
@@ -164,11 +163,11 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
       type: 'string',
       describe: '사용자에게 보이는 앱 이름',
     })
-    .option('extra-skill', {
+    .option('skill', {
       type: 'array',
       string: true,
       default: [],
-      describe: '추가 manual skill id 반복 지정',
+      describe: '같이 설치할 skill id 반복 지정',
     })
     .option('git', {
       type: 'boolean',
@@ -228,7 +227,7 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     packageManager: argv.packageManager,
     name: argv.name,
     displayName: argv.displayName,
-    extraSkills: argv.extraSkill.map((value) => String(value)),
+    skills: argv.skill.map((value) => String(value)),
     noGit: argv.git === false,
     serverProvider: argv.serverProvider,
     serverProjectMode: argv.serverProjectMode,
@@ -255,7 +254,7 @@ export function formatCliHelp() {
     '  --package-manager <pnpm|yarn|npm|bun> package manager 지정',
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
-    '  --extra-skill <id>             추가 manual skill id 반복 지정',
+    '  --skill <id>                   같이 설치할 skill id 반복 지정',
     '  --no-git                       생성 완료 후 루트 git init 생략',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
@@ -299,28 +298,6 @@ function validateTrpcSelection(serverProvider: ServerProvider | null, trpc: bool
   if (trpc && !serverProviderSupportsTrpc(serverProvider)) {
     throw new Error('`--trpc`는 `cloudflare` server provider와 함께만 사용할 수 있어요.')
   }
-}
-
-function normalizeManualExtraSkills(extraSkills: string[] | undefined) {
-  const normalized: OptionalSkillId[] = []
-  const seen = new Set<string>()
-
-  for (const rawSkillId of extraSkills ?? []) {
-    const definition = getSkillDefinition(rawSkillId as SkillId)
-
-    if (definition.kind === 'core') {
-      throw new Error(`\`--extra-skill\`은 manual extra skill에만 사용할 수 있어요: ${rawSkillId}`)
-    }
-
-    if (seen.has(definition.id)) {
-      continue
-    }
-
-    normalized.push(definition.id)
-    seen.add(definition.id)
-  }
-
-  return normalized
 }
 
 function resolveServerProjectModeInput(serverProvider: ServerProvider | null, argv: ParsedCliArgs) {
@@ -417,7 +394,7 @@ async function resolveCloudflareApiClientCleanupInput(
   )
 }
 
-async function resolveManualExtraSkillsInput(
+async function resolveSelectedSkillsInput(
   argv: ParsedCliArgs,
   prompt: CliPrompter,
   options: {
@@ -426,7 +403,7 @@ async function resolveManualExtraSkillsInput(
     withTrpc: boolean
   },
 ) {
-  const explicitSkills = normalizeManualExtraSkills(argv.extraSkills)
+  const explicitSkills = normalizeSelectedSkillIds(argv.skills)
 
   if (explicitSkills.length > 0) {
     return explicitSkills
@@ -436,33 +413,38 @@ async function resolveManualExtraSkillsInput(
     return []
   }
 
-  const derivedSkillIds = new Set(
-    resolveSelectedOptionalSkillDefinitions({
-      hasBackoffice: options.withBackoffice,
-      serverProvider: options.serverProvider,
-      hasTrpc: options.withTrpc,
-    }).map((skill) => skill.id),
-  )
-  const selectableManualSkills = OPTIONAL_SKILL_DEFINITIONS.filter(
-    (skill) => !derivedSkillIds.has(skill.id),
-  )
-
-  if (selectableManualSkills.length === 0) {
-    return []
-  }
-
   if (!prompt.multiselect) {
     return []
   }
 
+  const shouldInstallNow =
+    (await prompt.select({
+      message: '추천 agent skills를 지금 같이 설치할까요?',
+      options: [
+        { label: '네, 같이 넣을게요', value: 'yes' },
+        { label: '아니요, 나중에 직접 설치할게요', value: 'no' },
+      ],
+      initialValue: 'no',
+    })) === 'yes'
+
+  if (!shouldInstallNow) {
+    return []
+  }
+
+  const recommendedSkillIds = resolveRecommendedSkillIds({
+    hasBackoffice: options.withBackoffice,
+    serverProvider: options.serverProvider,
+    hasTrpc: options.withTrpc,
+  })
+
   return await prompt.multiselect({
-    message: '추가로 snapshot에 유지할 manual skill이 있나요?',
-    options: selectableManualSkills.map((skill) => ({
+    message: '설치할 skill을 골라 주세요.',
+    options: resolveSelectableSkills().map((skill) => ({
       label: skill.id,
       value: skill.id,
       hint: skill.agentsLabel,
     })),
-    initialValues: [],
+    initialValues: recommendedSkillIds,
   })
 }
 
@@ -578,7 +560,7 @@ export async function resolveCliOptions(
           ],
           initialValue: 'no',
         })) === 'yes')
-  const manualExtraSkills = await resolveManualExtraSkillsInput(argv, prompt, {
+  const selectedSkills = await resolveSelectedSkillsInput(argv, prompt, {
     serverProvider: normalizedServerProvider,
     withBackoffice,
     withTrpc,
@@ -589,7 +571,7 @@ export async function resolveCliOptions(
     packageManager,
     appName,
     displayName,
-    manualExtraSkills,
+    selectedSkills,
     noGit: argv.noGit ?? false,
     serverProvider: normalizedServerProvider,
     serverProjectMode,

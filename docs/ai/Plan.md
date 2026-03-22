@@ -1,3 +1,64 @@
+## 다음 작업: non-index re-export alias 금지
+
+### 목표
+- `index.ts`를 제외한 source module에서는 re-export syntax뿐 아니라 imported binding을 export const/type/export clause로 다시 노출하는 alias forwarding도 금지한다.
+- 이 규칙은 `module-surface` 테스트로 고정하고, 남아 있는 alias surface는 실제 구현 또는 shared source module로 치환한다.
+
+### 작업 순서
+1. `module-surface.test.ts`에 imported binding alias export 금지 red test를 추가한다.
+2. 현재 위반 중인 source module을 shared source-of-truth나 local definition으로 치환한다.
+3. targeted test 후 `pnpm verify`까지 다시 통과시킨다.
+
+## 다음 작업: SSoT 중복 제거 마감 및 커밋
+
+### 목표
+- optional skills 하드컷 이후 남아 있는 source-of-truth 중복을 정리한다.
+- skill 추천 규칙, workspace topology 판별, local skill 경로/명령 문구를 한 곳에서만 소유하게 만든다.
+- 전체 `pnpm verify`를 다시 통과시키고, 이번 리팩터를 하나의 커밋으로 정리한다.
+
+### 작업 순서
+1. 전체 `pnpm verify`를 실행해 현재 refactor 상태에서 깨지는 지점을 먼저 확인한다.
+2. 실패 지점을 기준으로 `feature-catalog`, `skill-catalog`, `workspace-topology`, `skills-contract` 경계가 실제로 단일 SSoT로 작동하는지 점검한다.
+3. 남아 있는 import/format/type/test 회귀를 최소 수정으로 정리한다.
+4. `pnpm verify`를 다시 통과시킨 뒤 diff를 검토하고 커밋한다.
+
+## 다음 작업: Optional Skills README Onboarding
+
+### 목표
+- skill 설치는 기본적으로 사용자 선택으로 두고, scaffold는 optional onboarding만 제공한다.
+- scaffold 시 사용자가 skill 설치를 선택한 경우에만 generated `AGENTS.md`가 local skill 존재를 전제로 라우팅을 포함한다.
+- skill 설치를 선택하지 않은 경우 generated `AGENTS.md`는 skill 경로나 ownership을 단정하지 않고, README가 optional skills 안내를 맡는다.
+- `create-rn-miniapp`는 skill lifecycle을 소유하지 않고, 설치/목록/업데이트는 `npx skills ...` 표준 명령에 위임한다.
+- skill taxonomy는 `core/derived/manual` 없이 flat skill set으로 단순화한다.
+
+### 설계 원칙
+- `AGENTS.md`는 강제 계약만 소유한다. optional 상태인 skill 설치 여부를 가정하지 않는다.
+- scaffold는 “skill을 자동 유지보수”하지 않는다. 설치 여부와 업데이트 여부는 사용자 의사결정이다.
+- generated repo의 skill onboarding은 README와 scaffold 종료 메시지에서 설명한다.
+- skill source는 이 monorepo top-level `skills/` plain directory로 두고, npm package/workspace로 취급하지 않는다.
+- 설치는 `npx skills add <repo> --skill ...`, 확인은 `npx skills list/check/update` 같은 표준 CLI만 사용한다.
+
+### 작업 순서
+1. `packages/agent-skills`와 `packages/skills-manager`를 제거하고, canonical skill source를 repo root `skills/`로 옮긴다.
+2. `create-rn-miniapp`에서 manifest, snapshot sync/mirror, custom skills update wrapper를 제거한다.
+3. CLI create flow에 optional skill prompt를 둔다.
+   - 설치 여부를 먼저 묻고
+   - 설치를 선택한 경우 flat skill multiselect를 보여준다.
+4. scaffold 실행 후 skill 설치를 선택한 경우에만 `npx skills add <repo> --skill ...` 명령을 실행하거나, 최소한 실행 명령을 바로 출력한다.
+5. generated `AGENTS.md`를 조건부 렌더링으로 바꾼다.
+   - skill installed: project-local skill 사용 경로를 얇게 안내
+   - skill not installed: skill 언급을 제거하고 contract/start here만 남긴다.
+6. generated README에 `Optional agent skills` 섹션을 추가해 추천 skill, 설치 예시, `npx skills list/check/update` 사용법을 설명한다.
+7. `docs/index.md`, `CLAUDE.md`, Copilot instructions도 `AGENTS.md`와 같은 가정을 따르도록 정리한다.
+8. skill 관련 기존 테스트를 README/AGENTS conditional contract 기준으로 다시 작성하고, obsolete snapshot/manifest 테스트는 제거한다.
+
+### 테스트 기준
+- skill 미설치 scaffold 결과에는 `AGENTS.md`가 local skill path를 단정하지 않는다.
+- skill 설치 선택 시에만 `AGENTS.md`가 installed project-local skill을 supplemental context로 안내한다.
+- generated README는 skill 설치 여부와 무관하게 optional onboarding과 표준 `skills` CLI 명령을 설명한다.
+- `create-rn-miniapp` 소스에는 manifest, skills mirror, custom sync/upgrade implementation이 남지 않는다.
+- `pnpm verify`를 통과한다.
+
 ## 다음 작업: Snapshot-Managed Skill Catalog
 
 ### 목표
@@ -3295,3 +3356,10 @@ docs/
    - non-`index.ts` forwarding facade 금지 규칙 유지
 5. 완료 기준
    - `pnpm verify` 통과
+
+## 다음 작업: SSoT 파생 상태 감사
+
+### 목표
+- optional skills 전환 이후에도 skill/source/topology/docs가 single source of truth로 유지되는지 점검한다.
+- 한 군데를 바꾸면 나머지가 파생돼야 하는데 중복 수정이 필요한 지점을 식별한다.
+- 구현보다는 감사와 후속 정리 계획 수립이 목적이다.

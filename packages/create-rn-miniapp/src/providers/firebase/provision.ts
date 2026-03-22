@@ -2,12 +2,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { log } from '@clack/prompts'
-import {
-  runCommand,
-  runCommandWithOutput,
-  type CommandOutput,
-  type CommandSpec,
-} from '../../commands.js'
+import type { CommandSpec } from '../../command-spec.js'
+import { runCommand, runCommandWithOutput, type CommandOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'

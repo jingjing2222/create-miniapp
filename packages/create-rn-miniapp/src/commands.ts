@@ -1,12 +1,7 @@
 import { spawn } from 'node:child_process'
+import type { CommandSpec } from './command-spec.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
-import {
-  getServerProviderAdapter,
-  type ServerProvider,
-  type ServerProviderCommandSpec,
-} from './providers/index.js'
-
-export type CommandSpec = ServerProviderCommandSpec
+import { getServerProviderAdapter, type ServerProvider } from './providers/index.js'
 
 export type CommandOutput = {
   stdout: string

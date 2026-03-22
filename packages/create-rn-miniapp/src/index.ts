@@ -102,7 +102,7 @@ export async function main() {
         `server 프로젝트 연결: ${resolved.serverProvider ? (resolved.skipServerProvisioning ? '이번엔 건너뛸게요' : (resolved.serverProjectMode ?? '목록에서 고를게요')) : '해당 없어요'}`,
         `tRPC 포함: ${String(resolved.withTrpc)}`,
         `backoffice 포함: ${String(resolved.withBackoffice)}`,
-        `manual skill 추가: ${resolved.manualExtraSkills.length > 0 ? resolved.manualExtraSkills.join(', ') : '없음'}`,
+        `초기 skill 설치: ${resolved.selectedSkills.length > 0 ? resolved.selectedSkills.join(', ') : '하지 않음'}`,
       ].join('\n'),
       '이렇게 만들게요',
     )

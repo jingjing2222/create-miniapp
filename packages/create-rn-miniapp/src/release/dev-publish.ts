@@ -14,22 +14,16 @@ type PrepareDevPublishPackageJsonsInput = {
   version: string
   cliPackageJson: PackageJson
   templatesPackageJson: PackageJson
-  skillsPackageJson: PackageJson
-  managerPackageJson: PackageJson
 }
 
 type PrepareDevPublishPackageJsonsResult = {
   cliPackageJson: PackageJson
   templatesPackageJson: PackageJson
-  skillsPackageJson: PackageJson
-  managerPackageJson: PackageJson
 }
 
 const repoRoot = path.resolve(import.meta.dirname, '../../../..')
 const cliPackageName = 'create-rn-miniapp'
 const templatesPackageName = '@create-rn-miniapp/scaffold-templates'
-const skillsPackageName = '@create-rn-miniapp/agent-skills'
-const managerPackageName = '@create-rn-miniapp/skills-manager'
 
 export function formatDevPublishVersion(date: Date): string {
   const year = String(date.getUTCFullYear())
@@ -50,22 +44,12 @@ export function prepareDevPublishPackageJsons(
       ...input.templatesPackageJson,
       version: input.version,
     },
-    skillsPackageJson: {
-      ...input.skillsPackageJson,
-      version: input.version,
-    },
-    managerPackageJson: {
-      ...input.managerPackageJson,
-      version: input.version,
-    },
     cliPackageJson: {
       ...input.cliPackageJson,
       version: input.version,
       dependencies: {
         ...input.cliPackageJson.dependencies,
         [templatesPackageName]: input.version,
-        [skillsPackageName]: input.version,
-        [managerPackageName]: input.version,
       },
     },
   }
@@ -136,18 +120,12 @@ function main(): void {
   const npmrcPath = createNpmUserConfig(tempRoot, npmToken)
   const cliSourceDir = path.join(repoRoot, 'packages/create-rn-miniapp')
   const templatesSourceDir = path.join(repoRoot, 'packages/scaffold-templates')
-  const skillsSourceDir = path.join(repoRoot, 'packages/agent-skills')
-  const managerSourceDir = path.join(repoRoot, 'packages/skills-manager')
   const cliStageDir = path.join(tempRoot, 'create-rn-miniapp')
   const templatesStageDir = path.join(tempRoot, 'scaffold-templates')
-  const skillsStageDir = path.join(tempRoot, 'agent-skills')
-  const managerStageDir = path.join(tempRoot, 'skills-manager')
 
   try {
     buildWorkspace()
 
-    stagePackageDirectory(skillsSourceDir, skillsStageDir)
-    stagePackageDirectory(managerSourceDir, managerStageDir)
     stagePackageDirectory(templatesSourceDir, templatesStageDir)
     stagePackageDirectory(cliSourceDir, cliStageDir)
 
@@ -155,20 +133,10 @@ function main(): void {
       version,
       cliPackageJson: readJsonFile<PackageJson>(path.join(cliStageDir, 'package.json')),
       templatesPackageJson: readJsonFile<PackageJson>(path.join(templatesStageDir, 'package.json')),
-      skillsPackageJson: readJsonFile<PackageJson>(path.join(skillsStageDir, 'package.json')),
-      managerPackageJson: readJsonFile<PackageJson>(path.join(managerStageDir, 'package.json')),
     })
 
-    writeJsonFile(path.join(skillsStageDir, 'package.json'), prepared.skillsPackageJson)
-    writeJsonFile(path.join(managerStageDir, 'package.json'), prepared.managerPackageJson)
     writeJsonFile(path.join(templatesStageDir, 'package.json'), prepared.templatesPackageJson)
     writeJsonFile(path.join(cliStageDir, 'package.json'), prepared.cliPackageJson)
-
-    console.log(`Publishing ${skillsPackageName}@${version}`)
-    publishPackage(skillsStageDir, npmrcPath)
-
-    console.log(`Publishing ${managerPackageName}@${version}`)
-    publishPackage(managerStageDir, npmrcPath)
 
     console.log(`Publishing ${templatesPackageName}@${version}`)
     publishPackage(templatesStageDir, npmrcPath)

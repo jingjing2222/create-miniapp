@@ -8,8 +8,8 @@
 
 ## 문서와 Skill 우선순위
 1. 계약과 강제 규칙은 `AGENTS.md`, `docs/index.md`, `docs/engineering/*`가 소유한다.
-2. 반복 작업법, 외부 플랫폼 지식, 참조 카탈로그는 `.agents/skills/*`가 소유한다.
-3. Claude 계열 에이전트는 `.claude/skills/*` mirror를 사용한다.
+2. 반복 작업법, 외부 플랫폼 지식, 참조 카탈로그는 `{{projectSkillsCanonicalDir}}/*`가 소유한다.
+3. Claude 계열 에이전트는 `{{projectSkillsMirrorDir}}/*` mirror를 사용한다.
 4. 문서와 Skill이 충돌하면 문서와 검증 스크립트를 우선한다.
 
 ## Verify 정의

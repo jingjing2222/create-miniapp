@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,7 +8,6 @@ import {
   applyDocsTemplates,
   applyRootTemplates,
   pathExists,
-  syncGeneratedSkills,
   type WorkspaceName,
 } from '../templates/index.js'
 import { createTemplateTokens } from './helpers.js'
@@ -25,7 +23,6 @@ type MigrationCombo = {
   serverProvider: 'supabase' | 'cloudflare' | 'firebase' | null
   withBackoffice: boolean
   withTrpc: boolean
-  expectedOptionalSkills: string[]
 }
 
 const EXPECTED_DOCS_TREE = [
@@ -38,27 +35,9 @@ const EXPECTED_DOCS_TREE = [
   'engineering/workspace-topology.md',
   'index.md',
   'product/기능명세서.md',
-  'skills.md',
 ]
 
-const EXPECTED_SCRIPTS_TREE = [
-  'check-skills.mjs',
-  'diff-skills.mjs',
-  'mirror-skills.mjs',
-  'sync-skills.mjs',
-  'upgrade-skills.mjs',
-  'verify-frontend-routes.mjs',
-]
-
-const CORE_SKILLS = ['granite-routing', 'miniapp-capabilities', 'tds-ui']
-const LEGACY_SKILL_NAMES = [
-  'miniapp',
-  'granite',
-  'tds',
-  'server-cloudflare',
-  'server-supabase',
-  'server-firebase',
-]
+const EXPECTED_SCRIPTS_TREE = ['verify-frontend-routes.mjs']
 const REMOVED_ENGINEERING_DOCS = [
   'appsintoss-granite-api-index.md',
   'appsintoss-granite-full-api-index.md',
@@ -100,12 +79,6 @@ async function listRelativeFiles(root: string, currentDir = ''): Promise<string[
   return files
 }
 
-async function listSkillDirectories(skillsRoot: string) {
-  return (await listRelativeFiles(skillsRoot))
-    .filter((filePath) => filePath.endsWith('/SKILL.md'))
-    .map((filePath) => path.posix.dirname(filePath))
-}
-
 async function materializeMigrationWorkspace(targetRoot: string, combo: MigrationCombo) {
   const tokens = createTemplateTokens({
     appName: 'ebook-miniapp',
@@ -134,7 +107,6 @@ async function materializeMigrationWorkspace(targetRoot: string, combo: Migratio
 
   await applyRootTemplates(targetRoot, tokens, workspaces)
   await applyDocsTemplates(targetRoot, tokens, { serverProvider: combo.serverProvider })
-  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: combo.serverProvider })
 }
 
 test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
@@ -157,49 +129,43 @@ test('buildRootFinalizePlan keeps pnpm root finalize steps minimal', () => {
   })
 })
 
-test('migration scaffold combinations generate docs, skills, and the claude mirror automatically', async (t) => {
+test('migration scaffold combinations generate docs, README onboarding, and only the route verify helper by default', async (t) => {
   const combinations: MigrationCombo[] = [
     {
       label: 'base only',
       serverProvider: null,
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: [],
     },
     {
       label: 'base + backoffice',
       serverProvider: null,
       withBackoffice: true,
       withTrpc: false,
-      expectedOptionalSkills: ['backoffice-react'],
     },
     {
       label: 'base + server-cloudflare',
       serverProvider: 'cloudflare',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['cloudflare-worker'],
     },
     {
       label: 'base + server-supabase',
       serverProvider: 'supabase',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['supabase-project'],
     },
     {
       label: 'base + server-firebase',
       serverProvider: 'firebase',
       withBackoffice: false,
       withTrpc: false,
-      expectedOptionalSkills: ['firebase-functions'],
     },
     {
       label: 'base + trpc',
       serverProvider: 'cloudflare',
       withBackoffice: false,
       withTrpc: true,
-      expectedOptionalSkills: ['cloudflare-worker', 'trpc-boundary'],
     },
   ]
 
@@ -208,6 +174,7 @@ test('migration scaffold combinations generate docs, skills, and the claude mirr
     await materializeMigrationWorkspace(targetRoot, combo)
 
     assert.equal(await pathExists(path.join(targetRoot, 'AGENTS.md')), true, combo.label)
+    assert.equal(await pathExists(path.join(targetRoot, 'README.md')), true, combo.label)
     assert.equal(await pathExists(path.join(targetRoot, 'CLAUDE.md')), true, combo.label)
     assert.equal(
       await pathExists(path.join(targetRoot, '.github', 'copilot-instructions.md')),
@@ -224,86 +191,22 @@ test('migration scaffold combinations generate docs, skills, and the claude mirr
       EXPECTED_SCRIPTS_TREE,
       combo.label,
     )
+
+    const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+    const readme = await readFile(path.join(targetRoot, 'README.md'), 'utf8')
+
+    assert.doesNotMatch(agents, /\.agents\/skills/)
+    assert.doesNotMatch(agents, /\.claude\/skills/)
+    assert.match(readme, /Optional agent skills/)
+    assert.match(readme, /npx skills add/)
+    assert.equal(await pathExists(path.join(targetRoot, 'docs', 'skills.md')), false, combo.label)
+    assert.equal(await pathExists(path.join(targetRoot, '.agents', 'skills')), false, combo.label)
+    assert.equal(await pathExists(path.join(targetRoot, '.claude', 'skills')), false, combo.label)
     assert.equal(
       await pathExists(path.join(targetRoot, '.create-rn-miniapp', 'skills.json')),
-      true,
-      combo.label,
-    )
-
-    const expectedSkills = [...CORE_SKILLS, ...combo.expectedOptionalSkills].sort((left, right) =>
-      left.localeCompare(right),
-    )
-    assert.deepEqual(
-      await listSkillDirectories(path.join(targetRoot, '.agents', 'skills')),
-      expectedSkills,
-      combo.label,
-    )
-    assert.deepEqual(
-      await listSkillDirectories(path.join(targetRoot, '.claude', 'skills')),
-      expectedSkills,
-      combo.label,
-    )
-    assert.equal(
-      await pathExists(
-        path.join(targetRoot, '.agents', 'skills', 'tds-ui', 'scripts', 'ensure-fresh.mjs'),
-      ),
       false,
       combo.label,
     )
-    assert.equal(
-      await pathExists(
-        path.join(targetRoot, '.claude', 'skills', 'tds-ui', 'scripts', 'refresh-catalog.mjs'),
-      ),
-      false,
-      combo.label,
-    )
-
-    for (const legacySkillName of LEGACY_SKILL_NAMES) {
-      assert.equal(
-        await pathExists(path.join(targetRoot, '.agents', 'skills', legacySkillName, 'SKILL.md')),
-        false,
-        `${combo.label}: ${legacySkillName}`,
-      )
-    }
-
-    if (combo.serverProvider === 'cloudflare') {
-      for (const referenceName of [
-        'overview.md',
-        'local-dev.md',
-        'client-connection.md',
-        'troubleshooting.md',
-      ]) {
-        assert.equal(
-          await pathExists(
-            path.join(
-              targetRoot,
-              '.agents',
-              'skills',
-              'cloudflare-worker',
-              'references',
-              referenceName,
-            ),
-          ),
-          true,
-          `${combo.label}: cloudflare-worker/${referenceName}`,
-        )
-      }
-
-      assert.equal(
-        await pathExists(
-          path.join(
-            targetRoot,
-            '.agents',
-            'skills',
-            'cloudflare-worker',
-            'references',
-            'provider-guide.md',
-          ),
-        ),
-        false,
-        `${combo.label}: cloudflare-worker/provider-guide.md`,
-      )
-    }
 
     for (const removedDoc of REMOVED_ENGINEERING_DOCS) {
       assert.equal(
@@ -312,12 +215,6 @@ test('migration scaffold combinations generate docs, skills, and the claude mirr
         `${combo.label}: ${removedDoc}`,
       )
     }
-
-    const checkResult = spawnSync(process.execPath, ['./scripts/check-skills.mjs'], {
-      cwd: targetRoot,
-      encoding: 'utf8',
-    })
-    assert.equal(checkResult.status, 0, checkResult.stderr || checkResult.stdout)
   }
 })
 

@@ -1,26 +1,24 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { getPackageManagerAdapter } from '../package-manager.js'
+import { hasInstalledProjectSkills, renderSkillsAddCommand } from '../skills-install.js'
+import {
+  SKILLS_CHECK_COMMAND,
+  SKILLS_LIST_COMMAND,
+  SKILLS_UPDATE_COMMAND,
+  renderInstalledProjectSkillsGuidanceLines,
+} from '../skills-contract.js'
 import {
   resolveTemplatesPackageRoot,
   copyDirectoryWithTokens,
   copyFileWithTokens,
-  resolveSkillsManagerPackageRoot,
-  resolveSkillsPackageRoot,
 } from './filesystem.js'
 import {
   resolveEnabledWorkspaceFeatures,
-  resolveSelectedOptionalSkillDefinitions,
+  resolveRecommendedSkillDefinitions,
 } from './feature-catalog.js'
 import { renderFrontendPolicyMarkdown } from './frontend-policy.js'
 import { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
 import { createRootTemplateExtraTokens, renderRootVerifyStepsMarkdown } from './root.js'
-import { CORE_SKILL_DEFINITIONS } from './skills.js'
-import {
-  readSkillsManifest,
-  resolveManagedSkillSelections,
-  type ResolvedSkillManifestEntry,
-} from './skills.js'
 import type { GeneratedWorkspaceHints, GeneratedWorkspaceOptions, TemplateTokens } from './types.js'
 
 type DocumentDefinition = {
@@ -57,20 +55,8 @@ function renderAgentsWorkspaceModelSection(options: GeneratedWorkspaceOptions) {
   ])
 }
 
-function renderAgentsSkillRoutingSection(_options: GeneratedWorkspaceOptions) {
-  return renderBulletList([
-    'canonical source: `.agents/skills/*`',
-    'Claude mirror: `.claude/skills/*`',
-    'inventory / ownership / update flow: `docs/skills.md`',
-  ])
-}
-
-function renderDocsIndexSkillStructureSection(_options: GeneratedWorkspaceOptions) {
-  return renderBulletList([
-    'canonical source: `.agents/skills/`',
-    'Claude mirror: `.claude/skills/`',
-    'inventory / ownership / update flow: `skills.md`',
-  ])
+function renderAgentsInstalledSkillsSection() {
+  return renderBulletList(renderInstalledProjectSkillsGuidanceLines())
 }
 
 function renderTopologyRootSection(options: GeneratedWorkspaceOptions) {
@@ -108,17 +94,6 @@ function renderTopologyOwnershipSection(options: GeneratedWorkspaceOptions) {
   return `${lines.join('\n')}\n`
 }
 
-function renderTopologySkillsSection(options: GeneratedWorkspaceOptions) {
-  const items = [
-    ...CORE_SKILL_DEFINITIONS.map((skill) => `${skill.topologyLabel}: \`${skill.docsPath}\``),
-    ...resolveSelectedOptionalSkillDefinitions(options).map(
-      (skill) => `${skill.topologyLabel}: \`${skill.docsPath}\``,
-    ),
-  ]
-
-  return renderBulletList(items)
-}
-
 function formatDocumentPath(relativePath: string) {
   return `\`${relativePath}\``
 }
@@ -147,7 +122,11 @@ function resolveEngineeringDocuments() {
   return DOCUMENT_DEFINITIONS.filter((document) => document.engineeringDoc)
 }
 
-function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspaceOptions) {
+async function renderAgentsMarkdown(
+  targetRoot: string,
+  _tokens: TemplateTokens,
+  options: GeneratedWorkspaceOptions,
+) {
   const repositoryContractLines = resolveEngineeringDocuments().map(
     (document) =>
       `- ${document.engineeringDoc?.agentsRepositoryLabel}: ${formatDocumentPath(document.relativePath)}`,
@@ -161,6 +140,7 @@ function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspa
   const frontendPolicyPath = formatDocumentPath(
     getDocumentDefinition('docs/engineering/frontend-policy.md').relativePath,
   )
+  const hasProjectLocalSkills = await hasInstalledProjectSkills(targetRoot)
 
   return [
     '# AGENTS.md',
@@ -169,16 +149,14 @@ function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspa
     '',
     '## Repository Contract',
     ...repositoryContractLines,
-    '- canonical skills: `.agents/skills/*`',
-    '- Claude mirror: `.claude/skills/*`',
-    '- inventory / ownership / update flow: `docs/skills.md`',
     '',
     '## Start Here',
     ...startHereLines,
     '',
     renderSection('Workspace Model', renderAgentsWorkspaceModelSection(options)),
-    '',
-    renderSection('Skill Routing', renderAgentsSkillRoutingSection(options)),
+    ...(hasProjectLocalSkills
+      ? ['', renderSection('Installed Local Skills', renderAgentsInstalledSkillsSection())]
+      : []),
     '',
     '## Done',
     `- 세부 완료 기준은 ${repoContractPath}를 따른다.`,
@@ -187,7 +165,7 @@ function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspa
   ].join('\n')
 }
 
-function renderDocsIndexMarkdown(tokens: TemplateTokens, options: GeneratedWorkspaceOptions) {
+function renderDocsIndexMarkdown(tokens: TemplateTokens) {
   const engineeringDocLines = resolveEngineeringDocuments().map(
     (document) => `- ${formatDocsRelativePath(document.relativePath)}`,
   )
@@ -205,13 +183,11 @@ function renderDocsIndexMarkdown(tokens: TemplateTokens, options: GeneratedWorks
     '## engineering 문서',
     ...engineeringDocLines,
     '',
-    renderSection('Skill 구조', renderDocsIndexSkillStructureSection(options)),
-    '',
     renderSection('verify', renderRootVerifyStepsMarkdown(tokens.packageManager)),
     '',
     '## 운영 메모',
-    '- 새 규칙은 먼저 `engineering/*`에 들어갈지, Skill로 분리할지 구분한다.',
-    '- Skill inventory나 ownership 규칙은 `skills.md` 한 곳만 갱신한다.',
+    '- 새 규칙은 먼저 `engineering/*`에 들어갈지, README optional guide에 들어갈지 구분한다.',
+    '- agent skill 설치/업데이트 안내는 루트 `README.md`를 따른다.',
     '- 문서 경로를 바꾸면 `AGENTS.md`, `CLAUDE.md`, Copilot instructions, Skill 경로를 같이 갱신한다.',
     '',
   ].join('\n')
@@ -227,107 +203,42 @@ function renderWorkspaceTopologyMarkdown(options: GeneratedWorkspaceOptions) {
     '',
     renderSection('ownership', renderTopologyOwnershipSection(options)),
     '',
-    renderSection('참고 Skill', renderTopologySkillsSection(options)),
-    '',
   ].join('\n')
 }
 
-type SkillsDocState = {
-  managerPackage: string
-  managerVersion: string
-  catalogPackage: string
-  catalogVersion: string
-  customSkillPolicy: string
-  resolvedSkills: Array<Pick<ResolvedSkillManifestEntry, 'id' | 'mode'>>
-}
-
-async function readPackageIdentity(packageJsonPath: string) {
-  return JSON.parse(await readFile(packageJsonPath, 'utf8')) as {
-    name: string
-    version: string
-  }
-}
-
-async function resolveSkillsDocState(
-  targetRoot: string,
-  options: GeneratedWorkspaceOptions,
-  hints: GeneratedWorkspaceHints,
-): Promise<SkillsDocState> {
-  const manifest = await readSkillsManifest(targetRoot)
-
-  if (manifest) {
-    return {
-      managerPackage: manifest.managerPackage,
-      managerVersion: manifest.managerVersion,
-      catalogPackage: manifest.catalogPackage,
-      catalogVersion: manifest.catalogVersion,
-      customSkillPolicy: manifest.customSkillPolicy,
-      resolvedSkills: manifest.resolvedSkills.map((entry) => ({
-        id: entry.id,
-        mode: entry.mode,
-      })),
-    }
-  }
-
-  const managerPackage = await readPackageIdentity(
-    path.join(resolveSkillsManagerPackageRoot(), 'package.json'),
-  )
-  const catalogPackage = await readPackageIdentity(
-    path.join(resolveSkillsPackageRoot(), 'package.json'),
-  )
-  const resolvedSkills = resolveManagedSkillSelections(options, hints.manualExtraSkills ?? []).map(
-    (entry) => ({
-      id: entry.definition.id,
-      mode: entry.mode,
-    }),
-  )
-
-  return {
-    managerPackage: managerPackage.name,
-    managerVersion: managerPackage.version,
-    catalogPackage: catalogPackage.name,
-    catalogVersion: catalogPackage.version,
-    customSkillPolicy: 'preserve-unmanaged-siblings',
-    resolvedSkills,
-  }
-}
-
-async function renderSkillsMarkdown(
-  targetRoot: string,
-  tokens: TemplateTokens,
-  options: GeneratedWorkspaceOptions,
-  hints: GeneratedWorkspaceHints,
-) {
-  const adapter = getPackageManagerAdapter(tokens.packageManager)
-  const state = await resolveSkillsDocState(targetRoot, options, hints)
-  const managedSkillLines = state.resolvedSkills.map((entry) => `- \`${entry.id}\` (${entry.mode})`)
+function renderRootReadmeMarkdown(tokens: TemplateTokens, options: GeneratedWorkspaceOptions) {
+  const recommendedSkillDefinitions = resolveRecommendedSkillDefinitions(options)
+  const recommendedSkillIds = recommendedSkillDefinitions.map((skill) => skill.id)
 
   return [
-    '# Skills',
+    `# ${tokens.displayName}`,
     '',
-    'Skill inventory와 ownership 규칙은 이 문서가 단일 source of truth다.',
+    '`create-miniapp`로 생성한 MiniApp workspace예요.',
     '',
-    '## Managed Snapshot',
-    '- canonical source: `.agents/skills/*`',
-    '- Claude mirror: `.claude/skills/*`',
-    `- manager package: \`${state.managerPackage}@${state.managerVersion}\``,
-    `- catalog package: \`${state.catalogPackage}@${state.catalogVersion}\``,
-    `- custom skill policy: \`${state.customSkillPolicy}\``,
+    '## Start Here',
+    '- `AGENTS.md`: 에이전트용 빠른 계약과 시작 순서',
+    '- `docs/index.md`: 문서 구조와 verify 동선',
+    '- `docs/product/기능명세서.md`: 제품 요구사항',
     '',
-    '## Managed Skills',
-    ...(managedSkillLines.length > 0 ? managedSkillLines : ['- 없음']),
+    '## Optional agent skills',
+    'agent skills는 선택 사항이에요. 필요할 때 project-local skills로 설치해서 팀과 같이 쓸 수 있어요.',
+    ...(recommendedSkillDefinitions.length > 0
+      ? [
+          '',
+          '### Recommended',
+          ...recommendedSkillDefinitions.map((skill) => `- \`${skill.id}\`: ${skill.agentsLabel}`),
+          '',
+          `설치 예시: \`${renderSkillsAddCommand(recommendedSkillIds)}\``,
+        ]
+      : []),
     '',
-    '## Commands',
-    `- mirror: \`${adapter.runScript('skills:mirror')}\``,
-    `- check: \`${adapter.runScript('skills:check')}\``,
-    `- sync: \`${adapter.runScript('skills:sync')}\``,
-    `- diff: \`${adapter.runScript('skills:diff')}\``,
-    `- upgrade: \`${adapter.runScript('skills:upgrade')}\``,
+    '### Standard commands',
+    `- 설치된 skill 확인: \`${SKILLS_LIST_COMMAND}\``,
+    `- 업데이트 확인: \`${SKILLS_CHECK_COMMAND}\``,
+    `- 최신으로 갱신: \`${SKILLS_UPDATE_COMMAND}\``,
     '',
-    '## Ownership',
-    '- `.agents/skills` 아래에서 manifest에 있는 id만 managed snapshot이다.',
-    '- manifest에 없는 sibling entry는 unmanaged custom skill로 취급하고 sync/upgrade에서 보존한다.',
-    '- `.claude/skills`는 직접 수정하지 않는다. mirror는 `skills:mirror`가 관리한다.',
+    '## Verify',
+    ...renderRootVerifyStepsMarkdown(tokens.packageManager).split('\n').filter(Boolean),
     '',
   ].join('\n')
 }
@@ -336,7 +247,12 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'AGENTS.md',
     ownership: 'code',
-    render: renderAgentsMarkdown,
+    render: () => '',
+  },
+  {
+    relativePath: 'README.md',
+    ownership: 'code',
+    render: (tokens, options) => renderRootReadmeMarkdown(tokens, options),
   },
   {
     relativePath: 'docs/ai/Plan.md',
@@ -356,13 +272,8 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'docs/index.md',
     ownership: 'code',
-    render: renderDocsIndexMarkdown,
+    render: (tokens) => renderDocsIndexMarkdown(tokens),
     startHereOrder: 4,
-  },
-  {
-    relativePath: 'docs/skills.md',
-    ownership: 'code',
-    render: () => '',
   },
   {
     relativePath: 'docs/product/기능명세서.md',
@@ -447,8 +358,8 @@ export async function applyDocsTemplates(
 
   for (const definition of CODE_OWNED_DOC_DEFINITIONS) {
     const renderedSource =
-      definition.relativePath === 'docs/skills.md'
-        ? await renderSkillsMarkdown(targetRoot, tokens, options, hints)
+      definition.relativePath === 'AGENTS.md'
+        ? await renderAgentsMarkdown(targetRoot, tokens, options)
         : definition.render(tokens, options)
 
     await writeCodeOwnedMarkdown(targetRoot, definition.relativePath, renderedSource)

@@ -14,23 +14,25 @@
 - Status: `docs/ai/Status.md`
 - CLI package: `packages/create-rn-miniapp`
 - Generated AGENTS renderer: `packages/create-rn-miniapp/src/templates/docs.ts`
-- Skill package: `packages/agent-skills`
+- Skill source: `skills`
 - Template package: `packages/scaffold-templates`
 - Template CLAUDE: `packages/scaffold-templates/base/CLAUDE.md`
 
 ## Workspace Mental Model
 - `packages/create-rn-miniapp`: generator CLI
 - `packages/scaffold-templates`: generated repo에 복사할 하네스/문서 템플릿
-- `packages/agent-skills`: generated repo에 복사할 canonical skill source
+- `skills`: `@vercel-labs/skills` 표준 구조를 따르는 plain skill source
 
 ## Skill Source
-- skill 이름, 라벨, docs path, optional 선택 기준은 `packages/create-rn-miniapp/src/templates/skill-catalog.ts`가 소유한다.
-- generated repo는 이 catalog 기준으로 `.agents/skills`를 렌더하고 `.claude/skills`를 같은 이름으로 mirror한다.
+- skill 이름과 추천 메타데이터는 `packages/create-rn-miniapp/src/templates/skill-catalog.ts`가 소유한다.
+- 실제 skill source는 root `skills/*`가 소유한다.
+- generated repo는 skill을 기본 포함하지 않고, `README.md`에 optional install guide만 렌더한다.
+- 생성 중 skill 설치가 실제로 성공했을 때만 generated `AGENTS.md`가 local skill 경로를 언급한다.
 
 ## Generator Principle
 1. Granite, Vite, Supabase scaffold는 공식 CLI로 생성한다.
 2. 이 저장소는 scaffold 결과물을 template으로 들고 있지 않는다.
-3. generated `AGENTS.md`, `docs/index.md`, `docs/engineering/*`는 `packages/create-rn-miniapp/src/templates/docs.ts`가 code-owned로 렌더링한다.
+3. generated `AGENTS.md`, `README.md`, `docs/index.md`, `docs/engineering/*`는 `packages/create-rn-miniapp/src/templates/docs.ts`가 code-owned로 렌더링한다.
 4. template으로 유지하는 것은 `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/ai`, `docs/product` 같은 하네스 문서다.
 5. MiniApp frontend 스캐폴딩 기준은 AppInToss React Native 튜토리얼과 `@apps-in-toss/framework` 초기화 절차를 source of truth로 둔다.
 

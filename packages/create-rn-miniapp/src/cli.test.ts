@@ -81,13 +81,13 @@ test('parseCliArgs parses add mode flags', async () => {
   assert.equal(argv.rootDir, '/tmp/existing-miniapp')
 })
 
-test('parseCliArgs parses repeated extra-skill flags', async () => {
+test('parseCliArgs parses repeated skill flags', async () => {
   const argv = await parseCliArgs(
-    ['--extra-skill', 'release-checks', '--extra-skill', 'perf-audit'],
+    ['--skill', 'tds-ui', '--skill', 'cloudflare-worker'],
     '/workspace',
   )
 
-  assert.deepEqual(argv.extraSkills, ['release-checks', 'perf-audit'])
+  assert.deepEqual(argv.skills, ['tds-ui', 'cloudflare-worker'])
 })
 
 test('resolveCliOptions asks for missing values when interactive input is needed', async () => {
@@ -468,14 +468,14 @@ test('resolveCliOptions accepts an explicit server-provider without extra server
   assert.deepEqual(selectMessages, ['`tRPC`도 같이 이어드릴까요?', '`backoffice`도 같이 만들까요?'])
 })
 
-test('resolveCliOptions keeps explicit manual extra skills without prompting multiselect', async () => {
+test('resolveCliOptions keeps explicit selected skills without prompting install questions', async () => {
   const resolved = await resolveCliOptions(
     {
       add: false,
       packageManager: 'pnpm',
       name: 'ebook-miniapp',
       displayName: '전자책 미니앱',
-      extraSkills: ['backoffice-react'],
+      skills: ['backoffice-react'],
       rootDir: '/tmp/workspace',
       outputDir: '/tmp/workspace',
       skipInstall: false,
@@ -502,7 +502,69 @@ test('resolveCliOptions keeps explicit manual extra skills without prompting mul
     },
   )
 
-  assert.deepEqual(resolved.manualExtraSkills, ['backoffice-react'])
+  assert.deepEqual(resolved.selectedSkills, ['backoffice-react'])
+})
+
+test('resolveCliOptions can prompt for recommended skills and return a flat selection', async () => {
+  const selectMessages: string[] = []
+  const multiselectMessages: string[] = []
+  const promptSelections: Array<'none' | 'supabase' | 'cloudflare' | 'firebase' | 'yes' | 'no'> = [
+    'cloudflare',
+    'yes',
+    'yes',
+    'yes',
+  ]
+
+  const resolved = await resolveCliOptions(
+    {
+      add: false,
+      packageManager: 'pnpm',
+      name: 'ebook-miniapp',
+      displayName: '전자책 미니앱',
+      rootDir: '/tmp/workspace',
+      outputDir: '/tmp/workspace',
+      skipInstall: false,
+      yes: false,
+      help: false,
+      version: false,
+    },
+    {
+      async text() {
+        throw new Error('text prompt should not be called')
+      },
+      async select(options) {
+        selectMessages.push(options.message)
+        const fallback = options.options[0]
+
+        if (!fallback) {
+          throw new Error('선택지가 없습니다.')
+        }
+
+        const nextSelection = promptSelections.shift()
+
+        if (nextSelection && options.options.some((option) => option.value === nextSelection)) {
+          return nextSelection as typeof fallback.value
+        }
+
+        return fallback.value
+      },
+      async multiselect(options) {
+        multiselectMessages.push(options.message)
+        return ['miniapp-capabilities', 'cloudflare-worker'] as Array<
+          (typeof options.options)[number]['value']
+        >
+      },
+    },
+  )
+
+  assert.deepEqual(resolved.selectedSkills, ['miniapp-capabilities', 'cloudflare-worker'])
+  assert.deepEqual(selectMessages, [
+    '`server` 제공자를 골라 주세요.',
+    '`tRPC`도 같이 이어드릴까요?',
+    '`backoffice`도 같이 만들까요?',
+    '추천 agent skills를 지금 같이 설치할까요?',
+  ])
+  assert.deepEqual(multiselectMessages, ['설치할 skill을 골라 주세요.'])
 })
 
 test('resolveCliOptions rejects server-project-mode without server-provider', async () => {
@@ -1269,7 +1331,7 @@ test('formatCliHelp renders Korean help text', () => {
   assert.match(help, /--root-dir <디렉터리>/)
   assert.match(help, /--server-provider <supabase\|cloudflare\|firebase>/)
   assert.match(help, /--trpc/)
-  assert.match(help, /--extra-skill <id>/)
+  assert.match(help, /--skill <id>/)
   assert.match(help, /--server-project-mode <create\|existing>/)
   assert.doesNotMatch(help, /--with-server/)
   assert.match(help, /도움말 보기/)

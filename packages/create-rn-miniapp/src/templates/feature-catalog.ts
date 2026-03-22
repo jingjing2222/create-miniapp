@@ -1,5 +1,10 @@
 import type { GeneratedWorkspaceOptions } from './types.js'
-import { resolveOptionalSkillDefinition, type OptionalSkillId } from './skill-catalog.js'
+import {
+  CORE_SKILL_DEFINITIONS,
+  resolveOptionalSkillDefinition,
+  type OptionalSkillId,
+  type SkillDefinition,
+} from './skill-catalog.js'
 import {
   TRPC_APP_ROUTER_WORKSPACE_ROLE_SECTION,
   TRPC_CONTRACTS_WORKSPACE_ROLE_SECTION,
@@ -123,4 +128,10 @@ export function resolveSelectedOptionalSkillDefinitions(options: GeneratedWorksp
   return resolveEnabledWorkspaceFeatures(options).flatMap((feature) =>
     feature.optionalSkillId ? [resolveOptionalSkillDefinition(feature.optionalSkillId)] : [],
   )
+}
+
+export function resolveRecommendedSkillDefinitions(
+  options: GeneratedWorkspaceOptions,
+): SkillDefinition[] {
+  return [...CORE_SKILL_DEFINITIONS, ...resolveSelectedOptionalSkillDefinitions(options)]
 }

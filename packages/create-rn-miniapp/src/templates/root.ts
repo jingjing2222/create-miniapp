@@ -14,21 +14,12 @@ import {
   resolveTemplatesPackageRoot,
   replaceTemplateTokens,
 } from './filesystem.js'
+import { createProjectSkillTemplateExtraTokens } from '../skills-contract.js'
 import {
   createRootHelperScriptExtraTokens,
   FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
   FRONTEND_POLICY_CHECK_SCRIPT_NAME,
-  SKILLS_DIFF_SCRIPT_COMMAND,
-  SKILLS_DIFF_SCRIPT_NAME,
   ROOT_VERIFY_STEP_SCRIPT_NAMES,
-  SKILLS_CHECK_SCRIPT_COMMAND,
-  SKILLS_CHECK_SCRIPT_NAME,
-  SKILLS_MIRROR_SCRIPT_COMMAND,
-  SKILLS_MIRROR_SCRIPT_NAME,
-  SKILLS_SYNC_SCRIPT_COMMAND,
-  SKILLS_SYNC_SCRIPT_NAME,
-  SKILLS_UPGRADE_SCRIPT_COMMAND,
-  SKILLS_UPGRADE_SCRIPT_NAME,
 } from './root-script-catalog.js'
 import type { TemplateTokens, WorkspaceName } from './types.js'
 
@@ -62,6 +53,7 @@ export function renderRootVerifyStepsMarkdown(packageManager: PackageManager) {
 export function createRootTemplateExtraTokens(packageManager: PackageManager) {
   return {
     [ROOT_VERIFY_STEPS_TOKEN]: renderRootVerifyStepsMarkdown(packageManager),
+    ...createProjectSkillTemplateExtraTokens(),
     ...createRootHelperScriptExtraTokens(packageManager),
   }
 }
@@ -77,11 +69,6 @@ function renderRootScripts(packageManager: PackageManager) {
     'format:check': adapter.rootFormatCheckScript(),
     lint: adapter.rootLintScript(),
     [FRONTEND_POLICY_CHECK_SCRIPT_NAME]: FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
-    [SKILLS_MIRROR_SCRIPT_NAME]: SKILLS_MIRROR_SCRIPT_COMMAND,
-    [SKILLS_SYNC_SCRIPT_NAME]: SKILLS_SYNC_SCRIPT_COMMAND,
-    [SKILLS_CHECK_SCRIPT_NAME]: SKILLS_CHECK_SCRIPT_COMMAND,
-    [SKILLS_DIFF_SCRIPT_NAME]: SKILLS_DIFF_SCRIPT_COMMAND,
-    [SKILLS_UPGRADE_SCRIPT_NAME]: SKILLS_UPGRADE_SCRIPT_COMMAND,
     verify: renderRootVerifyScript(packageManager),
   }
 }
@@ -194,14 +181,7 @@ export async function applyRootTemplates(
   const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
-  const fileMappings = [
-    ['nx.json', 'nx.json'],
-    ['mirror-skills.mjs', 'scripts/mirror-skills.mjs'],
-    ['sync-skills.mjs', 'scripts/sync-skills.mjs'],
-    ['check-skills.mjs', 'scripts/check-skills.mjs'],
-    ['diff-skills.mjs', 'scripts/diff-skills.mjs'],
-    ['upgrade-skills.mjs', 'scripts/upgrade-skills.mjs'],
-  ] as const
+  const fileMappings = [['nx.json', 'nx.json']] as const
 
   for (const [sourceName, targetName] of fileMappings) {
     await copyFileWithTokens(

@@ -1,6 +1,6 @@
 import type { PackageManager } from '../package-manager.js'
 import { resolveRootHelperScriptCommands } from './root-script-catalog.js'
-import { getCoreSkillDefinition } from './skills.js'
+import { getCoreSkillDefinition } from './skill-catalog.js'
 
 type NativeImportPatternRule = {
   group: string[]
@@ -37,7 +37,7 @@ const FILENAME_DOLLAR_PATTERN_REGEX_SOURCE =
 
 export const FRONTEND_POLICY_DOC_PATH = 'docs/engineering/frontend-policy.md'
 export const FRONTEND_POLICY_TDS_REFERENCE_PATH =
-  TDS_CORE_SKILL.referenceCatalogPath ?? TDS_CORE_SKILL.frontendPolicyReferencePath
+  TDS_CORE_SKILL.referenceCatalogPath ?? TDS_CORE_SKILL.docsPath
 
 const FRONTEND_POLICY_DOC_REFERENCE = `자세한 기준은 \`${FRONTEND_POLICY_DOC_PATH}\`를 먼저 봐 주세요.`
 const FRONTEND_POLICY_GRANITE_NATIVE_MESSAGE = `직접 import하지 말고 \`@granite-js/native\` 경로를 써 주세요. ${FRONTEND_POLICY_DOC_REFERENCE}`
@@ -129,15 +129,15 @@ export const FRONTEND_POLICY_NATIVE_UI_RULES = FRONTEND_POLICY_RESTRICTION_DEFIN
 export const FRONTEND_POLICY_REFERENCE_PATHS = [
   {
     label: MINIAPP_CORE_SKILL.frontendPolicyReferenceLabel,
-    path: MINIAPP_CORE_SKILL.frontendPolicyReferencePath,
+    path: MINIAPP_CORE_SKILL.docsPath,
   },
   {
     label: GRANITE_CORE_SKILL.frontendPolicyReferenceLabel,
-    path: GRANITE_CORE_SKILL.frontendPolicyReferencePath,
+    path: GRANITE_CORE_SKILL.docsPath,
   },
   {
     label: TDS_CORE_SKILL.frontendPolicyReferenceLabel,
-    path: TDS_CORE_SKILL.frontendPolicyReferencePath,
+    path: TDS_CORE_SKILL.docsPath,
   },
 ]
 

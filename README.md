@@ -2,14 +2,14 @@
 
 ![example](https://raw.githubusercontent.com/jingjing2222/create-rn-miniapp/main/example.gif)
 
-`create-rn-miniapp`은 AppInToss MiniApp을 만들고, 생성 직후부터 바로 작업을 시작할 수 있게 문서와 Skill까지 함께 준비해주는 CLI예요.
+`create-rn-miniapp`은 AppInToss MiniApp을 만들고, 생성 직후부터 바로 작업을 시작할 수 있게 문서와 optional agent skill 가이드까지 함께 준비해주는 CLI예요.
 
-공식 scaffold 위에 필요한 운영 문서와 Skill을 함께 준비해줘요. 그래서 앱을 만든 직후 "이제 어디부터 보면 되지?"를 줄여줘요.
+공식 scaffold 위에 필요한 운영 문서와 optional agent skill onboarding을 함께 준비해줘요. 그래서 앱을 만든 직후 "이제 어디부터 보면 되지?"를 줄여줘요.
 
 ## 이런 경우에 잘 맞아요
 
 - 공식 scaffold는 유지하고, 팀이 바로 쓸 작업 문맥만 얹고 싶을 때
-- MiniApp에서 자주 쓰는 Skill이 처음부터 준비돼 있으면 좋을 때
+- MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때
 - frontend만이 아니라 optional `server`, `backoffice`까지 한 번에 시작하고 싶을 때
 
 ## 빠른 시작
@@ -61,23 +61,38 @@ pnpm verify
 
 그 흐름을 따라가면 지금 확인할 문서와 Skill이 자연스럽게 이어져요. 그래서 README에서 모든 작업 순서를 길게 외울 필요는 없어요.
 
-## Skill은 왜 같이 들어가나요
+## Optional agent skills
 
-Skill은 에이전트가 같은 기준으로 화면, 라우팅, 서버 작업을 이어가게 도와주는 작업 가이드예요.
+agent skill은 에이전트가 같은 기준으로 화면, 라우팅, 서버 작업을 이어가게 도와주는 작업 가이드예요.
 
-생성된 repo에서는 `AGENTS.md`가 지금 읽을 Skill로 이어주고, `.agents/skills`, `.claude/skills`에는 그 기준을 같이 넣어줘요.
+이 저장소는 skill source를 root `skills/`에 두고, 생성된 repo에는 설치 가이드만 남겨요. 실제 설치와 업데이트는 [`skills`](https://github.com/vercel-labs/skills) CLI로 직접 선택해서 진행하면 돼요.
 
-기본으로는 아래 Skill이 같이 들어가요.
+추천 시작점은 아래 정도예요.
 
 - `miniapp-capabilities`: MiniApp capability와 공식 API를 찾을 때 봐요.
 - `granite-routing`: route, page, navigation 패턴을 정할 때 봐요.
 - `tds-ui`: TDS UI와 form 패턴을 고를 때 봐요.
+- `backoffice-react`: `backoffice`를 같이 만들었을 때 같이 보면 좋아요.
+- `cloudflare-worker`, `supabase-project`, `firebase-functions`: 고른 `server` provider에 맞춰 골라요.
+- `trpc-boundary`: `cloudflare` 위에 `tRPC`를 올렸을 때 같이 봐요.
 
-선택한 구성에 따라 아래 Skill이 추가돼요.
+설치 예시는 이렇게 쓰면 돼요.
 
-- `backoffice-react`: `backoffice`를 같이 만들었을 때 들어가요.
-- `cloudflare-worker`, `supabase-project`, `firebase-functions`: 고른 `server` provider에 맞춰 들어가요.
-- `trpc-boundary`: `cloudflare` 위에 `tRPC`를 올렸을 때 같이 들어가요.
+```bash
+npx skills add jingjing2222/create-rn-miniapp \
+  --skill miniapp-capabilities \
+  --skill granite-routing \
+  --skill tds-ui \
+  --copy
+```
+
+설치 뒤에는 표준 명령만 기억하면 돼요.
+
+```bash
+npx skills list
+npx skills check
+npx skills update
+```
 
 ## CLI 옵션은 `--help`로 확인해요
 

@@ -5,14 +5,12 @@
 추가 규칙:
 - 상세 저장소 계약과 완료 기준은 `docs/engineering/repo-contract.md`를 따른다.
 - workspace별 세부 정책은 `docs/engineering/*`를 따른다.
-- skill inventory와 ownership 규칙은 `docs/skills.md`를 따른다.
-- 작업 플레이북과 외부 플랫폼 지식은 `.claude/skills/` 아래 mirror된 Skill을 사용한다.
-- `.claude/skills/`는 `.agents/skills/`의 mirror이므로, drift가 의심되면 `{{skillsCheckCommand}}` 또는 `{{skillsMirrorCommand}}`를 먼저 실행한다.
+- project-local skill이 설치되어 있다면 `{{projectSkillsMirrorDir}}/` 아래 내용을 supplemental context로 사용한다.
+- agent skill 설치와 업데이트 방법은 루트 `README.md`를 따른다.
 
 우선순위:
 - 계약/정책: `AGENTS.md`, `docs/index.md`, `docs/engineering/*`
-- skill inventory / ownership: `docs/skills.md`
 - 작업 상태: `docs/ai/*`
-- 플레이북/카탈로그: `.claude/skills/*`
+- 플레이북/카탈로그: `{{projectSkillsMirrorDir}}/*`가 있을 때만 사용
 
 민감정보는 코드, 로그, PR, 문서에 남기지 않는다.
