@@ -43,7 +43,7 @@ const FRONTEND_POLICY_GRANITE_NATIVE_MESSAGE = `직접 import하지 말고 \`@gr
 const FRONTEND_POLICY_ASYNC_STORAGE_BASE_MESSAGE =
   'AsyncStorage는 쓰면 안 돼요. 대신 `@apps-in-toss/framework` storage API를 써 주세요.'
 const FRONTEND_POLICY_REACT_NATIVE_BASE_MESSAGE =
-  '`react-native` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS를 먼저 써 주세요. 필요한 경우에만 Granite UI로 보완해 주세요. 특히 `Text` 대신 TDS `Txt`를 써 주세요. `Pressable`이 정말 필요하면 `biome-ignore`에 이유를 같이 남겨 주세요.'
+  '`react-native` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS를 써 주세요. 정말 이 컴포넌트를 써야 하면 `biome-ignore`에 이유를 같이 남겨 주세요.'
 
 const FRONTEND_POLICY_RESTRICTION_DEFINITIONS: FrontendPolicyRestrictionDefinition[] = [
   {
@@ -73,8 +73,8 @@ const FRONTEND_POLICY_RESTRICTION_DEFINITIONS: FrontendPolicyRestrictionDefiniti
     policyRules: [
       '`react-native` 기본 UI primitive는 직접 import하지 않는다.',
       '대표 금지 대상: `ActivityIndicator`, `Alert`, `Button`, `Modal`, `Switch`, `Text`, `TextInput`, `Touchable*`',
-      '`Pressable`은 정말 필요한 경우에만 이유를 남기고 사용한다.',
-      'UI는 TDS를 우선하고, 필요한 경우에만 Granite 컴포넌트를 보완적으로 사용한다.',
+      '정말 이 컴포넌트를 써야 하면 `biome-ignore`에 이유를 같이 남긴다.',
+      'UI는 TDS를 사용한다.',
     ],
     createMessage: () =>
       `${FRONTEND_POLICY_REACT_NATIVE_BASE_MESSAGE} ${FRONTEND_POLICY_DOC_REFERENCE}`,
@@ -137,7 +137,7 @@ function resolveFrontendPolicyReferenceLines() {
   return [
     '- 기능 축과 공식 문서 진입: MiniApp/AppInToss 공식 문서와 현재 runtime code를 같이 본다.',
     '- route / navigation 패턴: Granite router 규칙(`:param`, `validateParams`)을 source of truth로 사용한다.',
-    '- TDS component 선택: TDS를 먼저 검토하고, 필요한 경우에만 Granite UI를 보완적으로 사용한다.',
+    '- TDS component 선택: TDS를 기준으로 구현한다.',
   ]
 }
 

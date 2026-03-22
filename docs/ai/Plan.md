@@ -1,3 +1,15 @@
+## 다음 작업: frontend policy TDS 문구를 더 강하게 고정
+
+### 목표
+- `react-native` 기본 UI 제한 메시지에서 Granite UI 보완, `Text`/`Txt`, `Pressable` 한정 문구를 제거한다.
+- TDS 사용은 항상-on 계약으로 고정하고, 예외 사용은 어떤 컴포넌트든 `biome-ignore` 이유를 남기게 바꾼다.
+- red test를 먼저 바꾼 뒤 policy SSoT와 generated 산출물을 같이 맞춘다.
+
+### 작업 순서
+1. frontend policy/biome/generated docs 테스트를 새 문구 기준으로 먼저 깨뜨린다.
+2. `frontend-policy.ts`의 공용 메시지와 reference line을 같은 의미로 수정한다.
+3. `pnpm verify`를 다시 통과시키고 커밋한다.
+
 ## 다음 작업: frontend policy 항상-on 변경을 release metadata에 반영
 
 ### 목표
