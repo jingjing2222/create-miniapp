@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { isCancel, log, select, text } from '@clack/prompts'
+import { isCancel, log, multiselect, select, text } from '@clack/prompts'
 import yargs from 'yargs'
 import { assertValidAppName, toDefaultDisplayName } from './layout.js'
 import { PACKAGE_MANAGERS, type PackageManager } from './package-manager.js'
@@ -14,6 +14,12 @@ import {
   serverProviderSupportsTrpc,
   type ServerProvider,
 } from './providers/index.js'
+import type { SkillId } from './templates/skill-catalog.js'
+import {
+  normalizeSelectedSkillIds,
+  resolveRecommendedSkillIds,
+  resolveSelectableSkills,
+} from './skills-install.js'
 import { pathExists } from './templates/filesystem.js'
 import type { WorkspaceInspection } from './workspace-inspector.js'
 
@@ -22,6 +28,7 @@ export type ParsedCliArgs = {
   packageManager?: PackageManager
   name?: string
   displayName?: string
+  skills?: string[]
   noGit?: boolean
   serverProvider?: ServerProvider
   serverProjectMode?: ServerProjectMode
@@ -52,9 +59,20 @@ export type SelectPromptOptions<T extends string> = {
   initialValue?: T
 }
 
+export type MultiSelectPromptOptions<T extends string> = {
+  message: string
+  options: Array<{
+    label: string
+    value: T
+    hint?: string
+  }>
+  initialValues?: T[]
+}
+
 export type CliPrompter = {
   text(options: TextPromptOptions): Promise<string>
   select<T extends string>(options: SelectPromptOptions<T>): Promise<T>
+  multiselect?<T extends string>(options: MultiSelectPromptOptions<T>): Promise<T[]>
 }
 
 type ClackPrompter = {
@@ -67,6 +85,15 @@ type ClackPrompter = {
     }>
     initialValue?: T
   }): Promise<T | symbol>
+  multiselect<T extends string>(options: {
+    message: string
+    options: Array<{
+      label: string
+      value: T
+      hint?: string
+    }>
+    initialValues?: T[]
+  }): Promise<T[] | symbol>
   isCancel(value: unknown): value is symbol
 }
 
@@ -75,6 +102,7 @@ export type ResolvedCliOptions = {
   packageManager: PackageManager
   appName: string
   displayName: string
+  selectedSkills: SkillId[]
   noGit: boolean
   serverProvider: ServerProvider | null
   serverProjectMode: ServerProjectMode | null
@@ -135,6 +163,12 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
       type: 'string',
       describe: '사용자에게 보이는 앱 이름',
     })
+    .option('skill', {
+      type: 'array',
+      string: true,
+      default: [],
+      describe: '같이 설치할 skill id 반복 지정',
+    })
     .option('git', {
       type: 'boolean',
       default: true,
@@ -193,6 +227,7 @@ export async function parseCliArgs(rawArgs: string[], cwd = process.cwd()) {
     packageManager: argv.packageManager,
     name: argv.name,
     displayName: argv.displayName,
+    skills: argv.skill.map((value) => String(value)),
     noGit: argv.git === false,
     serverProvider: argv.serverProvider,
     serverProjectMode: argv.serverProjectMode,
@@ -219,6 +254,7 @@ export function formatCliHelp() {
     '  --package-manager <pnpm|yarn|npm|bun> package manager 지정',
     '  --name <app-name>              Granite appName과 생성 디렉터리 이름',
     '  --display-name <표시 이름>     사용자에게 보이는 앱 이름',
+    '  --skill <id>                   같이 설치할 skill id 반복 지정',
     '  --no-git                       생성 완료 후 루트 git init 생략',
     `  --server-provider <${serverProviderList}>   \`server\` 워크스페이스 제공자 지정`,
     '  --server-project-mode <create|existing> server 원격 리소스 연결 방식 지정',
@@ -358,6 +394,60 @@ async function resolveCloudflareApiClientCleanupInput(
   )
 }
 
+async function resolveSelectedSkillsInput(
+  argv: ParsedCliArgs,
+  prompt: CliPrompter,
+  options: {
+    serverProvider: ServerProvider | null
+    withBackoffice: boolean
+    withTrpc: boolean
+  },
+) {
+  const explicitSkills = normalizeSelectedSkillIds(argv.skills)
+
+  if (explicitSkills.length > 0) {
+    return explicitSkills
+  }
+
+  if (argv.yes) {
+    return []
+  }
+
+  if (!prompt.multiselect) {
+    return []
+  }
+
+  const shouldInstallNow =
+    (await prompt.select({
+      message: '추천 agent skills를 지금 같이 설치할까요?',
+      options: [
+        { label: '네, 같이 넣을게요', value: 'yes' },
+        { label: '아니요, 나중에 직접 설치할게요', value: 'no' },
+      ],
+      initialValue: 'no',
+    })) === 'yes'
+
+  if (!shouldInstallNow) {
+    return []
+  }
+
+  const recommendedSkillIds = resolveRecommendedSkillIds({
+    hasBackoffice: options.withBackoffice,
+    serverProvider: options.serverProvider,
+    hasTrpc: options.withTrpc,
+  })
+
+  return await prompt.multiselect({
+    message: '설치할 skill을 골라 주세요.',
+    options: resolveSelectableSkills().map((skill) => ({
+      label: skill.id,
+      value: skill.id,
+      hint: skill.agentsLabel,
+    })),
+    initialValues: recommendedSkillIds,
+  })
+}
+
 export function detectInvocationPackageManager(
   env: CliEnvironment = process.env,
 ): PackageManager | null {
@@ -470,12 +560,18 @@ export async function resolveCliOptions(
           ],
           initialValue: 'no',
         })) === 'yes')
+  const selectedSkills = await resolveSelectedSkillsInput(argv, prompt, {
+    serverProvider: normalizedServerProvider,
+    withBackoffice,
+    withTrpc,
+  })
 
   return {
     add: false,
     packageManager,
     appName,
     displayName,
+    selectedSkills,
     noGit: argv.noGit ?? false,
     serverProvider: normalizedServerProvider,
     serverProjectMode,
@@ -590,6 +686,25 @@ const defaultClackPrompter: ClackPrompter = {
       initialValue: options.initialValue,
     })
   },
+  async multiselect<T extends string>(options: {
+    message: string
+    options: Array<{
+      label: string
+      value: T
+      hint?: string
+    }>
+    initialValues?: T[]
+  }) {
+    return multiselect<T>({
+      message: options.message,
+      options: options.options.map((option) => ({
+        value: option.value,
+        label: option.label,
+        hint: option.hint,
+      })) as never,
+      initialValues: options.initialValues,
+    })
+  },
   isCancel(value): value is symbol {
     return isCancel(value)
   },
@@ -613,6 +728,19 @@ export function createClackPrompter(
         message: options.message,
         options: options.options,
         initialValue: options.initialValue,
+      })
+
+      if (clackPrompter.isCancel(value)) {
+        throw new Error('입력을 취소했어요.')
+      }
+
+      return value
+    },
+    async multiselect<T extends string>(options: MultiSelectPromptOptions<T>) {
+      const value = await clackPrompter.multiselect<T>({
+        message: options.message,
+        options: options.options,
+        initialValues: options.initialValues,
       })
 
       if (clackPrompter.isCancel(value)) {

@@ -1,15 +1,29 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
-import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
+import {
+  buildAddCommandPhases,
+  buildCreateCommandPhases,
+  runCommand,
+  runCommandWithOutput,
+} from '../commands.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import { patchBackofficeWorkspace } from '../patching/backoffice.js'
 import { patchFrontendWorkspace } from '../patching/frontend.js'
 import { writeServerScaffoldState } from '../patching/server.js'
 import { ensureEmptyDirectory, pathExists } from '../templates/filesystem.js'
-import { applyRootTemplates, syncRootWorkspaceManifest } from '../templates/root.js'
-import { syncGeneratedSkills } from '../templates/skills.js'
+import {
+  applyRootTemplates,
+  syncRootFrontendPolicyFiles,
+  syncRootWorkspaceManifest,
+} from '../templates/root.js'
 import { applyDocsTemplates } from '../templates/docs.js'
+import {
+  buildSkillsInstallCommand,
+  listInstalledProjectSkillEntries,
+  renderInstalledSkillsSummary,
+  renderSkillsAddCommand,
+} from '../skills-install.js'
 import type {
   ProvisioningNote,
   ServerProjectMode,
@@ -116,6 +130,62 @@ function buildAddInitialServerState(options: {
       options.existingState?.backoffice === true ||
       options.existingHasBackoffice,
   } satisfies ServerScaffoldState
+}
+
+async function maybeInstallSelectedSkills(options: {
+  targetRoot: string
+  packageManager: AddWorkspaceOptions['packageManager'] | ScaffoldOptions['packageManager']
+  selectedSkills: ScaffoldOptions['selectedSkills']
+}) {
+  const installCommand = await buildSkillsInstallCommand({
+    packageManager: options.packageManager,
+    targetRoot: options.targetRoot,
+    skillIds: options.selectedSkills,
+  })
+
+  if (!installCommand) {
+    return {
+      didInstall: false,
+      notes: [] as ProvisioningNote[],
+    }
+  }
+
+  try {
+    log.step(installCommand.label)
+    await runCommandWithOutput(installCommand)
+    const installedSkills = await listInstalledProjectSkillEntries(options.targetRoot)
+
+    return {
+      didInstall: true,
+      notes: [
+        {
+          title: 'Agent skills',
+          body: renderInstalledSkillsSummary(
+            installedSkills.length > 0 ? installedSkills : options.selectedSkills,
+          ),
+        },
+      ] satisfies ProvisioningNote[],
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : '추천 agent skills 설치 중 알 수 없는 오류가 있었어요.'
+
+    return {
+      didInstall: false,
+      notes: [
+        {
+          title: 'Agent skills',
+          body: [
+            '추천 agent skills 자동 설치는 건너뛰었어요.',
+            message,
+            `필요하면 나중에 직접 실행해 주세요: \`${renderSkillsAddCommand(options.selectedSkills)}\``,
+          ].join('\n'),
+        },
+      ] satisfies ProvisioningNote[],
+    }
+  }
 }
 
 export async function scaffoldWorkspace(options: ScaffoldOptions) {
@@ -255,8 +325,20 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
       await resolveRootWorkspaces(targetRoot),
     )
   }
-  await applyDocsTemplates(targetRoot, tokens, { serverProvider: options.serverProvider })
-  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: options.serverProvider })
+
+  const installedSkills = await maybeInstallSelectedSkills({
+    targetRoot,
+    packageManager: options.packageManager,
+    selectedSkills: options.selectedSkills,
+  })
+
+  if (installedSkills.didInstall) {
+    await syncRootFrontendPolicyFiles(targetRoot, options.packageManager)
+  }
+
+  await applyDocsTemplates(targetRoot, tokens, {
+    serverProvider: options.serverProvider,
+  })
   await patchFrontendWorkspace(targetRoot, tokens, {
     packageManager: options.packageManager,
     serverProvider: options.serverProvider,
@@ -295,6 +377,7 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
       serverProvider: options.serverProvider,
     })),
   )
+  notes.push(...installedSkills.notes)
 
   const finalServerState = buildServerScaffoldState({
     serverProvider: options.serverProvider,
@@ -487,7 +570,6 @@ export async function addWorkspaces(options: AddWorkspaceOptions) {
 
   const finalServerProvider = options.existingServerProvider ?? options.serverProvider
   await applyDocsTemplates(targetRoot, tokens, { serverProvider: finalServerProvider })
-  await syncGeneratedSkills(targetRoot, tokens, { serverProvider: finalServerProvider })
 
   if (
     (options.withServer || trpcEnabled) &&

@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 type PackageJson = {
   name: string
@@ -14,19 +13,16 @@ type PrepareDevPublishPackageJsonsInput = {
   version: string
   cliPackageJson: PackageJson
   templatesPackageJson: PackageJson
-  skillsPackageJson: PackageJson
 }
 
 type PrepareDevPublishPackageJsonsResult = {
   cliPackageJson: PackageJson
   templatesPackageJson: PackageJson
-  skillsPackageJson: PackageJson
 }
 
-const repoRoot = path.resolve(import.meta.dirname, '../../../..')
+const repoRoot = path.resolve(__dirname, '..')
 const cliPackageName = 'create-rn-miniapp'
 const templatesPackageName = '@create-rn-miniapp/scaffold-templates'
-const skillsPackageName = '@create-rn-miniapp/scaffold-skills'
 
 export function formatDevPublishVersion(date: Date): string {
   const year = String(date.getUTCFullYear())
@@ -47,17 +43,12 @@ export function prepareDevPublishPackageJsons(
       ...input.templatesPackageJson,
       version: input.version,
     },
-    skillsPackageJson: {
-      ...input.skillsPackageJson,
-      version: input.version,
-    },
     cliPackageJson: {
       ...input.cliPackageJson,
       version: input.version,
       dependencies: {
         ...input.cliPackageJson.dependencies,
         [templatesPackageName]: input.version,
-        [skillsPackageName]: input.version,
       },
     },
   }
@@ -128,15 +119,12 @@ function main(): void {
   const npmrcPath = createNpmUserConfig(tempRoot, npmToken)
   const cliSourceDir = path.join(repoRoot, 'packages/create-rn-miniapp')
   const templatesSourceDir = path.join(repoRoot, 'packages/scaffold-templates')
-  const skillsSourceDir = path.join(repoRoot, 'packages/scaffold-skills')
   const cliStageDir = path.join(tempRoot, 'create-rn-miniapp')
   const templatesStageDir = path.join(tempRoot, 'scaffold-templates')
-  const skillsStageDir = path.join(tempRoot, 'scaffold-skills')
 
   try {
     buildWorkspace()
 
-    stagePackageDirectory(skillsSourceDir, skillsStageDir)
     stagePackageDirectory(templatesSourceDir, templatesStageDir)
     stagePackageDirectory(cliSourceDir, cliStageDir)
 
@@ -144,15 +132,10 @@ function main(): void {
       version,
       cliPackageJson: readJsonFile<PackageJson>(path.join(cliStageDir, 'package.json')),
       templatesPackageJson: readJsonFile<PackageJson>(path.join(templatesStageDir, 'package.json')),
-      skillsPackageJson: readJsonFile<PackageJson>(path.join(skillsStageDir, 'package.json')),
     })
 
-    writeJsonFile(path.join(skillsStageDir, 'package.json'), prepared.skillsPackageJson)
     writeJsonFile(path.join(templatesStageDir, 'package.json'), prepared.templatesPackageJson)
     writeJsonFile(path.join(cliStageDir, 'package.json'), prepared.cliPackageJson)
-
-    console.log(`Publishing ${skillsPackageName}@${version}`)
-    publishPackage(skillsStageDir, npmrcPath)
 
     console.log(`Publishing ${templatesPackageName}@${version}`)
     publishPackage(templatesStageDir, npmrcPath)
@@ -167,6 +150,6 @@ function main(): void {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (require.main === module) {
   main()
 }

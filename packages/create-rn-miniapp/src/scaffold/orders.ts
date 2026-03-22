@@ -1,4 +1,5 @@
-import { buildCreateCommandPhases, type CommandSpec } from '../commands.js'
+import type { CommandSpec } from '../command-spec.js'
+import { buildCreateCommandPhases } from '../commands.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
 

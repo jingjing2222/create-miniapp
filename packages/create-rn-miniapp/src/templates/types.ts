@@ -1,4 +1,5 @@
 import type { PackageManager } from '../package-manager.js'
+import type { ServerProvider } from '../providers/index.js'
 import { APP_ROUTER_WORKSPACE_PATH, CONTRACTS_WORKSPACE_PATH } from '../trpc-workspace-metadata.js'
 
 export const ROOT_WORKSPACE_ORDER = [
@@ -22,15 +23,13 @@ export type TemplateTokens = {
   verifyCommand: string
 }
 
-export type GeneratedSkillsServerProvider = 'supabase' | 'cloudflare' | 'firebase'
-
 export type GeneratedWorkspaceHints = {
-  serverProvider: GeneratedSkillsServerProvider | null
+  serverProvider: ServerProvider | null
 }
 
 export type GeneratedWorkspaceOptions = {
   hasBackoffice: boolean
-  serverProvider: GeneratedSkillsServerProvider | null
+  serverProvider: ServerProvider | null
   hasTrpc: boolean
 }
 

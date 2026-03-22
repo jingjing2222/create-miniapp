@@ -4,11 +4,12 @@ import path from 'node:path'
 import process from 'node:process'
 import { log } from '@clack/prompts'
 import { parse } from 'jsonc-parser'
+import type { CommandSpec } from '../../command-spec.js'
 import {
   createCloudflareVitestWranglerConfigSource,
   patchWranglerConfigSource,
 } from '../../patching/jsonc.js'
-import { runCommand, runCommandWithOutput, type CommandSpec } from '../../commands.js'
+import { runCommand, runCommandWithOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'

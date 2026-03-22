@@ -1,18 +1,28 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
+  listInstalledProjectSkillEntries,
+  renderSkillsAddCommand,
+  type InstalledProjectSkill,
+} from '../skills-install.js'
+import {
+  SKILLS_CHECK_COMMAND,
+  SKILLS_LIST_COMMAND,
+  SKILLS_UPDATE_COMMAND,
+} from '../skills-contract.js'
+import {
   resolveTemplatesPackageRoot,
   copyDirectoryWithTokens,
   copyFileWithTokens,
 } from './filesystem.js'
 import {
   resolveEnabledWorkspaceFeatures,
-  resolveSelectedOptionalSkillDefinitions,
+  resolveRecommendedSkillDefinitions,
 } from './feature-catalog.js'
 import { renderFrontendPolicyMarkdown } from './frontend-policy.js'
 import { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
 import { createRootTemplateExtraTokens, renderRootVerifyStepsMarkdown } from './root.js'
-import { CORE_SKILL_DEFINITIONS } from './skills.js'
+import { SKILL_CATALOG } from './skill-catalog.js'
 import type { GeneratedWorkspaceHints, GeneratedWorkspaceOptions, TemplateTokens } from './types.js'
 
 type DocumentDefinition = {
@@ -47,34 +57,6 @@ function renderAgentsWorkspaceModelSection(options: GeneratedWorkspaceOptions) {
     ...resolveEnabledWorkspaceFeatures(options).flatMap((feature) => feature.agentsLines ?? []),
     '`docs`: 계약, 정책, 제품, 상태 문서',
   ])
-}
-
-function renderAgentsSkillRoutingSection(options: GeneratedWorkspaceOptions) {
-  const items = [
-    ...CORE_SKILL_DEFINITIONS.map((skill) => `${skill.agentsLabel}: \`${skill.docsPath}\``),
-    ...resolveSelectedOptionalSkillDefinitions(options).map(
-      (skill) => `${skill.agentsLabel}: \`${skill.docsPath}\``,
-    ),
-  ]
-
-  return renderBulletList(items)
-}
-
-function renderDocsIndexSkillStructureSection(options: GeneratedWorkspaceOptions) {
-  const optionalSkills = resolveSelectedOptionalSkillDefinitions(options)
-  const lines = [
-    '- canonical source: `.agents/skills/`',
-    '- Claude mirror: `.claude/skills/`',
-    '',
-    'core skills:',
-    ...CORE_SKILL_DEFINITIONS.map((skill) => `- \`${skill.docsPath}\``),
-  ]
-
-  if (optionalSkills.length > 0) {
-    lines.push('', 'optional skills:', ...optionalSkills.map((skill) => `- \`${skill.docsPath}\``))
-  }
-
-  return `${lines.join('\n')}\n`
 }
 
 function renderTopologyRootSection(options: GeneratedWorkspaceOptions) {
@@ -112,17 +94,6 @@ function renderTopologyOwnershipSection(options: GeneratedWorkspaceOptions) {
   return `${lines.join('\n')}\n`
 }
 
-function renderTopologySkillsSection(options: GeneratedWorkspaceOptions) {
-  const items = [
-    ...CORE_SKILL_DEFINITIONS.map((skill) => `${skill.topologyLabel}: \`${skill.docsPath}\``),
-    ...resolveSelectedOptionalSkillDefinitions(options).map(
-      (skill) => `${skill.topologyLabel}: \`${skill.docsPath}\``,
-    ),
-  ]
-
-  return renderBulletList(items)
-}
-
 function formatDocumentPath(relativePath: string) {
   return `\`${relativePath}\``
 }
@@ -151,7 +122,11 @@ function resolveEngineeringDocuments() {
   return DOCUMENT_DEFINITIONS.filter((document) => document.engineeringDoc)
 }
 
-function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspaceOptions) {
+async function renderAgentsMarkdown(
+  _targetRoot: string,
+  _tokens: TemplateTokens,
+  options: GeneratedWorkspaceOptions,
+) {
   const repositoryContractLines = resolveEngineeringDocuments().map(
     (document) =>
       `- ${document.engineeringDoc?.agentsRepositoryLabel}: ${formatDocumentPath(document.relativePath)}`,
@@ -173,15 +148,11 @@ function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspa
     '',
     '## Repository Contract',
     ...repositoryContractLines,
-    '- canonical skills: `.agents/skills/*`',
-    '- Claude mirror: `.claude/skills/*`',
     '',
     '## Start Here',
     ...startHereLines,
     '',
     renderSection('Workspace Model', renderAgentsWorkspaceModelSection(options)),
-    '',
-    renderSection('Skill Routing', renderAgentsSkillRoutingSection(options)),
     '',
     '## Done',
     `- 세부 완료 기준은 ${repoContractPath}를 따른다.`,
@@ -190,7 +161,7 @@ function renderAgentsMarkdown(_tokens: TemplateTokens, options: GeneratedWorkspa
   ].join('\n')
 }
 
-function renderDocsIndexMarkdown(tokens: TemplateTokens, options: GeneratedWorkspaceOptions) {
+function renderDocsIndexMarkdown(tokens: TemplateTokens) {
   const engineeringDocLines = resolveEngineeringDocuments().map(
     (document) => `- ${formatDocsRelativePath(document.relativePath)}`,
   )
@@ -208,12 +179,11 @@ function renderDocsIndexMarkdown(tokens: TemplateTokens, options: GeneratedWorks
     '## engineering 문서',
     ...engineeringDocLines,
     '',
-    renderSection('Skill 구조', renderDocsIndexSkillStructureSection(options)),
-    '',
     renderSection('verify', renderRootVerifyStepsMarkdown(tokens.packageManager)),
     '',
     '## 운영 메모',
-    '- 새 규칙은 먼저 `engineering/*`에 들어갈지, Skill로 분리할지 구분한다.',
+    '- 새 규칙은 먼저 `engineering/*`에 들어갈지, README optional guide에 들어갈지 구분한다.',
+    '- agent skill 설치/업데이트 안내는 루트 `README.md`를 따른다.',
     '- 문서 경로를 바꾸면 `AGENTS.md`, `CLAUDE.md`, Copilot instructions, Skill 경로를 같이 갱신한다.',
     '',
   ].join('\n')
@@ -229,7 +199,77 @@ function renderWorkspaceTopologyMarkdown(options: GeneratedWorkspaceOptions) {
     '',
     renderSection('ownership', renderTopologyOwnershipSection(options)),
     '',
-    renderSection('참고 Skill', renderTopologySkillsSection(options)),
+  ].join('\n')
+}
+
+function renderInstalledSkillReadmeLines(installedSkillIds: string[]) {
+  return installedSkillIds.map((skillId) => {
+    const definition = SKILL_CATALOG.find((skill) => skill.id === skillId)
+
+    if (!definition) {
+      return `- \`${skillId}\``
+    }
+
+    return `- \`${definition.id}\`: ${definition.agentsLabel}`
+  })
+}
+
+const SKILLS_STRATEGY_README_LINES = [
+  '## skills 전략',
+  '- `create-rn-miniapp`는 skill을 직접 관리하지 않고, 추천 skill과 설치 예시만 제공합니다.',
+  '- 실제 설치, 확인, 업데이트는 [`@vercel-labs/skills`](https://github.com/vercel-labs/skills) 표준 CLI를 그대로 사용합니다.',
+  '- 이 저장소의 `skills/`에는 MiniApp 작업에 맞춘 curated skill source를 둡니다.',
+]
+
+async function renderRootReadmeMarkdown(
+  tokens: TemplateTokens,
+  options: GeneratedWorkspaceOptions,
+  installedSkills: readonly InstalledProjectSkill[],
+) {
+  const recommendedSkillDefinitions = resolveRecommendedSkillDefinitions(options)
+  const recommendedSkillIds = recommendedSkillDefinitions.map((skill) => skill.id)
+  const installedSkillIds = installedSkills.map((skill) => skill.id)
+
+  return [
+    `# ${tokens.displayName}`,
+    '',
+    '`create-miniapp`로 생성한 MiniApp workspace예요.',
+    '',
+    '## Start Here',
+    '- `AGENTS.md`: 에이전트용 빠른 계약과 시작 순서',
+    '- `docs/index.md`: 문서 구조와 verify 동선',
+    '- `docs/product/기능명세서.md`: 제품 요구사항',
+    '',
+    ...SKILLS_STRATEGY_README_LINES,
+    ...(installedSkillIds.length > 0
+      ? [
+          '현재 project-local skills가 설치되어 있어요.',
+          '',
+          '### Installed',
+          ...renderInstalledSkillReadmeLines(installedSkillIds),
+        ]
+      : [
+          '필요할 때 project-local skills로 설치해서 팀과 같이 쓸 수 있어요.',
+          ...(recommendedSkillDefinitions.length > 0
+            ? [
+                '',
+                '### Recommended',
+                ...recommendedSkillDefinitions.map(
+                  (skill) => `- \`${skill.id}\`: ${skill.agentsLabel}`,
+                ),
+                '',
+                `설치 예시: \`${renderSkillsAddCommand(recommendedSkillIds)}\``,
+              ]
+            : []),
+        ]),
+    '',
+    '### Standard commands',
+    `- 설치된 skill 확인: \`${SKILLS_LIST_COMMAND}\``,
+    `- 업데이트 확인: \`${SKILLS_CHECK_COMMAND}\``,
+    `- 최신으로 갱신: \`${SKILLS_UPDATE_COMMAND}\``,
+    '',
+    '## Verify',
+    ...renderRootVerifyStepsMarkdown(tokens.packageManager).split('\n').filter(Boolean),
     '',
   ].join('\n')
 }
@@ -238,7 +278,12 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'AGENTS.md',
     ownership: 'code',
-    render: renderAgentsMarkdown,
+    render: () => '',
+  },
+  {
+    relativePath: 'README.md',
+    ownership: 'code',
+    render: () => '',
   },
   {
     relativePath: 'docs/ai/Plan.md',
@@ -258,7 +303,7 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'docs/index.md',
     ownership: 'code',
-    render: renderDocsIndexMarkdown,
+    render: (tokens) => renderDocsIndexMarkdown(tokens),
     startHereOrder: 4,
   },
   {
@@ -276,7 +321,7 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'docs/engineering/frontend-policy.md',
     ownership: 'code',
-    render: (tokens) => renderFrontendPolicyMarkdown(tokens.packageManager),
+    render: () => '',
     engineeringDoc: {
       agentsRepositoryLabel: 'frontend 정책',
     },
@@ -318,6 +363,7 @@ export async function applyDocsTemplates(
   const templatesRoot = resolveTemplatesPackageRoot()
   const baseTemplateDir = path.join(templatesRoot, 'base')
   const options = await resolveGeneratedWorkspaceOptions(targetRoot, hints)
+  const installedSkills = await listInstalledProjectSkillEntries(targetRoot)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
   await copyFileWithTokens(
@@ -343,10 +389,15 @@ export async function applyDocsTemplates(
   )
 
   for (const definition of CODE_OWNED_DOC_DEFINITIONS) {
-    await writeCodeOwnedMarkdown(
-      targetRoot,
-      definition.relativePath,
-      definition.render(tokens, options),
-    )
+    const renderedSource =
+      definition.relativePath === 'AGENTS.md'
+        ? await renderAgentsMarkdown(targetRoot, tokens, options)
+        : definition.relativePath === 'README.md'
+          ? await renderRootReadmeMarkdown(tokens, options, installedSkills)
+          : definition.relativePath === 'docs/engineering/frontend-policy.md'
+            ? renderFrontendPolicyMarkdown(tokens.packageManager, installedSkills)
+            : definition.render(tokens, options)
+
+    await writeCodeOwnedMarkdown(targetRoot, definition.relativePath, renderedSource)
   }
 }

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type { CommandSpec } from '../command-spec.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerScaffoldState } from '../server-project.js'
 import {
@@ -23,13 +24,6 @@ import {
 } from '../templates/server.js'
 import type { TemplateTokens } from '../templates/types.js'
 
-export type ServerProviderCommandSpec = {
-  cwd: string
-  command: string
-  args: string[]
-  label: string
-}
-
 type ProviderPlanOptions = {
   targetRoot: string
   packageManager: PackageManager
@@ -51,15 +45,15 @@ export type ServerProviderAdapter = {
   label: string
   supportsTrpc: boolean
   detect(rootDir: string): Promise<boolean>
-  buildCreatePlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
-  buildAddPlan(options: ProviderPlanOptions): ServerProviderCommandSpec[]
+  buildCreatePlan(options: ProviderPlanOptions): CommandSpec[]
+  buildAddPlan(options: ProviderPlanOptions): CommandSpec[]
   prepareServerWorkspace?(options: ProviderWorkspaceOptions): Promise<void>
   patchServerWorkspace(options: ProviderPatchOptions): Promise<void>
   bootstrapFrontend?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
   bootstrapBackoffice?(options: Omit<ProviderPatchOptions, 'packageManager'>): Promise<void>
 }
 
-function buildSupabasePlan(options: ProviderPlanOptions): ServerProviderCommandSpec[] {
+function buildSupabasePlan(options: ProviderPlanOptions): CommandSpec[] {
   const packageManager = getPackageManagerAdapter(options.packageManager)
   const serverRoot = path.join(options.targetRoot, 'server')
 
@@ -111,7 +105,7 @@ const supabaseAdapter: ServerProviderAdapter = {
   },
 }
 
-function buildCloudflarePlan(options: ProviderPlanOptions): ServerProviderCommandSpec[] {
+function buildCloudflarePlan(options: ProviderPlanOptions): CommandSpec[] {
   const packageManager = getPackageManagerAdapter(options.packageManager)
 
   return [

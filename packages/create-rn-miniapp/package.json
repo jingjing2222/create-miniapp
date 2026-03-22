@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jingjing2222/create-miniapp.git"
+    "url": "https://github.com/jingjing2222/create-rn-miniapp.git"
   },
   "license": "MIT",
   "scripts": {
@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
-    "@create-rn-miniapp/scaffold-skills": "workspace:*",
     "@create-rn-miniapp/scaffold-templates": "workspace:*",
     "@swc/core": "^1.15.18",
     "jsonc-parser": "^3.3.1",

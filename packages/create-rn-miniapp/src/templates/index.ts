@@ -17,7 +17,6 @@ export {
 export { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
 export { applyDocsTemplates } from './docs.js'
 export { applyRootTemplates, renderRootVerifyScript, syncRootWorkspaceManifest } from './root.js'
-export { syncGeneratedSkills } from './skills.js'
 export {
   applyFirebaseServerWorkspaceTemplate,
   applyServerPackageTemplate,

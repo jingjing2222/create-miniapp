@@ -6,6 +6,7 @@ import type { PackageManager } from './package-manager.js'
 import { detectServerProvider, type ServerProvider } from './providers/index.js'
 import { readServerScaffoldState, type ServerScaffoldState } from './server-project.js'
 import { pathExists } from './templates/filesystem.js'
+import { hasTrpcWorkspace, inspectWorkspaceTopology } from './workspace-topology.js'
 
 type RootPackageJson = {
   packageManager?: string
@@ -99,11 +100,10 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
     throw new Error('frontend/granite.config.ts에서 appName을 읽지 못했어요.')
   }
 
-  const hasServer = await pathExists(path.join(resolvedRootDir, 'server'))
-  const actualHasBackoffice = await pathExists(path.join(resolvedRootDir, 'backoffice'))
-  const actualHasTrpc =
-    (await pathExists(path.join(resolvedRootDir, 'packages', 'app-router', 'package.json'))) ||
-    (await pathExists(path.join(resolvedRootDir, 'packages', 'trpc', 'package.json')))
+  const topology = await inspectWorkspaceTopology(resolvedRootDir)
+  const hasServer = topology.hasServer
+  const actualHasBackoffice = topology.hasBackoffice
+  const actualHasTrpc = hasTrpcWorkspace(topology)
   const detectedServerProvider = hasServer ? await detectServerProvider(resolvedRootDir) : null
   const serverScaffoldState = hasServer ? await readServerScaffoldState(resolvedRootDir) : null
   const serverProvider =

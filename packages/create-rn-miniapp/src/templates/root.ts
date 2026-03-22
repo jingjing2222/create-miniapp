@@ -3,10 +3,7 @@ import path from 'node:path'
 import { patchRootPackageJsonSource } from '../patching/package-json.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import {
-  FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
-  FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS,
-  FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES,
-  FRONTEND_POLICY_REACT_NATIVE_MESSAGE,
+  resolveFrontendPolicyRuleSet,
   renderFrontendPolicyVerifierSource,
 } from './frontend-policy.js'
 import {
@@ -19,11 +16,8 @@ import {
   FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
   FRONTEND_POLICY_CHECK_SCRIPT_NAME,
   ROOT_VERIFY_STEP_SCRIPT_NAMES,
-  SKILLS_CHECK_SCRIPT_COMMAND,
-  SKILLS_CHECK_SCRIPT_NAME,
-  SKILLS_SYNC_SCRIPT_COMMAND,
-  SKILLS_SYNC_SCRIPT_NAME,
 } from './root-script-catalog.js'
+import { listInstalledProjectSkillEntries } from '../skills-install.js'
 import type { TemplateTokens, WorkspaceName } from './types.js'
 
 const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
@@ -71,13 +65,16 @@ function renderRootScripts(packageManager: PackageManager) {
     'format:check': adapter.rootFormatCheckScript(),
     lint: adapter.rootLintScript(),
     [FRONTEND_POLICY_CHECK_SCRIPT_NAME]: FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
-    [SKILLS_SYNC_SCRIPT_NAME]: SKILLS_SYNC_SCRIPT_COMMAND,
-    [SKILLS_CHECK_SCRIPT_NAME]: SKILLS_CHECK_SCRIPT_COMMAND,
     verify: renderRootVerifyScript(packageManager),
   }
 }
 
-function renderRootBiomeSource(adapter: ReturnType<typeof getPackageManagerAdapter>) {
+function renderRootBiomeSource(
+  adapter: ReturnType<typeof getPackageManagerAdapter>,
+  installedSkills: Parameters<typeof resolveFrontendPolicyRuleSet>[0],
+) {
+  const policyRules = resolveFrontendPolicyRuleSet(installedSkills)
+
   return `${JSON.stringify(
     {
       $schema: 'https://biomejs.dev/schemas/2.4.8/schema.json',
@@ -99,16 +96,15 @@ function renderRootBiomeSource(adapter: ReturnType<typeof getPackageManagerAdapt
               level: 'error',
               options: {
                 paths: {
-                  '@react-native-async-storage/async-storage':
-                    FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
+                  '@react-native-async-storage/async-storage': policyRules.asyncStorageMessage,
                   '@granite-js/native/@react-native-async-storage/async-storage':
-                    FRONTEND_POLICY_ASYNC_STORAGE_MESSAGE,
+                    policyRules.asyncStorageMessage,
                   'react-native': {
-                    message: FRONTEND_POLICY_REACT_NATIVE_MESSAGE,
-                    importNames: FRONTEND_POLICY_REACT_NATIVE_IMPORT_NAMES,
+                    message: policyRules.reactNativeMessage,
+                    importNames: policyRules.reactNativeImportNames,
                   },
                 },
-                patterns: FRONTEND_POLICY_NATIVE_IMPORT_PATTERNS,
+                patterns: policyRules.nativeImportPatterns,
               },
             },
           },
@@ -124,6 +120,23 @@ function renderRootBiomeSource(adapter: ReturnType<typeof getPackageManagerAdapt
     null,
     2,
   )}\n`
+}
+
+async function syncRootFrontendPolicyArtifacts(targetRoot: string, packageManager: PackageManager) {
+  const packageManagerAdapter = getPackageManagerAdapter(packageManager)
+  const installedSkills = await listInstalledProjectSkillEntries(targetRoot)
+
+  await mkdir(path.join(targetRoot, 'scripts'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs'),
+    renderFrontendPolicyVerifierSource(),
+    'utf8',
+  )
+  await writeFile(
+    path.join(targetRoot, 'biome.json'),
+    renderRootBiomeSource(packageManagerAdapter, installedSkills),
+    'utf8',
+  )
 }
 
 function normalizeRootWorkspaces(workspaces: WorkspaceName[]): NormalizedRootWorkspaceName[] {
@@ -185,11 +198,7 @@ export async function applyRootTemplates(
   const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
-  const fileMappings = [
-    ['nx.json', 'nx.json'],
-    ['sync-skills.mjs', 'scripts/sync-skills.mjs'],
-    ['check-skills.mjs', 'scripts/check-skills.mjs'],
-  ] as const
+  const fileMappings = [['nx.json', 'nx.json']] as const
 
   for (const [sourceName, targetName] of fileMappings) {
     await copyFileWithTokens(
@@ -199,13 +208,6 @@ export async function applyRootTemplates(
       extraTokens,
     )
   }
-
-  await mkdir(path.join(targetRoot, 'scripts'), { recursive: true })
-  await writeFile(
-    path.join(targetRoot, 'scripts', 'verify-frontend-routes.mjs'),
-    renderFrontendPolicyVerifierSource(),
-    'utf8',
-  )
 
   for (const rootTemplateFile of packageManager.rootTemplateFiles) {
     await copyFileWithTokens(
@@ -217,11 +219,7 @@ export async function applyRootTemplates(
   }
 
   await mkdir(targetRoot, { recursive: true })
-  await writeFile(
-    path.join(targetRoot, 'biome.json'),
-    renderRootBiomeSource(packageManager),
-    'utf8',
-  )
+  await syncRootFrontendPolicyArtifacts(targetRoot, tokens.packageManager)
 
   const rootPackageJsonSource = replaceTemplateTokens(
     await readFile(path.join(rootTemplateDir, 'package.json'), 'utf8'),
@@ -252,4 +250,11 @@ export async function applyRootTemplates(
       extraTokens,
     )
   }
+}
+
+export async function syncRootFrontendPolicyFiles(
+  targetRoot: string,
+  packageManager: PackageManager,
+) {
+  await syncRootFrontendPolicyArtifacts(targetRoot, packageManager)
 }

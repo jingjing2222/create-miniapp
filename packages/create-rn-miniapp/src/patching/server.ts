@@ -58,6 +58,12 @@ import {
   renderCloudflareServerTrpcContextSource,
   TRPC_SERVER_VERSION,
 } from './trpc.js'
+import {
+  CLOUDFLARE_TOKEN_GUIDE_ASSET_CANDIDATES,
+  FIREBASE_LOGIN_CI_GUIDE_ASSET_CANDIDATES,
+  FIREBASE_SERVICE_ACCOUNT_GUIDE_ASSET_CANDIDATES,
+  SUPABASE_ACCESS_TOKEN_GUIDE_ASSET_CANDIDATES,
+} from '../server-guide-assets.js'
 
 const CLOUDFLARE_SERVER_LOCAL_FILES = [
   '.gitignore',
@@ -87,24 +93,6 @@ const FIREBASE_YARN_PACKAGE_EXTENSION_BLOCK = [
 ].join('\n')
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
 const SUPABASE_MANAGEMENT_API_DOC_URL = 'https://supabase.com/docs/reference/api/introduction'
-const SUPABASE_ACCESS_TOKEN_GUIDE_ASSET_CANDIDATES = [
-  'supabase-project/assets/supabase-access-token-guide1.png',
-  'supabase-project/assets/supabase-access-token-guide2.png',
-] as const
-const CLOUDFLARE_TOKEN_GUIDE_ASSET_CANDIDATES = [
-  'cloudflare-worker/assets/cloudflare-api-token-guide.png',
-  'cloudflare-worker/assets/cloudflare-api-token-guide.jpg',
-  'cloudflare-worker/assets/cloudflare-api-token-guide.jpeg',
-  'cloudflare-worker/assets/cloudflare-api-token-guide.webp',
-  'cloudflare-worker/assets/cloudflare-api-token-guide.gif',
-] as const
-const FIREBASE_LOGIN_CI_GUIDE_ASSET_CANDIDATES = [
-  'firebase-functions/assets/firebase-login-ci-guide.png',
-] as const
-const FIREBASE_SERVICE_ACCOUNT_GUIDE_ASSET_CANDIDATES = [
-  'firebase-functions/assets/firebase-service-account-guide1.png',
-  'firebase-functions/assets/firebase-service-account-guide2.png',
-] as const
 const SERVER_GUIDE_ASSET_TARGET_DIR = 'assets'
 const FIREBASE_CLI_DOC_URL = 'https://firebase.google.com/docs/cli'
 const FIREBASE_ADMIN_SETUP_URL = 'https://firebase.google.com/docs/admin/setup'

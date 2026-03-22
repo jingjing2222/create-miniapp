@@ -88,6 +88,59 @@ function collectRelativeModuleSpecifiers(sourceFile: ts.SourceFile) {
   return moduleSpecifiers
 }
 
+function collectForwardedRelativeBindings(sourceFile: ts.SourceFile) {
+  const importedBindings = collectRelativeImportBindings(sourceFile)
+  const forwardedBindings: string[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportDeclaration(statement)) {
+      if (!statement.exportClause || !ts.isNamedExports(statement.exportClause)) {
+        continue
+      }
+
+      for (const element of statement.exportClause.elements) {
+        const localName = element.propertyName?.text ?? element.name.text
+
+        if (importedBindings.has(localName)) {
+          forwardedBindings.push(element.name.text)
+        }
+      }
+
+      continue
+    }
+
+    if (!isExported(statement)) {
+      continue
+    }
+
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.initializer &&
+          ts.isIdentifier(declaration.initializer) &&
+          importedBindings.has(declaration.initializer.text)
+        ) {
+          forwardedBindings.push(declaration.name.text)
+        }
+      }
+
+      continue
+    }
+
+    if (
+      ts.isTypeAliasDeclaration(statement) &&
+      ts.isTypeReferenceNode(statement.type) &&
+      ts.isIdentifier(statement.type.typeName) &&
+      importedBindings.has(statement.type.typeName.text)
+    ) {
+      forwardedBindings.push(statement.name.text)
+    }
+  }
+
+  return forwardedBindings
+}
+
 function isExported(statement: ts.Statement) {
   return (
     ts.canHaveModifiers(statement) &&
@@ -187,6 +240,23 @@ test('non-index source modules are not pure forwarding facades', async () => {
       isPureForwardingModule(source),
       false,
       `forwarding facade found in ${path.relative(SRC_ROOT, filePath)}`,
+    )
+  }
+})
+
+test('non-index source modules do not alias imported bindings into exports', async () => {
+  const sourceFiles = await listSourceFiles(SRC_ROOT)
+  const nonIndexFiles = sourceFiles.filter((filePath) => path.basename(filePath) !== 'index.ts')
+
+  for (const filePath of nonIndexFiles) {
+    const source = await readFile(filePath, 'utf8')
+    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true)
+    const forwardedBindings = collectForwardedRelativeBindings(sourceFile)
+
+    assert.deepEqual(
+      forwardedBindings,
+      [],
+      `alias forwarding export found in ${path.relative(SRC_ROOT, filePath)}: ${forwardedBindings.join(', ')}`,
     )
   }
 })
