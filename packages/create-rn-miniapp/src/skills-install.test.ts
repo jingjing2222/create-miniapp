@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 import {
   buildSkillsInstallCommand,
   hasInstalledProjectSkills,
@@ -13,6 +14,11 @@ import {
   renderSkillsAddCommand,
   resolveRecommendedSkillIds,
 } from './skills-install.js'
+import { SKILLS_LIST_COMMAND, SKILLS_SOURCE_REPO } from './skills-contract.js'
+
+function escapeRegExp(source: string) {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 test('normalizeSelectedSkillIds keeps known ids and removes duplicates', () => {
   assert.deepEqual(normalizeSelectedSkillIds(['tds-ui', 'cloudflare-worker', 'tds-ui']), [
@@ -40,9 +46,36 @@ test('resolveRecommendedSkillIds returns a flat recommended list for the current
 })
 
 test('renderSkillsAddCommand produces the standard npx skills command', () => {
+  const expectedCommand = ['npx', 'skills', 'add', SKILLS_SOURCE_REPO]
+    .concat(['--skill', 'miniapp-capabilities', '--skill', 'granite-routing', '--skill', 'tds-ui'])
+    .concat(['--copy'])
+    .join(' ')
+
   assert.equal(
     renderSkillsAddCommand(['miniapp-capabilities', 'granite-routing', 'tds-ui']),
-    'npx skills add jingjing2222/create-rn-miniapp --skill miniapp-capabilities --skill granite-routing --skill tds-ui --copy',
+    expectedCommand,
+  )
+})
+
+test('skills source repo slug is derived from the published package repository', async () => {
+  const packageJson = JSON.parse(
+    await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+  ) as {
+    repository?: { url?: string }
+  }
+  const skillsContractSource = await readFile(
+    fileURLToPath(new URL('./skills-contract.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.equal(
+    SKILLS_SOURCE_REPO,
+    packageJson.repository?.url?.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''),
+  )
+  assert.equal(packageJson.repository?.url, 'https://github.com/jingjing2222/create-rn-miniapp.git')
+  assert.doesNotMatch(
+    skillsContractSource,
+    new RegExp(escapeRegExp(`export const SKILLS_SOURCE_REPO = '${SKILLS_SOURCE_REPO}'`)),
   )
 })
 
@@ -56,7 +89,7 @@ test('renderInstalledSkillsSummary renders discovered project-local skill paths'
       'project-local skills를 설치했어요.',
       '- miniapp-capabilities: `.agents/skills/miniapp-capabilities`',
       '- tds-ui: `skills/tds-ui`',
-      '필요하면 `npx skills list`로 다시 확인해 주세요.',
+      `필요하면 \`${SKILLS_LIST_COMMAND}\`로 다시 확인해 주세요.`,
     ].join('\n'),
   )
 })

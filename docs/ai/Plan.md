@@ -1,3 +1,62 @@
+## 다음 작업: main 최신과 충돌 정리 후 브랜치 재푸시
+
+### 목표
+- `codex/static-frontend-policy` 브랜치를 최신 `origin/main` 기준으로 다시 맞춘다.
+- merge 과정에서 생기는 충돌은 실제 live contract 기준으로만 정리하고, 불필요한 과거 계획/실험 흔적은 끌고 오지 않는다.
+- 정리 후 `pnpm verify`를 다시 통과시키고 브랜치를 재푸시한다.
+
+### 작업 순서
+1. `origin/main...HEAD` 차이와 merge 방향을 확인한 뒤 `origin/main`을 현재 브랜치에 병합한다.
+2. 충돌 파일을 읽고 SSoT 기준으로 수동 정리한다.
+3. `pnpm verify`를 다시 통과시킨 뒤 merge commit과 함께 브랜치를 푸시한다.
+
+## 다음 작업: skill SSoT 정리 변경을 release metadata에 반영
+
+### 목표
+- 현재 브랜치의 skill SSoT 정리 결과를 changeset과 PR 설명에 맞게 반영한다.
+- 공개 패키지 diff 기준으로 실제 변경된 패키지만 patch 릴리스 대상으로 올린다.
+- verify를 다시 통과시킨 뒤 한글 PR을 생성한다.
+
+### 작업 순서
+1. `origin/main...HEAD` diff로 공개 패키지 변경 범위를 다시 확인한다.
+2. 변경 범위에 맞는 changeset을 추가하고 release note를 한국어로 작성한다.
+3. `pnpm verify`를 다시 통과시킨 뒤 커밋, 푸시, 한글 PR 생성까지 마친다.
+
+## 다음 작업: 남은 skill/shared reference SSoT 드리프트 제거
+
+### 목표
+- `skills/shared/references/frontend-policy.md`처럼 live markdown이 코드 상수와 따로 움직이는 경로를 code-owned renderer 기준으로 정리한다.
+- root README / generated README / skill install 관련 테스트에서 repo slug, skill id 목록, skills command를 수동 문자열로 반복하는 부분을 source 값에서 파생되게 줄인다.
+- 이번 턴은 live contract만 대상으로 수정하고, 기록성 changelog/과거 plan은 제외한다.
+
+### 작업 순서
+1. shared frontend policy reference와 skills README/assertion 드리프트를 red test로 먼저 고정한다.
+2. renderer + sync script를 추가하고, 테스트 기대값을 shared source에서 파생되게 바꾼다.
+3. `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리하고 푸시한다.
+
+## 다음 작업: skill catalog를 source skill frontmatter에서 파생
+
+### 목표
+- skill id/label/category의 source of truth를 `skills/*/SKILL.md` frontmatter로 올리고, package 쪽 `skill-catalog.ts`는 generated file로 바꾼다.
+- `SKILLS_SOURCE_REPO`도 `packages/create-rn-miniapp/package.json`의 repository URL에서 파생시켜 repo slug 이중 입력을 없앤다.
+- red test로 source skill frontmatter -> generated catalog 정합성과 repo slug 파생을 먼저 고정한 뒤 구현, verify, 커밋, 푸시까지 마친다.
+
+### 작업 순서
+1. skill frontmatter 기반 catalog/generated marker, repo slug 파생을 기대하는 red test를 먼저 추가한다.
+2. skill frontmatter에 metadata를 넣고 `scripts/sync-skill-catalog.ts`로 `skill-catalog.ts`를 generated file로 전환한다.
+3. `skills-contract.ts`, AGENTS/README 관련 문구를 새 SSoT 기준으로 정리하고 `pnpm verify` 후 커밋/푸시한다.
+
+## 다음 작업: 남은 skills SSoT 드리프트 제거
+
+### 목표
+- root README의 `skills 전략`, `server provider 고르기` 섹션을 shared renderer에서 파생시키고, static README는 managed block만 소비하게 만든다.
+- installable skill registry와 root `skills/*` 디렉터리 사이의 drift를 테스트로 막고, dead metadata는 catalog에서 제거한다.
+- provider -> optional skill 추천 규칙과 root README provider 설명을 provider registry 단일 source에서 파생시키고, skill 문서의 frontend policy 경로는 shared reference 한 곳으로 모은다.
+
+### 작업 순서
+1. root README managed block, skill catalog/skills 디렉터리 정합성, provider mapping, shared frontend-policy reference를 red test로 먼저 고정한다.
+2. shared README renderer, provider metadata, skill catalog 정리, shared skill reference 파일을 구현하고 README를 sync한다.
+3. targeted test와 `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리한다.
 ## 다음 작업: frontend policy TDS 문구를 더 강하게 고정
 
 ### 목표
