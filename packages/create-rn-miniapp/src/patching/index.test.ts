@@ -2180,10 +2180,10 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
     private: true,
     scripts: {
       deploy:
-        'pnpm dlx firebase-tools deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
+        'pnpm dlx firebase-tools@15.11.0 deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
       build: 'pnpm --dir ./functions install && pnpm --dir ./functions build',
       typecheck: 'pnpm --dir ./functions install && pnpm --dir ./functions typecheck',
-      logs: 'pnpm dlx firebase-tools functions:log',
+      logs: 'pnpm dlx firebase-tools@15.11.0 functions:log',
       test: `node -e "console.log('firebase server test placeholder')"`,
     },
   })
@@ -2328,7 +2328,7 @@ test('patchFirebaseServerWorkspace adds firebase-only yarn packageExtensions to 
     private: true,
     scripts: {
       deploy:
-        'yarn dlx firebase-tools deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
+        'yarn dlx firebase-tools@15.11.0 deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
     },
   })
   await writeFile(

@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { FIREBASE_TOOLS_CLI, SUPABASE_CLI } from '../external-tooling.js'
 import {
   renderProcessEnvLoaderScriptLines,
   renderTypedEnvReaderScriptLines,
@@ -40,7 +41,7 @@ type WorkspaceProjectJson = {
 
 function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const command = packageManager.dlx('supabase', [
+  const command = packageManager.dlx(SUPABASE_CLI, [
     'db',
     'push',
     '--workdir',
@@ -102,7 +103,7 @@ function renderSupabaseDbApplyScript(tokens: TemplateTokens) {
 
 function renderSupabaseFunctionsDeployScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const command = packageManager.dlx('supabase', [
+  const command = packageManager.dlx(SUPABASE_CLI, [
     'functions',
     'deploy',
     '__REQUESTED_FUNCTIONS__',
@@ -356,7 +357,7 @@ function renderSupabaseInstallDenoScript() {
 
 function renderFirebaseFunctionsDeployScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const command = packageManager.dlx('firebase-tools', [
+  const command = packageManager.dlx(FIREBASE_TOOLS_CLI, [
     'deploy',
     '--only',
     '__FIREBASE_DEPLOY_ONLY__',
@@ -811,14 +812,14 @@ function renderFirebaseSeedPublicStatusScript() {
 
 function renderFirebaseEnsureFirestoreScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const getCommand = packageManager.dlx('firebase-tools', [
+  const getCommand = packageManager.dlx(FIREBASE_TOOLS_CLI, [
     'firestore:databases:get',
     '(default)',
     '--project',
     '__FIREBASE_PROJECT_ID__',
     '--json',
   ])
-  const createCommand = packageManager.dlx('firebase-tools', [
+  const createCommand = packageManager.dlx(FIREBASE_TOOLS_CLI, [
     'firestore:databases:create',
     '(default)',
     '--project',

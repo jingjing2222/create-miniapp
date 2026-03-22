@@ -3,6 +3,7 @@ import path from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import type { CommandSpec } from '../../command-spec.js'
+import { SUPABASE_CLI } from '../../external-tooling.js'
 import { runCommand, runCommandWithOutput, type CommandOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
@@ -64,7 +65,7 @@ function buildSupabaseCommand(
 
   return {
     cwd,
-    ...adapter.dlx('supabase', args),
+    ...adapter.dlx(SUPABASE_CLI, args),
     label,
   }
 }

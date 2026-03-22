@@ -9,6 +9,7 @@ import envPaths from 'env-paths'
 import { parse } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import type { CommandSpec } from '../../command-spec.js'
+import { WRANGLER_CLI } from '../../external-tooling.js'
 import {
   createCloudflareVitestWranglerConfigSource,
   patchWranglerConfigSource,
@@ -99,7 +100,7 @@ function buildWranglerCommand(
 
   return {
     cwd,
-    ...adapter.dlx('wrangler', args),
+    ...adapter.dlx(WRANGLER_CLI, args),
     label,
   }
 }

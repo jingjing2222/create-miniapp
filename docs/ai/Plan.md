@@ -1,3 +1,16 @@
+## 다음 작업: 외부 CLI 버전 고정과 Firebase provisioning 경계 재정의
+
+### 목표
+- `adapter.dlx(...)`와 `create-cloudflare@latest`에 흩어진 live CLI 의존을 repo-owned tool manifest 기준으로 exact version pin 한다.
+- `wrangler`, `firebase-tools`, `supabase`, `create-cloudflare` 호출 결과가 lockfile 밖 최신 upstream 동작에 흔들리지 않게 만든다.
+- Firebase provisioning은 `firebase-tools`로 가능한 범위와 GCP 권한 surface가 필요한 범위를 분리한다.
+
+### 작업 순서
+1. package-manager adapter와 provider/scaffold 호출부를 전수 조사해서 external CLI inventory와 pinned package spec source of truth를 만든다. `adapter.dlx(...)`가 raw package name 대신 manifest entry만 받도록 red test를 먼저 추가한다.
+2. `wrangler`, `firebase-tools`, `supabase`, `create-cloudflare` 호출을 exact version spec으로 바꾸고, package manager adapter가 `pnpm dlx`, `yarn dlx`, `npx`, `bunx`로 같은 spec을 일관되게 렌더하도록 정리한다.
+3. Firebase provisioning을 surface별로 분리한다. `projects:addfirebase`, app/web config, deploy는 pinned `firebase-tools`로 유지하고, Firestore 기본 DB 준비는 `firebase-tools` 전환 가능성을 live contract test로 먼저 검증한다. Blaze billing 확인/전환, Cloud Build service account/IAM 보정, Terms 수락은 `gcloud`/console/공식 API 경계로 명시한다.
+4. 관련 README/에러 메시지/회귀 테스트를 새 계약 기준으로 갱신하고 `pnpm verify`로 고정한다.
+
 ## 다음 작업: parser/spec hardening 잔여 이슈 마감
 
 ### 목표

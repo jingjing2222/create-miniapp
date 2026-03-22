@@ -1,3 +1,4 @@
+import { FIREBASE_TOOLS_CLI, SUPABASE_CLI } from './external-tooling.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 
 export type ServerScriptCatalogEntry = {
@@ -39,7 +40,7 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
   return [
     {
       name: 'dev',
-      command: adapter.dlxCommand('supabase', ['start', '--workdir', '.']),
+      command: adapter.dlxCommand(SUPABASE_CLI, ['start', '--workdir', '.']),
       readmeDescription: '로컬 Supabase stack을 시작해요.',
     },
     {
@@ -75,7 +76,7 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
     },
     {
       name: 'functions:serve',
-      command: adapter.dlxCommand('supabase', [
+      command: adapter.dlxCommand(SUPABASE_CLI, [
         'functions',
         'serve',
         '--env-file',
@@ -94,12 +95,12 @@ export function createSupabaseServerScriptCatalog(packageManager: PackageManager
     },
     {
       name: 'db:apply:local',
-      command: adapter.dlxCommand('supabase', ['db', 'push', '--local', '--workdir', '.']),
+      command: adapter.dlxCommand(SUPABASE_CLI, ['db', 'push', '--local', '--workdir', '.']),
       readmeDescription: '로컬 Supabase DB에 migration을 적용해요.',
     },
     {
       name: 'db:reset',
-      command: adapter.dlxCommand('supabase', ['db', 'reset', '--local', '--workdir', '.']),
+      command: adapter.dlxCommand(SUPABASE_CLI, ['db', 'reset', '--local', '--workdir', '.']),
       readmeDescription: '로컬 Supabase DB를 리셋해요.',
     },
     {
@@ -181,7 +182,7 @@ export function createFirebaseServerScriptCatalog(options: {
   return [
     {
       name: 'dev',
-      command: `${installFunctionsCommand} && ${adapter.dlxCommand('firebase-tools', ['emulators:start', '--only', 'functions,firestore', '--config', 'firebase.json'])}`,
+      command: `${installFunctionsCommand} && ${adapter.dlxCommand(FIREBASE_TOOLS_CLI, ['emulators:start', '--only', 'functions,firestore', '--config', 'firebase.json'])}`,
       readmeDescription: 'Firebase emulators로 Functions와 Firestore를 로컬에서 띄워요.',
       includeInReadme: false,
     },
@@ -232,7 +233,7 @@ export function createFirebaseServerScriptCatalog(options: {
     },
     {
       name: 'logs',
-      command: adapter.dlxCommand('firebase-tools', ['functions:log']),
+      command: adapter.dlxCommand(FIREBASE_TOOLS_CLI, ['functions:log']),
       readmeDescription: 'Firebase Functions 로그를 확인해요.',
     },
   ] satisfies ServerScriptCatalogEntry[]

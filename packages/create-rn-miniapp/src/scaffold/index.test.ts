@@ -272,7 +272,7 @@ test('buildRootFinalizePlan adds yarn sdk generation after root install', () => 
   assert.deepEqual(plan[1], {
     cwd: targetRoot,
     command: 'yarn',
-    args: ['dlx', '@yarnpkg/sdks', 'base'],
+    args: ['dlx', '@yarnpkg/sdks@3.2.3', 'base'],
     label: '루트 yarn SDK 만들기',
   })
 })

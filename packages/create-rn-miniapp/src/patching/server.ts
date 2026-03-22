@@ -2,6 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { minVersion } from 'semver'
 import { renderProcessEnvLoaderScriptLines } from '../env-loader-script.js'
+import { WRANGLER_CLI } from '../external-tooling.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
   getProviderClientContract,
@@ -364,7 +365,7 @@ async function copyCloudflareTokenGuideAsset(
 
 function renderCloudflareDeployScript(tokens: TemplateTokens) {
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const command = packageManager.dlx('wrangler', ['deploy'])
+  const command = packageManager.dlx(WRANGLER_CLI, ['deploy'])
 
   return [
     "import { spawnSync } from 'node:child_process'",

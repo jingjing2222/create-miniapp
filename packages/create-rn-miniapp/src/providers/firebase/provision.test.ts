@@ -7,6 +7,8 @@ import type { CliPrompter } from '../../cli.js'
 import { CommandExecutionError } from '../../commands.js'
 import {
   buildFirebaseCommand,
+  buildFirebaseFirestoreDatabaseCreateCommand,
+  buildFirebaseFirestoreDatabaseGetCommand,
   buildFirebaseFunctionsDeployCommand,
   ensureFirebaseBuildServiceAccountPermissions,
   ensureFirebaseFirestoreReady,
@@ -34,28 +36,28 @@ test('buildFirebaseCommand uses package-manager execution commands for all suppo
   assert.deepEqual(buildFirebaseCommand('pnpm', '/tmp/ebook', 'Firebase 테스트', ['login']), {
     cwd: '/tmp/ebook',
     command: 'pnpm',
-    args: ['dlx', 'firebase-tools', 'login'],
+    args: ['dlx', 'firebase-tools@15.11.0', 'login'],
     label: 'Firebase 테스트',
   })
 
   assert.deepEqual(buildFirebaseCommand('yarn', '/tmp/ebook', 'Firebase 테스트', ['login']), {
     cwd: '/tmp/ebook',
     command: 'yarn',
-    args: ['dlx', 'firebase-tools', 'login'],
+    args: ['dlx', 'firebase-tools@15.11.0', 'login'],
     label: 'Firebase 테스트',
   })
 
   assert.deepEqual(buildFirebaseCommand('npm', '/tmp/ebook', 'Firebase 테스트', ['login']), {
     cwd: '/tmp/ebook',
     command: 'npx',
-    args: ['firebase-tools', 'login'],
+    args: ['firebase-tools@15.11.0', 'login'],
     label: 'Firebase 테스트',
   })
 
   assert.deepEqual(buildFirebaseCommand('bun', '/tmp/ebook', 'Firebase 테스트', ['login']), {
     cwd: '/tmp/ebook',
     command: 'bunx',
-    args: ['firebase-tools', 'login'],
+    args: ['firebase-tools@15.11.0', 'login'],
     label: 'Firebase 테스트',
   })
 })
@@ -68,7 +70,7 @@ test('buildFirebaseFunctionsDeployCommand deploys functions and firestore resour
       command: 'yarn',
       args: [
         'dlx',
-        'firebase-tools',
+        'firebase-tools@15.11.0',
         'deploy',
         '--only',
         'functions,firestore:rules,firestore:indexes',
@@ -78,6 +80,53 @@ test('buildFirebaseFunctionsDeployCommand deploys functions and firestore resour
         'ebook-firebase',
       ],
       label: 'Firebase Functions 배포',
+    },
+  )
+})
+
+test('buildFirebaseFirestoreDatabaseGetCommand uses firebase-tools instead of gcloud', () => {
+  assert.deepEqual(
+    buildFirebaseFirestoreDatabaseGetCommand('pnpm', '/tmp/ebook', 'ebook-firebase'),
+    {
+      cwd: '/tmp/ebook',
+      command: 'pnpm',
+      args: [
+        'dlx',
+        'firebase-tools@15.11.0',
+        'firestore:databases:get',
+        '(default)',
+        '--project',
+        'ebook-firebase',
+        '--json',
+      ],
+      label: 'Cloud Firestore 기본 database 확인',
+    },
+  )
+})
+
+test('buildFirebaseFirestoreDatabaseCreateCommand uses firebase-tools instead of gcloud', () => {
+  assert.deepEqual(
+    buildFirebaseFirestoreDatabaseCreateCommand(
+      'yarn',
+      '/tmp/ebook',
+      'ebook-firebase',
+      'asia-northeast3',
+    ),
+    {
+      cwd: '/tmp/ebook',
+      command: 'yarn',
+      args: [
+        'dlx',
+        'firebase-tools@15.11.0',
+        'firestore:databases:create',
+        '(default)',
+        '--project',
+        'ebook-firebase',
+        '--location',
+        'asia-northeast3',
+        '--json',
+      ],
+      label: 'Cloud Firestore 기본 database 생성',
     },
   )
 })
@@ -223,7 +272,7 @@ test('formatFirebaseAddFirebaseFailureMessage explains permission-denied failure
   assert.match(message, /Firebase Terms of Service/)
   assert.match(message, /Owner 또는 Editor/)
   assert.match(message, /firebase-debug\.log/)
-  assert.match(message, /npx firebase-tools projects:addfirebase test-test-jingjing-app/)
+  assert.match(message, /npx firebase-tools@15\.11\.0 projects:addfirebase test-test-jingjing-app/)
   assert.doesNotMatch(message, /yarn dlx/)
 })
 
@@ -674,12 +723,17 @@ test('isFirebaseFunctionsBuildServiceAccountPermissionError detects Cloud Build 
 
 test('ensureFirebaseFirestoreReady enables Firestore API when it is disabled', async () => {
   const actions: string[] = []
+  let gcloudInstallCalls = 0
 
   await ensureFirebaseFirestoreReady({
     cwd: '/tmp/ebook',
+    packageManager: 'pnpm',
     projectId: 'ebook-firebase',
     databaseLocation: 'asia-northeast3',
-    ensureGcloudInstalled: async () => 'gcloud',
+    ensureGcloudInstalled: async () => {
+      gcloudInstallCalls += 1
+      return 'gcloud'
+    },
     describeFirestoreDatabase: async () => {
       actions.push('describe')
 
@@ -703,16 +757,22 @@ test('ensureFirebaseFirestoreReady enables Firestore API when it is disabled', a
   })
 
   assert.deepEqual(actions, ['describe', 'enable:firestore.googleapis.com', 'describe'])
+  assert.equal(gcloudInstallCalls, 0)
 })
 
 test('ensureFirebaseFirestoreReady creates the default Firestore database when it is missing', async () => {
   const actions: string[] = []
+  let gcloudInstallCalls = 0
 
   await ensureFirebaseFirestoreReady({
     cwd: '/tmp/ebook',
+    packageManager: 'pnpm',
     projectId: 'ebook-firebase',
     databaseLocation: 'asia-northeast3',
-    ensureGcloudInstalled: async () => 'gcloud',
+    ensureGcloudInstalled: async () => {
+      gcloudInstallCalls += 1
+      return 'gcloud'
+    },
     describeFirestoreDatabase: async () => {
       actions.push('describe')
       throw new Error(
@@ -728,6 +788,7 @@ test('ensureFirebaseFirestoreReady creates the default Firestore database when i
   })
 
   assert.deepEqual(actions, ['describe', 'create:ebook-firebase:asia-northeast3'])
+  assert.equal(gcloudInstallCalls, 0)
 })
 
 test('formatFirebaseFunctionsDeployFailureMessage explains build service account IAM failures', () => {
@@ -735,7 +796,7 @@ test('formatFirebaseFunctionsDeployFailureMessage explains build service account
     projectId: 'miniapp-8000b',
     cwd: '/tmp/ebook/server',
     rawMessage:
-      'Firebase Functions 배포 단계가 실패했습니다. (yarn dlx firebase-tools deploy --only functions --config firebase.json --project miniapp-8000b)',
+      'Firebase Functions 배포 단계가 실패했습니다. (yarn dlx firebase-tools@15.11.0 deploy --only functions --config firebase.json --project miniapp-8000b)',
     debugLogContent: [
       '[error] Build failed with status: FAILURE. Could not build the function due to a missing permission on the build service account.',
       'If you did not revoke that permission explicitly, this could be caused by a change in the organization policies.',
@@ -777,7 +838,7 @@ test('formatFirebaseManualSetupNote includes frontend, backoffice, and server gu
   assert.match(note.body, /MINIAPP_FIREBASE_API_KEY=<Firebase Web API key>/)
   assert.match(note.body, /VITE_FIREBASE_APP_ID=<appId>/)
   assert.match(note.body, /## Firebase deploy auth/)
-  assert.match(note.body, /bunx firebase-tools login:ci/)
+  assert.match(note.body, /bunx firebase-tools@15\.11\.0 login:ci/)
   assert.match(note.body, /GOOGLE_APPLICATION_CREDENTIALS/)
   assert.match(note.body, /server\/README\.md/)
   assert.doesNotMatch(note.body, /Cloud Functions Developer/)
@@ -932,7 +993,7 @@ test('finalizeFirebaseProvisioning writes env files when sdk config is available
       /server\/\.env\.local 의 `FIREBASE_TOKEN`과 `GOOGLE_APPLICATION_CREDENTIALS`는 비어 있어요/,
     )
     assert.match(notes[0]?.body ?? '', /FIREBASE_TOKEN/)
-    assert.match(notes[0]?.body ?? '', /npx firebase-tools login:ci/)
+    assert.match(notes[0]?.body ?? '', /npx firebase-tools@15\.11\.0 login:ci/)
     assert.match(notes[0]?.body ?? '', /server\/README\.md/)
     assert.match(notes[0]?.body ?? '', /iam-admin\/serviceaccounts\?project=ebook-firebase/)
     assert.doesNotMatch(notes[0]?.body ?? '', /Cloud Functions Developer/)
@@ -981,7 +1042,7 @@ test('finalizeFirebaseProvisioning falls back to manual setup guidance when sdk 
     assert.match(serverEnv, /^FIREBASE_TOKEN=$/m)
     assert.match(serverEnv, /^GOOGLE_APPLICATION_CREDENTIALS=\/tmp\/firebase\.json$/m)
     assert.match(notes[0]?.body ?? '', /server\/\.env\.local 의 `FIREBASE_TOKEN`은 비어 있어요/)
-    assert.match(notes[0]?.body ?? '', /npx firebase-tools login:ci/)
+    assert.match(notes[0]?.body ?? '', /npx firebase-tools@15\.11\.0 login:ci/)
     assert.match(notes[0]?.body ?? '', /server\/README\.md/)
     assert.doesNotMatch(notes[0]?.body ?? '', /Cloud Functions Developer/)
     assert.doesNotMatch(notes[0]?.body ?? '', /iam-admin\/serviceaccounts\?project=ebook-firebase/)

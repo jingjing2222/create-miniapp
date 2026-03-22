@@ -2120,7 +2120,7 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.doesNotMatch(biomeJson, /\*\*\/server\/functions\/lib\/\*\*/)
   assert.equal(frontendProject.targets?.build.command, 'yarn workspace frontend build')
   assert.equal(frontendProject.targets?.typecheck.command, 'yarn workspace frontend typecheck')
-  assert.equal(serverPackageJson.scripts?.dev, 'yarn dlx supabase start --workdir .')
+  assert.equal(serverPackageJson.scripts?.dev, 'yarn dlx supabase@2.83.0 start --workdir .')
   assert.equal(serverPackageJson.scripts?.build, 'yarn typecheck')
   assert.equal(
     serverPackageJson.scripts?.typecheck,
@@ -2133,7 +2133,7 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   assert.equal(serverPackageJson.scripts?.['db:apply'], 'node ./scripts/supabase-db-apply.mjs')
   assert.equal(
     serverPackageJson.scripts?.['functions:serve'],
-    'yarn dlx supabase functions serve --env-file ./.env.local --workdir .',
+    'yarn dlx supabase@2.83.0 functions serve --env-file ./.env.local --workdir .',
   )
   assert.equal(
     serverPackageJson.scripts?.['functions:deploy'],
@@ -2141,14 +2141,14 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
   )
   assert.equal(
     serverPackageJson.scripts?.['db:apply:local'],
-    'yarn dlx supabase db push --local --workdir .',
+    'yarn dlx supabase@2.83.0 db push --local --workdir .',
   )
   assert.equal(
     serverPackageJson.scripts?.['db:reset'],
-    'yarn dlx supabase db reset --local --workdir .',
+    'yarn dlx supabase@2.83.0 db reset --local --workdir .',
   )
   assert.match(serverDbApplyScript, /SUPABASE_DB_PASSWORD/)
-  assert.match(serverDbApplyScript, /baseArgs = \["dlx","supabase","db","push"/)
+  assert.match(serverDbApplyScript, /baseArgs = \["dlx","supabase@2\.83\.0","db","push"/)
   assert.match(serverDbApplyScript, /yarn/)
   assert.doesNotMatch(serverDbApplyScript, /value: string/)
   assert.match(serverTypecheckScript, /os\.homedir\(\)/)
@@ -2182,7 +2182,10 @@ test('applyRootTemplates and workspace templates emit yarn-specific files and co
     denoInstallerSyntaxCheck.stderr || denoInstallerSyntaxCheck.stdout,
   )
   assert.match(serverFunctionsDeployScript, /SUPABASE_PROJECT_REF/)
-  assert.match(serverFunctionsDeployScript, /baseArgs = \["dlx","supabase","functions","deploy"/)
+  assert.match(
+    serverFunctionsDeployScript,
+    /baseArgs = \["dlx","supabase@2\.83\.0","functions","deploy"/,
+  )
   assert.match(serverFunctionsDeployScript, /--project-ref/)
   assert.match(serverFunctionsDeployScript, /yarn/)
   assert.doesNotMatch(serverFunctionsDeployScript, /value: string/)
@@ -2227,14 +2230,14 @@ test('applyRootTemplates emits npm-specific workspace manifest and scripts', asy
   assert.equal(await pathExists(path.join(targetRoot, 'pnpm-workspace.yaml')), false)
   assert.equal(npmrc, 'legacy-peer-deps=true\n')
   assert.equal(frontendProject.targets?.build.command, 'npm --workspace frontend run build')
-  assert.equal(serverPackageJson.scripts?.dev, 'npx supabase start --workdir .')
+  assert.equal(serverPackageJson.scripts?.dev, 'npx supabase@2.83.0 start --workdir .')
   assert.equal(
     serverPackageJson.scripts?.['functions:serve'],
-    'npx supabase functions serve --env-file ./.env.local --workdir .',
+    'npx supabase@2.83.0 functions serve --env-file ./.env.local --workdir .',
   )
   assert.equal(
     serverPackageJson.scripts?.['db:apply:local'],
-    'npx supabase db push --local --workdir .',
+    'npx supabase@2.83.0 db push --local --workdir .',
   )
   assert.equal(serverPackageJson.scripts?.build, 'npm run typecheck')
   assert.equal(
@@ -2292,14 +2295,14 @@ test('applyRootTemplates emits bun-specific workspace manifest and scripts', asy
   assert.equal(packageJson.packageManager, getTestPackageManagerField('bun'))
   assert.deepEqual(packageJson.workspaces, ['frontend', 'server'])
   assert.equal(frontendProject.targets?.build.command, 'bun run --cwd frontend build')
-  assert.equal(serverPackageJson.scripts?.dev, 'bunx supabase start --workdir .')
+  assert.equal(serverPackageJson.scripts?.dev, 'bunx supabase@2.83.0 start --workdir .')
   assert.equal(
     serverPackageJson.scripts?.['functions:serve'],
-    'bunx supabase functions serve --env-file ./.env.local --workdir .',
+    'bunx supabase@2.83.0 functions serve --env-file ./.env.local --workdir .',
   )
   assert.equal(
     serverPackageJson.scripts?.['db:apply:local'],
-    'bunx supabase db push --local --workdir .',
+    'bunx supabase@2.83.0 db push --local --workdir .',
   )
   assert.equal(serverPackageJson.scripts?.build, 'bun run typecheck')
   assert.equal(
@@ -2467,7 +2470,7 @@ test('applyFirebaseServerWorkspaceTemplate creates firebase server skeleton with
   assert.match(deployScript, /--only/)
   assert.match(deployScript, /FIREBASE_TOKEN/)
   assert.match(deployScript, /GOOGLE_APPLICATION_CREDENTIALS/)
-  assert.match(deployScript, /firebase-tools/)
+  assert.match(deployScript, /firebase-tools@15\.11\.0/)
   assert.match(ensureFirestoreScript, /google-auth-library/)
   assert.match(ensureFirestoreScript, /firestore\.googleapis\.com:enable/)
 })

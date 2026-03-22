@@ -107,7 +107,7 @@ test('buildSkillsInstallCommand uses the package manager dlx adapter and local r
   assert.equal(command.command, 'pnpm')
   assert.deepEqual(command.args, [
     'dlx',
-    'skills',
+    'skills@1.4.5',
     'add',
     path.resolve(import.meta.dirname, '../../..'),
     '--skill',

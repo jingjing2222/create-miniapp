@@ -1,6 +1,7 @@
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { CommandSpec } from './command-spec.js'
+import { SKILLS_CLI } from './external-tooling.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import type { ServerProvider } from './providers/index.js'
 import {
@@ -167,7 +168,7 @@ export async function buildSkillsInstallCommand(options: {
   return {
     cwd: options.targetRoot,
     ...adapter.dlx(
-      'skills',
+      SKILLS_CLI,
       createSkillsAddArgs({
         source,
         skillIds: options.skillIds,

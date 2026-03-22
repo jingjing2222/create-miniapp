@@ -5,6 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import JSON5 from 'json5'
 import type { CommandSpec } from '../../command-spec.js'
+import { FIREBASE_TOOLS_CLI } from '../../external-tooling.js'
 import {
   CommandExecutionError,
   runCommand,
@@ -147,7 +148,7 @@ export function buildFirebaseCommand(
 
   return {
     cwd,
-    ...adapter.dlx('firebase-tools', args),
+    ...adapter.dlx(FIREBASE_TOOLS_CLI, args),
     label,
   }
 }
@@ -165,6 +166,37 @@ export function buildFirebaseFunctionsDeployCommand(
     'firebase.json',
     '--project',
     projectId,
+  ])
+}
+
+export function buildFirebaseFirestoreDatabaseGetCommand(
+  packageManager: PackageManager,
+  cwd: string,
+  projectId: string,
+) {
+  return buildFirebaseCommand(packageManager, cwd, 'Cloud Firestore 기본 database 확인', [
+    'firestore:databases:get',
+    FIRESTORE_DEFAULT_DATABASE_ID,
+    '--project',
+    projectId,
+    '--json',
+  ])
+}
+
+export function buildFirebaseFirestoreDatabaseCreateCommand(
+  packageManager: PackageManager,
+  cwd: string,
+  projectId: string,
+  location: string,
+) {
+  return buildFirebaseCommand(packageManager, cwd, 'Cloud Firestore 기본 database 생성', [
+    'firestore:databases:create',
+    FIRESTORE_DEFAULT_DATABASE_ID,
+    '--project',
+    projectId,
+    '--location',
+    location,
+    '--json',
   ])
 }
 
@@ -910,55 +942,28 @@ async function enableGoogleCloudServices(
   })
 }
 
-async function describeGoogleCloudFirestoreDatabase(
+async function describeFirebaseFirestoreDatabase(
+  packageManager: PackageManager,
   cwd: string,
   projectId: string,
-  gcloudCommand: string,
 ) {
-  const output = await runCommandWithOutput({
-    cwd,
-    command: gcloudCommand,
-    args: [
-      'firestore',
-      'databases',
-      'describe',
-      '--project',
-      projectId,
-      '--database',
-      FIRESTORE_DEFAULT_DATABASE_ID,
-      '--format=json',
-    ],
-    label: 'Cloud Firestore 기본 database 확인',
-  })
+  const output = await runCommandWithOutput(
+    buildFirebaseFirestoreDatabaseGetCommand(packageManager, cwd, projectId),
+  )
 
   return parseGoogleCloudFirestoreDatabasePayload(output)
 }
 
-async function createGoogleCloudFirestoreDatabase(
+async function createFirebaseFirestoreDatabase(
+  packageManager: PackageManager,
   cwd: string,
   projectId: string,
   location: string,
-  gcloudCommand: string,
 ) {
   log.step('Cloud Firestore 기본 database 준비')
-  await runCommandWithOutput({
-    cwd,
-    command: gcloudCommand,
-    args: [
-      'firestore',
-      'databases',
-      'create',
-      '--project',
-      projectId,
-      '--database',
-      FIRESTORE_DEFAULT_DATABASE_ID,
-      '--location',
-      location,
-      '--type',
-      'firestore-native',
-    ],
-    label: 'Cloud Firestore 기본 database 생성',
-  })
+  await runCommandWithOutput(
+    buildFirebaseFirestoreDatabaseCreateCommand(packageManager, cwd, projectId, location),
+  )
 }
 
 async function addGoogleCloudProjectIamBinding(
@@ -1209,7 +1214,7 @@ export function formatFirebaseAddFirebaseFailureMessage(options: {
 }) {
   const debugLogPath = path.join(options.cwd, 'firebase-debug.log')
   const retryCommand = getPackageManagerAdapter(options.packageManager).dlxCommand(
-    'firebase-tools',
+    FIREBASE_TOOLS_CLI,
     ['projects:addfirebase', options.projectId],
   )
 
@@ -1348,6 +1353,7 @@ async function tryRecoverFirebaseProjectCreation(
 
 export async function ensureFirebaseFirestoreReady(options: {
   cwd: string
+  packageManager: PackageManager
   projectId: string
   databaseLocation: string
   ensureGcloudInstalled?: (cwd: string) => Promise<string>
@@ -1359,22 +1365,42 @@ export async function ensureFirebaseFirestoreReady(options: {
   enableGoogleCloudServices?: (cwd: string, projectId: string, services: string[]) => Promise<void>
   createFirestoreDatabase?: (cwd: string, projectId: string, location: string) => Promise<void>
 }) {
-  const gcloudCommand = await (options.ensureGcloudInstalled ?? ensureGcloudCliInstalled)(
-    options.cwd,
-  )
-  const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
   const describeFirestoreDatabase =
     options.describeFirestoreDatabase ??
     (async (cwd: string, projectId: string) =>
-      await describeGoogleCloudFirestoreDatabase(cwd, projectId, gcloudCommand))
+      await describeFirebaseFirestoreDatabase(options.packageManager, cwd, projectId))
+  const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
+  let gcloudCommand: string | null = null
+  const getGcloudCommand = async () => {
+    if (gcloudCommand) {
+      return gcloudCommand
+    }
+
+    gcloudCommand = await (options.ensureGcloudInstalled ?? ensureGcloudCliInstalled)(options.cwd)
+    return gcloudCommand
+  }
   const enableServices =
     options.enableGoogleCloudServices ??
     (async (cwd: string, projectId: string, services: string[]) =>
-      await enableGoogleCloudServices(cwd, projectId, services, gcloudCommand))
+      await enableGoogleCloudServices(cwd, projectId, services, await getGcloudCommand()))
   const createFirestoreDatabase =
     options.createFirestoreDatabase ??
     (async (cwd: string, projectId: string, location: string) =>
-      await createGoogleCloudFirestoreDatabase(cwd, projectId, location, gcloudCommand))
+      await createFirebaseFirestoreDatabase(options.packageManager, cwd, projectId, location))
+  const enableServicesWithRetry = async (services: string[]) => {
+    while (true) {
+      try {
+        await enableServices(options.cwd, options.projectId, services)
+        return
+      } catch (error) {
+        if (!isGoogleCloudAuthRefreshError(error)) {
+          throw error
+        }
+
+        await ensureAuth(options.cwd, await getGcloudCommand())
+      }
+    }
+  }
 
   while (true) {
     let shouldCreateDatabase = false
@@ -1384,12 +1410,7 @@ export async function ensureFirebaseFirestoreReady(options: {
       return
     } catch (error) {
       if (isGoogleCloudServiceDisabledError(error, FIRESTORE_API_SERVICE)) {
-        await enableServices(options.cwd, options.projectId, [FIRESTORE_API_SERVICE])
-        continue
-      }
-
-      if (isGoogleCloudAuthRefreshError(error)) {
-        await ensureAuth(options.cwd, gcloudCommand)
+        await enableServicesWithRetry([FIRESTORE_API_SERVICE])
         continue
       }
 
@@ -1409,12 +1430,7 @@ export async function ensureFirebaseFirestoreReady(options: {
       return
     } catch (error) {
       if (isGoogleCloudServiceDisabledError(error, FIRESTORE_API_SERVICE)) {
-        await enableServices(options.cwd, options.projectId, [FIRESTORE_API_SERVICE])
-        continue
-      }
-
-      if (isGoogleCloudAuthRefreshError(error)) {
-        await ensureAuth(options.cwd, gcloudCommand)
+        await enableServicesWithRetry([FIRESTORE_API_SERVICE])
         continue
       }
 
@@ -1792,7 +1808,7 @@ function createFirebaseDeployAuthLines(options: {
   }
 
   const loginCommand = getPackageManagerAdapter(options.packageManager).dlxCommand(
-    'firebase-tools',
+    FIREBASE_TOOLS_CLI,
     ['login:ci'],
   )
   const summary =
@@ -2009,6 +2025,7 @@ export async function provisionFirebaseProject(
   if (didInitializeRemoteContent) {
     await ensureFirebaseFirestoreReady({
       cwd: options.targetRoot,
+      packageManager: options.packageManager,
       projectId: selectedProjectId,
       databaseLocation: functionRegion,
     })
