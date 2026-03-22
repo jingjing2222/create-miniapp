@@ -5,7 +5,7 @@ import {
   SKILLS_LIST_COMMAND,
   SKILLS_UPDATE_COMMAND,
 } from './skills-contract.js'
-import { CORE_SKILL_DEFINITIONS } from './templates/skill-catalog.js'
+import { CORE_SKILL_DEFINITIONS, SKILL_CATALOG } from './templates/skill-catalog.js'
 import dedent from './dedent.js'
 
 export const ROOT_README_SKILLS_SECTION_START_MARKER = '<!-- generated:skills-strategy:start -->'
@@ -41,11 +41,19 @@ export function renderSkillsStandardCommandSummary() {
   return `설치 뒤에는 \`${SKILLS_LIST_COMMAND}\`, \`${SKILLS_CHECK_COMMAND}\`, \`${SKILLS_UPDATE_COMMAND}\`만 기억하면 돼요.`
 }
 
+export function renderRootReadmeSkillCatalogLines() {
+  return SKILL_CATALOG.map((skill) => `- \`${skill.id}\`: ${skill.agentsLabel}`)
+}
+
 export function renderRootReadmeSkillsSection() {
   const exampleSkillIds = CORE_SKILL_DEFINITIONS.map((skill) => skill.id)
 
   return dedent`
     ${(GENERATOR_REPO_SKILLS_STRATEGY_README_LINES).join('\n')}
+
+    바로 설치할 수 있는 skill id와 용도는 이래요.
+
+    ${(renderRootReadmeSkillCatalogLines()).join('\n')}
     
     예를 들어 필요한 skill 하나를 바로 넣고 싶다면 이렇게 하면 돼요.
     

@@ -15,6 +15,7 @@ import {
   ROOT_README_PROVIDER_SECTION_START_MARKER,
   ROOT_README_SKILLS_SECTION_END_MARKER,
   ROOT_README_SKILLS_SECTION_START_MARKER,
+  renderRootReadmeSkillCatalogLines,
   renderSkillsInstallExample,
   renderSkillsStandardCommandSummary,
   renderRootReadmeProviderSection,
@@ -1043,6 +1044,7 @@ test('README treats generated skills as a first-class scaffold output and avoids
     readmeSource,
     /이 저장소의 `skills\/`에는 MiniApp 작업에 맞춘 skill source가 들어 있고, 생성된 repo `README\.md`가 추천 목록을 자동으로 보여줘요\./,
   )
+  assert.match(readmeSource, /바로 설치할 수 있는 skill id와 용도는 이래요\./)
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCommandSummary)))
   assert.doesNotMatch(readmeSource, /지금 설치할 수 있는 skill id는 이거예요\./)
@@ -1138,10 +1140,11 @@ test('README lists scaffolded skills in user-facing groups without leaking maint
   assert.match(agentsSource, /skill-catalog\.ts/)
   assert.match(agentsSource, /Skill source: `skills`/)
   assert.match(readmeSource, /생성된 repo `README\.md`가 추천 목록을 자동으로 보여줘요\./)
+  assert.match(readmeSource, /바로 설치할 수 있는 skill id와 용도는 이래요\./)
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
-  assert.doesNotMatch(readmeSource, /backoffice-react/)
-  assert.doesNotMatch(readmeSource, /cloudflare-worker/)
-  assert.doesNotMatch(readmeSource, /trpc-boundary/)
+  for (const skillLine of renderRootReadmeSkillCatalogLines()) {
+    assert.match(readmeSource, new RegExp(escapeRegExp(skillLine)))
+  }
   assert.doesNotMatch(readmeSource, /^- core:/m)
   assert.doesNotMatch(readmeSource, /^- optional:/m)
   assert.doesNotMatch(readmeSource, /skill-catalog\.ts/)

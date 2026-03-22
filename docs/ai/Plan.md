@@ -1,3 +1,16 @@
+## 다음 작업: README skills 섹션에 skill id와 용도 목록 노출
+
+### 목표
+- 루트 README `skills 전략` 섹션에서 설치 가능한 skill id와 용도를 불렛으로 바로 볼 수 있게 만든다.
+- README managed block의 source of truth인 shared renderer와 회귀 테스트를 함께 바꿔 문서 sync drift를 막는다.
+- `pnpm verify`를 확인한 뒤 `main`에 단일 목적 커밋으로 push한다.
+
+### 작업 순서
+1. root README skills managed block과 skill catalog가 현재 어떤 목록을 소유하는지 다시 확인한다.
+2. shared README renderer가 skill id와 용도 불렛 목록을 렌더하게 바꾸고, 루트 README를 sync한다.
+3. 관련 README 테스트 기대값을 새 계약에 맞게 갱신하고 `pnpm verify`로 확인한다.
+4. 변경을 단일 목적 커밋으로 정리하고 `origin/main`에 push한다.
+
 ## 다음 작업: README 상단에 서버 인프라 SaaS 자동 설치/연동 가치 전면 배치
 
 ### 목표
