@@ -1,11 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { hasInstalledProjectSkills, renderSkillsAddCommand } from '../skills-install.js'
+import { renderSkillsAddCommand } from '../skills-install.js'
 import {
   SKILLS_CHECK_COMMAND,
   SKILLS_LIST_COMMAND,
   SKILLS_UPDATE_COMMAND,
-  renderInstalledProjectSkillsGuidanceLines,
 } from '../skills-contract.js'
 import {
   resolveTemplatesPackageRoot,
@@ -53,10 +52,6 @@ function renderAgentsWorkspaceModelSection(options: GeneratedWorkspaceOptions) {
     ...resolveEnabledWorkspaceFeatures(options).flatMap((feature) => feature.agentsLines ?? []),
     '`docs`: 계약, 정책, 제품, 상태 문서',
   ])
-}
-
-function renderAgentsInstalledSkillsSection() {
-  return renderBulletList(renderInstalledProjectSkillsGuidanceLines())
 }
 
 function renderTopologyRootSection(options: GeneratedWorkspaceOptions) {
@@ -123,7 +118,7 @@ function resolveEngineeringDocuments() {
 }
 
 async function renderAgentsMarkdown(
-  targetRoot: string,
+  _targetRoot: string,
   _tokens: TemplateTokens,
   options: GeneratedWorkspaceOptions,
 ) {
@@ -140,7 +135,6 @@ async function renderAgentsMarkdown(
   const frontendPolicyPath = formatDocumentPath(
     getDocumentDefinition('docs/engineering/frontend-policy.md').relativePath,
   )
-  const hasProjectLocalSkills = await hasInstalledProjectSkills(targetRoot)
 
   return [
     '# AGENTS.md',
@@ -154,9 +148,6 @@ async function renderAgentsMarkdown(
     ...startHereLines,
     '',
     renderSection('Workspace Model', renderAgentsWorkspaceModelSection(options)),
-    ...(hasProjectLocalSkills
-      ? ['', renderSection('Installed Local Skills', renderAgentsInstalledSkillsSection())]
-      : []),
     '',
     '## Done',
     `- 세부 완료 기준은 ${repoContractPath}를 따른다.`,

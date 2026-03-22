@@ -234,6 +234,19 @@ test('add scaffold flow does not re-derive manifest topology from filesystem pro
   )
 })
 
+test('skill auto-install captures raw copy logs and reports installed skill summary instead', async () => {
+  const scaffoldSource = await readFile(
+    fileURLToPath(new URL('./index.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(scaffoldSource, /runCommandWithOutput\(installCommand\)/)
+  assert.match(scaffoldSource, /listInstalledProjectSkills\(options\.targetRoot\)/)
+  assert.match(scaffoldSource, /renderInstalledSkillsSummary\(/)
+  assert.doesNotMatch(scaffoldSource, /runCommand\(installCommand\)/)
+  assert.doesNotMatch(scaffoldSource, /options\.selectedSkills\.join\('\\n- '\)/)
+})
+
 test('buildRootFinalizePlan adds yarn sdk generation after root install', () => {
   const targetRoot = path.join('/tmp', 'ebook')
   const plan = buildRootFinalizePlan({

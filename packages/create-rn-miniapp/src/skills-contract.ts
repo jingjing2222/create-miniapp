@@ -16,6 +16,10 @@ export function createProjectSkillDocPath(skillId: string) {
   return `${PROJECT_SKILLS_CANONICAL_DIR}/${skillId}/SKILL.md`
 }
 
+export function createProjectSkillDirectoryPath(skillId: string) {
+  return `${PROJECT_SKILLS_CANONICAL_DIR}/${skillId}`
+}
+
 export function createProjectSkillGeneratedPath(skillId: string, relativePath: string) {
   return `${PROJECT_SKILLS_CANONICAL_DIR}/${skillId}/${relativePath}`
 }
@@ -32,13 +36,6 @@ export function createSkillsAddArgs(options: {
     ...options.skillIds.flatMap((skillId) => ['--skill', skillId]),
     ...(options.copy === false ? [] : ['--copy']),
     ...(options.yes === true ? ['-y'] : []),
-  ]
-}
-
-export function renderInstalledProjectSkillsGuidanceLines() {
-  return [
-    `설치된 project-local skills가 있으면 \`${PROJECT_SKILLS_CANONICAL_DIR}/*\`를 canonical source로 사용한다.`,
-    `Claude 계열 에이전트는 \`${PROJECT_SKILLS_MIRROR_DIR}/*\` mirror를 supplemental context로 사용한다.`,
   ]
 }
 

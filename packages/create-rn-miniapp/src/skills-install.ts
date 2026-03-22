@@ -4,8 +4,10 @@ import type { CommandSpec } from './command-spec.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import type { ServerProvider } from './providers/index.js'
 import {
+  createProjectSkillDirectoryPath,
   createSkillsAddArgs,
   PROJECT_SKILLS_DIR_CANDIDATES,
+  SKILLS_LIST_COMMAND,
   SKILLS_SOURCE_REPO,
 } from './skills-contract.js'
 import { resolveRecommendedSkillDefinitions } from './templates/feature-catalog.js'
@@ -101,6 +103,18 @@ export function renderSkillsAddCommand(skillIds: string[]) {
   ]
 
   return baseArgs.join(' ')
+}
+
+export function renderInstalledSkillsSummary(skillIds: string[]) {
+  const normalizedSkillIds = [...new Set(skillIds)].sort((left, right) => left.localeCompare(right))
+
+  return [
+    'project-local skills를 설치했어요.',
+    ...normalizedSkillIds.map(
+      (skillId) => `- ${skillId}: \`${createProjectSkillDirectoryPath(skillId)}\``,
+    ),
+    `필요하면 \`${SKILLS_LIST_COMMAND}\`로 다시 확인해 주세요.`,
+  ].join('\n')
 }
 
 async function resolveSkillsSource() {

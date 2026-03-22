@@ -1,7 +1,12 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
-import { buildAddCommandPhases, buildCreateCommandPhases, runCommand } from '../commands.js'
+import {
+  buildAddCommandPhases,
+  buildCreateCommandPhases,
+  runCommand,
+  runCommandWithOutput,
+} from '../commands.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import { patchBackofficeWorkspace } from '../patching/backoffice.js'
 import { patchFrontendWorkspace } from '../patching/frontend.js'
@@ -9,7 +14,12 @@ import { writeServerScaffoldState } from '../patching/server.js'
 import { ensureEmptyDirectory, pathExists } from '../templates/filesystem.js'
 import { applyRootTemplates, syncRootWorkspaceManifest } from '../templates/root.js'
 import { applyDocsTemplates } from '../templates/docs.js'
-import { buildSkillsInstallCommand, renderSkillsAddCommand } from '../skills-install.js'
+import {
+  buildSkillsInstallCommand,
+  listInstalledProjectSkills,
+  renderInstalledSkillsSummary,
+  renderSkillsAddCommand,
+} from '../skills-install.js'
 import type {
   ProvisioningNote,
   ServerProjectMode,
@@ -138,14 +148,17 @@ async function maybeInstallSelectedSkills(options: {
 
   try {
     log.step(installCommand.label)
-    await runCommand(installCommand)
+    await runCommandWithOutput(installCommand)
+    const installedSkillIds = await listInstalledProjectSkills(options.targetRoot)
 
     return {
       didInstall: true,
       notes: [
         {
           title: 'Agent skills',
-          body: `project-local skills를 설치했어요.\n- ${options.selectedSkills.join('\n- ')}`,
+          body: renderInstalledSkillsSummary(
+            installedSkillIds.length > 0 ? installedSkillIds : options.selectedSkills,
+          ),
         },
       ] satisfies ProvisioningNote[],
     }

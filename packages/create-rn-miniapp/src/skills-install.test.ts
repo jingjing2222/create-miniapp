@@ -8,6 +8,7 @@ import {
   hasInstalledProjectSkills,
   listInstalledProjectSkills,
   normalizeSelectedSkillIds,
+  renderInstalledSkillsSummary,
   renderSkillsAddCommand,
   resolveRecommendedSkillIds,
 } from './skills-install.js'
@@ -41,6 +42,18 @@ test('renderSkillsAddCommand produces the standard npx skills command', () => {
   assert.equal(
     renderSkillsAddCommand(['miniapp-capabilities', 'granite-routing', 'tds-ui']),
     'npx skills add jingjing2222/create-rn-miniapp --skill miniapp-capabilities --skill granite-routing --skill tds-ui --copy',
+  )
+})
+
+test('renderInstalledSkillsSummary renders a concise project-local skills note', () => {
+  assert.equal(
+    renderInstalledSkillsSummary(['tds-ui', 'miniapp-capabilities']),
+    [
+      'project-local skills를 설치했어요.',
+      '- miniapp-capabilities: `.agents/skills/miniapp-capabilities`',
+      '- tds-ui: `.agents/skills/tds-ui`',
+      '필요하면 `npx skills list`로 다시 확인해 주세요.',
+    ].join('\n'),
   )
 })
 

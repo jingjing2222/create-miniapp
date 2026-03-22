@@ -35,6 +35,18 @@
 3. `skills-install`, `skill-catalog`, `trpc-workspace-metadata`, skill reference 문서를 단일 source 기준으로 정리한다.
 4. targeted test와 `pnpm verify`를 다시 통과시키고 커밋한다.
 
+## 다음 작업: skill 자동 설치 출력 UX 정리
+
+### 목표
+- scaffold 중 skill 자동 설치는 유지하되, `skills add`의 장황한 raw copy 로그는 그대로 노출하지 않는다.
+- 설치가 끝나면 실제 설치된 project-local skill 기준으로 `skills list` 스타일의 짧은 요약만 note로 보여준다.
+- workspace-local 설치가 의도된 동작이라는 점이 출력에서도 더 명확히 드러나게 만든다.
+
+### 작업 순서
+1. `scaffold/index.test.ts`와 `skills-install.test.ts`에 red test를 추가한다.
+2. `maybeInstallSelectedSkills()`가 install command를 capture mode로 실행하고, 설치 후 실제 installed skill 목록을 읽어 summary note를 만들게 수정한다.
+3. targeted test 후 `pnpm verify`를 다시 통과시키고 커밋한다.
+
 ## 다음 작업: Optional Skills README Onboarding
 
 ### 목표
@@ -3376,3 +3388,13 @@ docs/
 - optional skills 전환 이후에도 skill/source/topology/docs가 single source of truth로 유지되는지 점검한다.
 - 한 군데를 바꾸면 나머지가 파생돼야 하는데 중복 수정이 필요한 지점을 식별한다.
 - 구현보다는 감사와 후속 정리 계획 수립이 목적이다.
+
+## 다음 작업: AGENTS local skill 섹션 제거
+
+### 목표
+- generated `AGENTS.md`에서 `Installed Local Skills` 섹션을 제거한다.
+- project-local skill 경로와 mirror 설명은 `AGENTS.md`가 아니라 표준 auto-discovery와 README/onboarding에 맡긴다.
+- 제거 후 불필요해지는 helper, 조건 분기, 회귀 테스트를 같이 정리한다.
+- 완료 기준
+  - 관련 회귀 테스트 갱신
+  - `pnpm verify` 통과

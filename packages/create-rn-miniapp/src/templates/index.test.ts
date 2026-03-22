@@ -1735,7 +1735,7 @@ test('applyDocsTemplates keeps backoffice-only workspaces free of server-only to
   assert.doesNotMatch(readme, /cloudflare-worker/)
 })
 
-test('applyDocsTemplates includes local skill routing only when project-local skills are already installed', async (t) => {
+test('applyDocsTemplates keeps AGENTS free of local skill routing even when project-local skills are installed', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
@@ -1756,9 +1756,9 @@ test('applyDocsTemplates includes local skill routing only when project-local sk
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
 
-  assert.match(agents, /Installed Local Skills/)
-  assert.match(agents, /\.agents\/skills\/\*/)
-  assert.match(agents, /\.claude\/skills\/\*/)
+  assert.doesNotMatch(agents, /Installed Local Skills/)
+  assert.doesNotMatch(agents, /\.agents\/skills\/\*/)
+  assert.doesNotMatch(agents, /\.claude\/skills\/\*/)
 })
 
 test('applyDocsTemplates rerenders README recommendations when optional workspaces are added later', async (t) => {
