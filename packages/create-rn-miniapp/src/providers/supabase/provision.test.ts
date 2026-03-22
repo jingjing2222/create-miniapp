@@ -60,19 +60,19 @@ test('formatSupabaseManualSetupNote includes frontend and backoffice env guidanc
   assert.match(note.body, /dashboard\/project\/abc123\/database\/settings/)
 })
 
-test('extractJsonPayload strips package-manager log lines around JSON output', () => {
-  const payload = extractJsonPayload<{ project: string[] }>({
-    stdout: [
-      'You are now logged in. Happy coding!',
-      '➤ YN0000: Downloading supabase',
-      '{"project":["one","two"]}',
-    ].join('\n'),
-    stderr: '',
-  })
-
-  assert.deepEqual(payload, {
-    project: ['one', 'two'],
-  })
+test('extractJsonPayload rejects mixed stdout instead of scraping a nested JSON block', () => {
+  assert.throws(
+    () =>
+      extractJsonPayload<{ project: string[] }>({
+        stdout: [
+          'You are now logged in. Happy coding!',
+          '➤ YN0000: Downloading supabase',
+          '{"project":["one","two"]}',
+        ].join('\n'),
+        stderr: '',
+      }),
+    /JSON 결과를 해석하지 못했습니다/,
+  )
 })
 
 test('extractJsonPayload strips OSC hyperlink control sequences around JSON output', () => {

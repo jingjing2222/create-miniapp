@@ -1,3 +1,15 @@
+## 다음 작업: parser/spec hardening 잔여 이슈 마감
+
+### 목표
+- Supabase/Firebase/Cloudflare provider 코드에서 남아 있는 output scraping과 command drift를 더 줄인다.
+- generated server script의 env loader 렌더를 shared helper 한 곳에서만 소유하게 만든다.
+- red test로 잔여 이슈를 먼저 고정한 뒤 구현, `pnpm verify`, 커밋, 푸시, PR까지 마친다.
+
+### 작업 순서
+1. Supabase mixed stdout, Firebase retry command, Cloud Build service account parse, shared env loader를 red test로 먼저 고정한다.
+2. parser/command/env loader 구현을 structured output과 shared helper 기준으로 정리한다.
+3. `pnpm verify`를 다시 통과시키고 단일 목적 커밋 후 브랜치 푸시와 PR 생성까지 마친다.
+
 ## 다음 작업: de-facto cleanup 브랜치에 main 최신 반영 후 충돌 정리
 
 ### 목표

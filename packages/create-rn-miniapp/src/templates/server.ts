@@ -1,5 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  renderProcessEnvLoaderScriptLines,
+  renderTypedEnvReaderScriptLines,
+} from '../env-loader-script.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
   createFirebaseServerScriptCatalog,
@@ -32,38 +36,6 @@ const FIREBASE_FUNCTIONS_TYPESCRIPT_VERSION = '^5.7.3'
 
 type WorkspaceProjectJson = {
   targets?: Record<string, { command?: string }>
-}
-
-function renderProcessEnvLoaderScriptLines() {
-  return [
-    "import { parseEnv } from 'node:util'",
-    '',
-    'function loadLocalEnv(filePath) {',
-    '  if (!existsSync(filePath)) {',
-    '    return',
-    '  }',
-    '',
-    "  const env = parseEnv(readFileSync(filePath, 'utf8'))",
-    '',
-    '  for (const [key, value] of Object.entries(env)) {',
-    '    if (process.env[key] === undefined) {',
-    '      process.env[key] = value',
-    '    }',
-    '  }',
-    '}',
-    '',
-  ]
-}
-
-function renderTypedEnvReaderScriptLines() {
-  return [
-    "import { parseEnv } from 'node:util'",
-    '',
-    'function loadLocalEnv(filePath: string): Record<string, string> {',
-    "  return parseEnv(readFileSync(filePath, 'utf8'))",
-    '}',
-    '',
-  ]
 }
 
 function renderSupabaseDbApplyScript(tokens: TemplateTokens) {

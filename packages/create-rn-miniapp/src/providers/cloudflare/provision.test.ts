@@ -15,6 +15,7 @@ import {
   getWranglerConfigCandidates,
   isCloudflareAuthenticationErrorMessage,
   isCloudflareR2DisabledErrorMessage,
+  parseWranglerAuthTokenOutput,
   parseWranglerAuthSource,
   writeCloudflareServerLocalEnvFile,
   writeCloudflareLocalEnvFiles,
@@ -57,6 +58,19 @@ test('parseWranglerAuthSource reads quoted values from TOML without regex scrapi
     {
       oauthToken: 'token-value',
       expirationTime: '2026-03-22T00:00:00.000Z',
+    },
+  )
+})
+
+test('parseWranglerAuthTokenOutput prefers structured wrangler auth token output over config scraping', () => {
+  assert.deepEqual(
+    parseWranglerAuthTokenOutput({
+      stdout: '{"type":"oauth","token":"token-value"}',
+      stderr: '',
+    }),
+    {
+      oauthToken: 'token-value',
+      expirationTime: null,
     },
   )
 })

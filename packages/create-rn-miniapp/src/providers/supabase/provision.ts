@@ -41,6 +41,10 @@ const CREATE_SUPABASE_PROJECT_SENTINEL = '__create_supabase_project__'
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
 const ANSI_ESCAPE = String.fromCharCode(0x1b)
 const ANSI_BEL = String.fromCharCode(0x07)
+const OSC_HYPERLINK_PATTERN = new RegExp(
+  `${ANSI_ESCAPE}\\]8;;[\\s\\S]*?(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)[\\s\\S]*?${ANSI_ESCAPE}\\]8;;(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)`,
+  'g',
+)
 const OSC_SEQUENCE_PATTERN = new RegExp(
   `${ANSI_ESCAPE}\\][\\s\\S]*?(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)`,
   'g',
@@ -163,74 +167,11 @@ export function extractJsonPayload<T>(output: Pick<CommandOutput, 'stdout' | 'st
     } catch {}
   }
 
-  const structuredPayload = extractBalancedJsonPayload(fullStdout)
-  if (structuredPayload) {
-    try {
-      return JSON.parse(structuredPayload) as T
-    } catch {}
-  }
-
   throw new Error('JSON 결과를 해석하지 못했습니다.')
 }
 
 function stripCliStructuredOutput(source: string) {
-  return source.replace(OSC_SEQUENCE_PATTERN, '')
-}
-
-function extractBalancedJsonPayload(source: string) {
-  const startIndex = source.search(/[[{]/)
-
-  if (startIndex < 0) {
-    return null
-  }
-
-  const opening = source[startIndex]
-  const closing = opening === '{' ? '}' : ']'
-  let depth = 0
-  let inString = false
-  let escaping = false
-
-  for (let index = startIndex; index < source.length; index += 1) {
-    const char = source[index]
-
-    if (inString) {
-      if (escaping) {
-        escaping = false
-        continue
-      }
-
-      if (char === '\\') {
-        escaping = true
-        continue
-      }
-
-      if (char === '"') {
-        inString = false
-      }
-
-      continue
-    }
-
-    if (char === '"') {
-      inString = true
-      continue
-    }
-
-    if (char === opening) {
-      depth += 1
-      continue
-    }
-
-    if (char === closing) {
-      depth -= 1
-
-      if (depth === 0) {
-        return source.slice(startIndex, index + 1)
-      }
-    }
-  }
-
-  return null
+  return source.replace(OSC_HYPERLINK_PATTERN, '').replace(OSC_SEQUENCE_PATTERN, '')
 }
 
 export function resolveSupabaseClientApiKey(apiKeys: SupabaseApiKey[]) {

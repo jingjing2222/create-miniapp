@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { minVersion } from 'semver'
+import { renderProcessEnvLoaderScriptLines } from '../env-loader-script.js'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
   getProviderClientContract,
@@ -370,25 +371,11 @@ function renderCloudflareDeployScript(tokens: TemplateTokens) {
     "import { existsSync, readFileSync } from 'node:fs'",
     "import path from 'node:path'",
     "import process from 'node:process'",
-    "import { parseEnv } from 'node:util'",
     "import { fileURLToPath } from 'node:url'",
+    ...renderProcessEnvLoaderScriptLines(),
     '',
     "const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')",
     "const envPath = path.join(serverRoot, '.env.local')",
-    '',
-    'function loadLocalEnv(filePath) {',
-    '  if (!existsSync(filePath)) {',
-    '    return',
-    '  }',
-    '',
-    "  const env = parseEnv(readFileSync(filePath, 'utf8'))",
-    '',
-    '  for (const [key, value] of Object.entries(env)) {',
-    '    if (process.env[key] === undefined) {',
-    '      process.env[key] = value',
-    '    }',
-    '  }',
-    '}',
     '',
     'loadLocalEnv(envPath)',
     '',

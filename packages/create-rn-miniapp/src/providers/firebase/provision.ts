@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import JSON5 from 'json5'
 import type { CommandSpec } from '../../command-spec.js'
@@ -795,17 +796,25 @@ async function describeGoogleCloudProjectBillingInfo(
   return parseGoogleCloudBillingInfoPayload(output)
 }
 
-function parseGoogleCloudDefaultBuildServiceAccount(
+export function parseGoogleCloudDefaultBuildServiceAccountOutput(
   output: Pick<CommandOutput, 'stdout' | 'stderr'>,
 ) {
-  const combined = `${output.stdout}\n${output.stderr}`
-  const emailMatch = combined.match(/[A-Za-z0-9-]+@[A-Za-z0-9.-]+/)
+  const lines = stripVTControlCharacters(output.stdout)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
 
-  if (!emailMatch) {
+  if (lines.length !== 1) {
     throw new Error('Cloud Build 기본 service account를 해석하지 못했습니다.')
   }
 
-  return emailMatch[0]
+  const email = lines[0]
+
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) {
+    throw new Error('Cloud Build 기본 service account를 해석하지 못했습니다.')
+  }
+
+  return email
 }
 
 async function getGoogleCloudProjectIamPolicy(
@@ -831,11 +840,17 @@ async function getGoogleCloudDefaultBuildServiceAccount(
   const output = await runCommandWithOutput({
     cwd,
     command: gcloudCommand,
-    args: ['builds', 'get-default-service-account', '--project', projectId],
+    args: [
+      'builds',
+      'get-default-service-account',
+      '--project',
+      projectId,
+      '--format=value(serviceAccountEmail)',
+    ],
     label: 'Cloud Build 기본 service account 확인',
   })
 
-  return parseGoogleCloudDefaultBuildServiceAccount(output)
+  return parseGoogleCloudDefaultBuildServiceAccountOutput(output)
 }
 
 async function ensureGoogleCloudServiceAccountExists(
@@ -1188,10 +1203,15 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
 export function formatFirebaseAddFirebaseFailureMessage(options: {
   projectId: string
   cwd: string
+  packageManager: PackageManager
   rawMessage: string
   debugLogContent?: string
 }) {
   const debugLogPath = path.join(options.cwd, 'firebase-debug.log')
+  const retryCommand = getPackageManagerAdapter(options.packageManager).dlxCommand(
+    'firebase-tools',
+    ['projects:addfirebase', options.projectId],
+  )
 
   if (
     options.debugLogContent &&
@@ -1206,7 +1226,7 @@ export function formatFirebaseAddFirebaseFailureMessage(options: {
       '이렇게 확인해 주세요',
       '- https://console.firebase.google.com/ 에 로그인해서 Firebase Terms of Service를 먼저 수락해 주세요.',
       `- 프로젝트 \`${options.projectId}\` 의 IAM에서 지금 계정에 Owner 또는 Editor 권한이 있는지 확인해 주세요.`,
-      `- 권한 정리 뒤에 \`yarn dlx firebase-tools projects:addfirebase ${options.projectId}\` 로 다시 시도해 주세요.`,
+      `- 권한 정리 뒤에 \`${retryCommand}\` 로 다시 시도해 주세요.`,
       `- 자세한 원본 로그: ${debugLogPath}`,
       `- 참고 문서: ${FIREBASE_EXISTING_GCP_PROJECTS_DOC_URL}`,
     ].join('\n')
@@ -1299,6 +1319,7 @@ async function addFirebaseToExistingGoogleCloudProject(
       formatFirebaseAddFirebaseFailureMessage({
         projectId,
         cwd,
+        packageManager,
         rawMessage,
         debugLogContent: debugLog?.content,
       }),

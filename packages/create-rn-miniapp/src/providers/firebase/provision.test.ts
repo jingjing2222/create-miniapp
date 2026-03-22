@@ -22,6 +22,7 @@ import {
   isFirebaseFunctionsBuildServiceAccountPermissionError,
   isFirebaseProjectIdConflictError,
   isGoogleCloudServiceDisabledError,
+  parseGoogleCloudDefaultBuildServiceAccountOutput,
   parseFirebaseWebSdkConfigSource,
   resolveGoogleCloudCliArchiveSpec,
   shouldInitializeFirebaseRemoteContent,
@@ -128,6 +129,25 @@ test('parseFirebaseWebSdkConfigSource parses JSON5-style Firebase WEB sdk config
   )
 })
 
+test('parseGoogleCloudDefaultBuildServiceAccountOutput reads a single stdout email and ignores stderr noise', () => {
+  assert.equal(
+    parseGoogleCloudDefaultBuildServiceAccountOutput({
+      stdout: '563134134914@cloudbuild.gserviceaccount.com\n',
+      stderr: 'warning: ignored extra logs',
+    }),
+    '563134134914@cloudbuild.gserviceaccount.com',
+  )
+
+  assert.throws(
+    () =>
+      parseGoogleCloudDefaultBuildServiceAccountOutput({
+        stdout: '',
+        stderr: '563134134914@cloudbuild.gserviceaccount.com',
+      }),
+    /Cloud Build 기본 service account를 해석하지 못했습니다/,
+  )
+})
+
 test('isFirebaseProjectIdConflictError detects duplicate Firebase project ID failures', () => {
   assert.equal(
     isFirebaseProjectIdConflictError(
@@ -190,6 +210,7 @@ test('formatFirebaseAddFirebaseFailureMessage explains permission-denied failure
   const message = formatFirebaseAddFirebaseFailureMessage({
     projectId: 'test-test-jingjing-app',
     cwd: '/tmp/ebook',
+    packageManager: 'npm',
     rawMessage: 'Error: Failed to add Firebase to Google Cloud Platform project.',
     debugLogContent: [
       '[debug] POST https://firebase.googleapis.com/v1beta1/projects/test-test-jingjing-app:addFirebase 403',
@@ -202,7 +223,8 @@ test('formatFirebaseAddFirebaseFailureMessage explains permission-denied failure
   assert.match(message, /Firebase Terms of Service/)
   assert.match(message, /Owner 또는 Editor/)
   assert.match(message, /firebase-debug\.log/)
-  assert.match(message, /projects:addfirebase test-test-jingjing-app/)
+  assert.match(message, /npx firebase-tools projects:addfirebase test-test-jingjing-app/)
+  assert.doesNotMatch(message, /yarn dlx/)
 })
 
 test('isFirebaseBillingEnabled reflects gcloud billingEnabled state', () => {

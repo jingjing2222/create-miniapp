@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import Cloudflare from 'cloudflare'
 import envPaths from 'env-paths'
@@ -12,7 +13,7 @@ import {
   createCloudflareVitestWranglerConfigSource,
   patchWranglerConfigSource,
 } from '../../patching/jsonc.js'
-import { runCommand, runCommandWithOutput } from '../../commands.js'
+import { runCommand, runCommandWithOutput, type CommandOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
@@ -193,6 +194,28 @@ export function parseWranglerAuthSource(source: string): WranglerAuth | null {
   }
 }
 
+export function parseWranglerAuthTokenOutput(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
+  const source = stripVTControlCharacters(output.stdout).trim()
+
+  if (!source) {
+    return null
+  }
+
+  const payload = JSON.parse(source) as {
+    token?: unknown
+    expiration_time?: unknown
+  }
+
+  if (typeof payload.token !== 'string' || payload.token.length === 0) {
+    return null
+  }
+
+  return {
+    oauthToken: payload.token,
+    expirationTime: typeof payload.expiration_time === 'string' ? payload.expiration_time : null,
+  } satisfies WranglerAuth
+}
+
 export function getWranglerConfigCandidates(options?: {
   homeDir?: string
   xdgConfigHome?: string
@@ -225,7 +248,24 @@ export function getWranglerConfigCandidates(options?: {
   return [...new Set(runtimeCandidates)]
 }
 
-async function readWranglerAuthToken() {
+async function readWranglerAuthToken(packageManager?: PackageManager, cwd?: string) {
+  if (packageManager && cwd) {
+    try {
+      const output = await runCommandWithOutput(
+        buildWranglerCommand(packageManager, cwd, 'Cloudflare Wrangler 인증 토큰 확인', [
+          'auth',
+          'token',
+          '--json',
+        ]),
+      )
+      const auth = parseWranglerAuthTokenOutput(output)
+
+      if (auth) {
+        return auth
+      }
+    } catch {}
+  }
+
   for (const configPath of getWranglerConfigCandidates()) {
     if (!(await pathExists(configPath))) {
       continue
@@ -253,7 +293,7 @@ function isWranglerAuthExpired(auth: WranglerAuth) {
 }
 
 async function ensureWranglerAuth(packageManager: PackageManager, cwd: string) {
-  const existingAuth = await readWranglerAuthToken()
+  const existingAuth = await readWranglerAuthToken(packageManager, cwd)
 
   if (existingAuth && !isWranglerAuthExpired(existingAuth)) {
     return existingAuth
@@ -273,7 +313,7 @@ async function refreshWranglerAuth(packageManager: PackageManager, cwd: string) 
     ),
   )
 
-  const nextAuth = await readWranglerAuthToken()
+  const nextAuth = await readWranglerAuthToken(packageManager, cwd)
 
   if (!nextAuth) {
     throw new Error('`wrangler login` 뒤에 인증 토큰을 찾지 못했어요.')
