@@ -2,12 +2,13 @@
 
 ![example](./example.gif)
 
-`create-rn-miniapp`은 AppInToss MiniApp을 만들고, 생성 직후부터 바로 작업을 시작할 수 있게 문서와 optional agent skill 가이드까지 함께 준비해주는 CLI예요.
+`create-rn-miniapp`은 AppInToss MiniApp을 만들면서 필요하면 Supabase, Cloudflare, Firebase 같은 서버 인프라 SaaS도 바로 붙여줘요. 프로젝트 연결과 기본 env 반영까지 이어서, 생성 직후 바로 개발을 시작할 수 있게 문서와 optional agent skill 가이드까지 함께 준비해주는 CLI예요.
 
-공식 scaffold 위에 필요한 운영 문서와 optional agent skill onboarding을 함께 준비해줘요. 그래서 앱을 만든 직후 "이제 어디부터 보면 되지?"를 줄여줘요.
+선택한 server provider 기준으로 프로젝트 생성/연결, 기본 원격 작업, frontend/backoffice `.env.local` 반영까지 이어줘요. 공식 scaffold 위에 필요한 운영 문서와 optional agent skill onboarding을 함께 준비해줘요. 그래서 앱을 만든 직후 "서버부터 다시 붙여야 하나?"를 줄이고, 바로 화면/API 작업으로 들어갈 수 있어요.
 
 ## 이런 경우에 잘 맞아요
 
+- 서버 인프라 SaaS를 따로 세팅하지 않고, 생성 단계에서 바로 연동까지 끝내고 싶을 때
 - 공식 scaffold는 유지하고, 팀이 바로 쓸 작업 문맥만 얹고 싶을 때
 - MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때
 - frontend만이 아니라 optional `server`, `backoffice`까지 한 번에 시작하고 싶을 때
@@ -48,7 +49,7 @@ pnpm verify
 ## 생성하면 바로 준비돼요
 
 - `frontend`는 Granite + `@apps-in-toss/framework` 기반으로 시작해요.
-- 필요하면 `server`, `backoffice`도 같이 만들 수 있어요.
+- 필요하면 `server`, `backoffice`도 같이 만들 수 있고, `server`는 선택한 SaaS provider 기준으로 바로 연결 흐름까지 이어져요.
 - 루트에는 `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `docs/*`가 같이 들어가요.
 - 루트 `verify`는 `nx`로 워크스페이스 작업 순서를 맞추고, `biome`으로 포맷과 lint 기준을 한 군데에서 관리해요.
 - 그래서 생성 직후에도 루트에서 한 번에 검사 흐름을 맞출 수 있어요.

@@ -1,3 +1,16 @@
+## 다음 작업: README 상단에 서버 인프라 SaaS 자동 설치/연동 가치 전면 배치
+
+### 목표
+- README 첫 화면에서 server provider SaaS 인프라를 생성 직후 연결까지 끝내고 바로 개발을 시작할 수 있다는 가치를 먼저 전달한다.
+- 문서/skill 안내는 유지하되, 메인 value proposition 뒤로 배치해 첫 인상이 서버 준비 속도 중심으로 읽히게 만든다.
+- 관련 README 회귀 테스트와 `pnpm verify`를 확인한 뒤 `main`에 단일 목적 커밋으로 push한다.
+
+### 작업 순서
+1. README 상단 카피와 관련 테스트가 현재 어떤 메시지를 고정하는지 다시 확인한다.
+2. 실제 provisioning 동작 근거에 맞춰 소개 문단과 상단 섹션 문구를 서버 인프라 SaaS 자동 설치/연동 중심으로 재구성한다.
+3. README 관련 테스트와 `pnpm verify`를 실행해 회귀가 없는지 확인한다.
+4. 변경을 단일 목적 커밋으로 정리하고 `origin/main`에 push한다.
+
 ## 다음 작업: changeset 추가와 한글 PR 마무리
 
 ### 목표

@@ -932,6 +932,14 @@ test('README opens with user value and points readers to the next action', async
     'utf8',
   )
 
+  assert.match(
+    readmeSource,
+    /Supabase, Cloudflare, Firebase 같은 서버 인프라 SaaS도 바로 붙여줘요\./,
+  )
+  assert.match(
+    readmeSource,
+    /서버 인프라 SaaS를 따로 세팅하지 않고, 생성 단계에서 바로 연동까지 끝내고 싶을 때/,
+  )
   assert.match(readmeSource, /## 이런 경우에 잘 맞아요/)
   assert.match(readmeSource, /## 빠른 시작/)
   assert.match(readmeSource, /## 생성한 다음엔 이렇게 보면 돼요/)
@@ -947,7 +955,7 @@ test('README opens with user value and points readers to the next action', async
   )
 })
 
-test('README frames skill value as miniapp-ready setup before agent collaboration wording', async () => {
+test('README leads with server SaaS setup value before skill wording', async () => {
   const readmeSource = await readFile(
     fileURLToPath(new URL('../../../../README.md', import.meta.url)),
     'utf8',
@@ -955,9 +963,21 @@ test('README frames skill value as miniapp-ready setup before agent collaboratio
 
   assert.match(
     readmeSource,
+    /선택한 server provider 기준으로 프로젝트 생성\/연결, 기본 원격 작업, frontend\/backoffice `\.env\.local` 반영까지 이어줘요\./,
+  )
+  assert.match(
+    readmeSource,
     /MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때/,
   )
   assert.match(readmeSource, /## skills 전략/)
+  assert.ok(
+    readmeSource.indexOf(
+      '서버 인프라 SaaS를 따로 세팅하지 않고, 생성 단계에서 바로 연동까지 끝내고 싶을 때',
+    ) <
+      readmeSource.indexOf(
+        'MiniApp에서 자주 쓰는 agent skill을 나중에 표준 CLI로 붙일 수 있으면 좋을 때',
+      ),
+  )
   assert.doesNotMatch(
     readmeSource,
     /사람과 에이전트가 같은 문서와 Skill을 보면서 바로 작업하고 싶을 때/,
