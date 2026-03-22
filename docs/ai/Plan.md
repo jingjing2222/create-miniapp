@@ -1,3 +1,192 @@
+## 다음 작업: changeset 추가와 한글 PR 마무리
+
+### 목표
+- 이번 브랜치에 포함된 generator/runtime/template 변경을 publish 대상 두 패키지 기준 patch release note로 정리한다.
+- `create-rn-miniapp`와 `@create-rn-miniapp/scaffold-templates` 둘 다 changeset에 포함해 후속 versioning이 바로 가능하게 만든다.
+- 브랜치를 원격에 push하고, 변경 요약과 검증 결과를 한국어 PR 제목/본문으로 정리한다.
+
+### 작업 순서
+1. `docs/ai/Plan.md`를 먼저 갱신하고 현재 publish 대상 패키지를 다시 확인한다.
+2. 두 패키지를 함께 올리는 patch changeset을 한국어 설명으로 추가한다.
+3. changeset을 별도 커밋으로 정리하고 원격 브랜치에 push한다.
+4. GitHub PR을 한국어 제목/본문으로 생성하고 링크를 기록한다.
+
+## 다음 작업: SSOT/파생 상태 drift 전수 검수
+
+### 목표
+- 코드베이스에서 동일한 계약을 여러 곳이 따로 소유하거나, 한 source가 바뀌면 같이 바뀌어야 하는 파생 상태가 갈라져 있는 지점을 찾는다.
+- 특히 package manager adapter, scaffold lifecycle, template/docs renderer, provider-specific server contract를 나눠서 본다.
+- 이번 턴은 구현보다 검수와 분류가 목적이므로, 섹션별 findings와 후속 수정 shortlist를 만든다.
+
+### 작업 순서
+1. `docs/ai/Plan.md`를 갱신하고, 검수 축을 네 섹션으로 분리한다.
+2. 네 섹션을 독립 범위로 나눠 agent 4개에 병렬 검수시킨다.
+3. 각 agent 결과를 현재 코드와 대조해 중복 구현, drift risk, overwrite hazard, fake abstraction을 묶는다.
+4. 최종 결과는 severity와 수정 우선순위 기준으로 정리한다.
+
+## 다음 작업: SSOT drift 수정 구현
+
+### 목표
+- 검수에서 확인된 중복 실행 계약, lifecycle state 파생, provider utility 누수, docs renderer parallel ownership을 실제 코드에서 정리한다.
+- package manager/script invocation, scaffold flow state, provider shared utility, generated README/doc renderer를 각자 한 source에서만 파생되게 만든다.
+- 회귀는 구조 테스트와 출력 테스트 둘 다로 막고, 최종 `pnpm verify`까지 통과시킨다.
+
+### 작업 순서
+1. package manager/script invocation drift를 잡는 failing test를 먼저 추가한다.
+2. scaffold create/add flow의 TRPC/provider state drift를 잡는 failing test를 추가한다.
+3. provider shared utility 누수와 docs renderer special-case drift를 잡는 failing test를 추가한다.
+4. 테스트를 통과시키는 최소 구현으로 helper/module/renderer를 정리한다.
+5. `pnpm verify` 후 단일 목적 커밋으로 정리한다.
+
+## 다음 작업: Yarn frontend Granite SHA 오류 재현과 root cause 확인
+
+### 목표
+- 생성 직후 Yarn workspace의 `frontend`에서 `yarn dev`가 SHA-1 오류로 깨지는 현상을 실제 scaffold 산출물에서 재현한다.
+- `frontend` 단독 `yarn install` 전후에 어떤 lock/PnP/workspace 상태 차이가 생기는지 확인한다.
+- 원인이 Granite/Metro의 Yarn PnP zip 경로 처리인지, root/workspace install 순서 문제인지 증거로 분리한다.
+
+### 작업 순서
+1. `/Users/kimhyeongjeong/Desktop/code/scaffold-test/test3`의 root와 `frontend` Yarn/PnP 관련 파일 상태를 먼저 읽는다.
+2. 생성 직후 `frontend`에서 `yarn dev`를 재현하고, 오류 스택과 참조 경로를 수집한다.
+3. `frontend`에서 `yarn install`을 실행한 뒤 바뀐 파일과 `yarn dev` 동작 변화를 다시 비교한다.
+4. 결과를 현재 scaffold install 순서와 대조해 root cause를 정리한다.
+
+## 다음 작업: npm/bun Cloudflare deploy contract 점검
+
+### 목표
+- Cloudflare deploy helper를 local `wrangler` 실행으로 바꾼 뒤 npm과 bun에서도 같은 contract가 유지되는지 점검한다.
+- 각 package manager adapter의 `exec` 경로가 local dependency를 기준으로 동작하는지 코드와 실제 문서 기준으로 확인한다.
+- 추가 수정이 필요한지, 아니면 Yarn 전용 이슈였는지 분리해서 정리한다.
+
+### 작업 순서
+1. npm/bun package manager adapter의 `exec`/`runScriptInDirectory` contract와 Cloudflare provisioning 순서를 다시 읽는다.
+2. 공식 문서 기준으로 `npm exec`와 `bunx`가 local `wrangler` dependency를 어떻게 해석하는지 확인한다.
+3. 필요하면 회귀 테스트나 후속 수정 포인트를 정리하고 결과를 보고한다.
+
+## 다음 작업: Yarn Cloudflare deploy helper를 local wrangler contract로 정렬
+
+### 목표
+- Cloudflare generated `server/scripts/cloudflare-deploy.mjs`가 Yarn에서 `yarn dlx wrangler@... deploy`를 직접 치지 않게 만든다.
+- generated `server/package.json`의 local `wrangler` dependency 계약과 deploy helper 실행 경로를 일치시킨다.
+- Yarn PnP 환경에서도 `yarn wrangler deploy` 또는 동등한 local binary 실행 경로만 타게 고정한다.
+
+### 작업 순서
+1. Cloudflare patch test를 추가해 Yarn generated deploy helper가 `yarn dlx wrangler`가 아니라 local wrangler 실행 경로를 사용해야 한다는 red를 만든다.
+2. `renderCloudflareDeployScript`를 package-manager별 local script/binary 실행 contract 기준으로 최소 수정한다.
+3. targeted test와 `pnpm verify`로 Yarn Cloudflare deploy flow를 다시 고정한다.
+
+## 다음 작업: 미커밋 변경을 목적별로 분리 커밋
+
+### 목표
+- 현재 워킹트리에 남아 있는 Firebase, Cloudflare, skills prompt, root biome preserve 수정들을 목적별로 나눠 커밋한다.
+- 각 커밋은 하나의 계약 변경만 담고, 테스트와 코드가 서로 다른 주제로 섞이지 않게 정리한다.
+- 이미 통과한 `pnpm verify` 상태를 유지하면서 커밋 히스토리를 읽기 쉽게 만든다.
+
+### 작업 순서
+1. 현재 변경 파일 diff를 묶음별로 분류한다.
+2. 파일 단위로 stage해서 Cloudflare, Firebase env, skills prompt, root biome preserve 순으로 분리 커밋한다.
+3. 마지막에 워킹트리가 clean인지 확인한다.
+
+## 다음 작업: scaffold 순서에서 patch 결과가 overwrite되는 경로 전수 검수
+
+### 목표
+- create/add lifecycle 전체에서 provider patch가 넣은 root/workspace 설정이 이후 단계의 template sync나 overwrite로 사라지는 경로가 더 있는지 찾는다.
+- 특히 root `biome.json`, root workspace manifest, root docs/policy sync, server README/state sync, provider finalize 흐름의 순서를 대조한다.
+- 실제로 깨지는 회귀와 잠재 위험을 분리해서 정리하고, 필요하면 후속 수정 shortlist를 만든다.
+
+### 작업 순서
+1. scaffold create/add 순서에서 root overwrite 성격의 단계와 provider patch 단계를 먼저 표로 정리한다.
+2. root template/policy/docs/workspace sync 함수가 기존 파일 내용을 보존하는지, 통째로 다시 쓰는지 분류한다.
+3. provider patch가 root 파일에 side effect를 주는 지점과 이후 overwrite 단계가 충돌하는지 대조한다.
+4. 실제 재현된 Firebase biome 케이스와 같은 패턴이 다른 파일에도 있는지 찾아 findings로 정리한다.
+
+## 다음 작업: skills 설치 뒤 Firebase root biome ignore가 지워지는 회귀 수정
+
+### 목표
+- Firebase server patch가 추가한 `server/functions/lib` root biome ignore가 이후 `syncRootFrontendPolicyFiles()`에서 덮어써지지 않게 만든다.
+- 특히 bun + Firebase + skills auto-install flow에서 root `biome check . --write --unsafe`가 transpiled functions output을 다시 검사하지 않게 고정한다.
+- root policy sync가 provider-specific biome include 확장을 보존하도록 만든다.
+
+### 작업 순서
+1. bun Firebase patch 후 `syncRootFrontendPolicyFiles()`를 호출하면 root biome includes에 Firebase lib ignore가 남아 있어야 한다는 red test를 추가한다.
+2. root biome renderer/sync가 기존 includes의 provider-specific extra entry를 보존하도록 최소 수정한다.
+3. targeted test와 `pnpm verify`로 skills auto-install 이후에도 root biome 단계가 깨지지 않게 고정한다.
+
+## 다음 작업: 추천 agent skills 설치 prompt 기본값을 yes로 변경
+
+### 목표
+- interactive create flow에서 `추천 agent skills를 지금 같이 설치할까요?` prompt의 기본 선택값이 `네, 같이 넣을게요`가 되게 만든다.
+- `--yes`나 explicit `--skill` 동작은 그대로 유지하고, interactive 기본 선택만 바꾼다.
+- CLI 테스트에서 skills install prompt의 `initialValue` 계약을 직접 고정한다.
+
+### 작업 순서
+1. CLI 테스트를 추가해 추천 skills prompt가 `initialValue: 'yes'`를 넘겨야 한다는 red를 만든다.
+2. `resolveSelectedSkillsInput`의 select prompt 기본값을 `yes`로 최소 수정한다.
+3. targeted CLI test와 `pnpm verify`로 회귀 없이 계약을 고정한다.
+
+## 다음 작업: Firebase seed script의 parseEnv 타입 오류 수정
+
+### 목표
+- generated `server/functions/src/seed-public-status.ts`가 bun+tsc 환경에서도 `parseEnv` 반환 타입 때문에 깨지지 않게 만든다.
+- typed env reader helper가 `Record<string, string>` 계약을 지키도록 `undefined` 값을 걸러낸다.
+- shared helper를 고쳐 Firebase generated script와 관련 테스트가 같은 contract를 따르게 만든다.
+
+### 작업 순서
+1. env loader helper와 Firebase template 테스트를 `undefined` filtering 계약 기준으로 먼저 red로 바꾼다.
+2. `renderTypedEnvReaderScriptLines`를 최소 수정해서 `parseEnv` 결과에서 string 값만 남기게 바꾼다.
+3. targeted test와 `pnpm verify`로 bun predeploy build failure가 다시 안 나오게 고정한다.
+
+## 다음 작업: Cloudflare tRPC 초기 deploy가 app-router build를 우회하지 않게 수정
+
+### 목표
+- Cloudflare+tRPC 생성물에서 초기 provisioning deploy가 `@workspace/app-router` build 산출물을 요구하면서도 direct `wrangler deploy`로 우회하는 문제를 막는다.
+- provisioning 단계와 generated `server/package.json` deploy script가 같은 contract를 따르게 만든다.
+- `packages/app-router/dist`가 아직 없는 fresh scaffold에서도 초기 deploy가 `server deploy` 스크립트 경유로 build를 선행하게 고정한다.
+
+### 작업 순서
+1. Cloudflare provisioning deploy helper가 direct `wrangler deploy` 대신 `server deploy` script contract를 사용해야 한다는 red test를 먼저 추가한다.
+2. provider deploy helper를 package-manager adapter의 directory script 실행 기준으로 바꾸고, generated `server` deploy script와 같은 경로를 타게 만든다.
+3. Cloudflare+tRPC 회귀 테스트와 `pnpm verify`로 fresh scaffold deploy contract를 다시 고정한다.
+
+## 다음 작업: 생성 직후 repo에서 추가 `yarn install` drift 재현 확인
+
+### 목표
+- 실제 스캐폴딩 결과물에서 생성 직후 한 번 더 `yarn install`을 했을 때 lockfile이나 기타 산출물이 바뀌는지 확인한다.
+- 특히 `backoffice` 추가가 포함된 Yarn + Supabase flow에서, 마지막 root install 이후에도 재설치 drift가 남는지 재현 산출물 기준으로 검증한다.
+- 바뀌는 파일이 있다면 그것이 upstream CLI의 안내 문구 착시인지, root finalize 순서 문제인지, Yarn workspace/PnP contract 문제인지 구분한다.
+
+### 작업 순서
+1. 사용자가 방금 생성한 `scaffold-test/test` repo의 현재 상태를 기준선으로 커밋한다.
+2. 커밋 직후 root에서 `yarn install`을 한 번 더 실행한다.
+3. `git status`와 `git diff --stat`로 변경 파일을 확인하고, lockfile/manifest/tooling 산출물 변화를 분류한다.
+4. 결과를 현재 generator flow와 대조해서 실제 bug인지, 안내 문구 문제인지 설명한다.
+
+## 다음 작업: Supabase JSON parser가 Yarn stdout prelude를 무시하게 보강
+
+### 목표
+- `yarn dlx supabase ... --output json`가 Yarn 진행 로그를 `stdout`에 같이 써도 Supabase structured output parsing이 깨지지 않게 만든다.
+- 임의의 mixed stdout까지 무분별하게 허용하지 않고, package manager prelude + trailing JSON이라는 현재 실출력 계약만 정확히 수용한다.
+- `projects list`, `api-keys` 같은 Supabase JSON command가 Yarn 환경에서도 안정적으로 provisioning까지 이어지게 고정한다.
+
+### 작업 순서
+1. 실제 Yarn stdout prelude + trailing JSON output을 red test로 먼저 추가한다.
+2. `extractJsonPayload`가 package manager prelude를 제거하거나 trailing JSON payload만 안전하게 골라내도록 최소 수정한다.
+3. 기존 “임의 mixed stdout은 reject” 계약이 유지되는지 같이 확인한다.
+4. targeted test와 `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리한다.
+
+## 다음 작업: Supabase token login 상호작용과 env 자동 반영
+
+### 목표
+- Supabase provisioning이 auth failure를 만났을 때 영어 에러로 끝나지 않고, 토스체 한국어 안내로 token 입력 흐름을 이어 간다.
+- 토큰 발급 URL을 바로 보여 주고 CLI에서 access token을 입력받아 이번 provisioning 실행 env에 주입해서 이어서 진행한다.
+- 이번 실행에서 입력받은 access token은 `server/.env.local`에도 적어 둬서 이후 `db:apply`/`functions:deploy` 자동화와 수동 재실행이 바로 이어지게 만든다.
+
+### 작업 순서
+1. Supabase provisioning 테스트를 token prompt + retry + `.env.local` access token 반영 기준으로 먼저 깨뜨린다.
+2. `cli.ts` prompt abstraction에 secret input path를 추가하고, Supabase provider가 한국어 안내/URL과 함께 token을 입력받게 만든다.
+3. auth failure 시 prompt로 받은 access token을 이번 실행 env에 주입해서 provisioning을 한 번 재시도하게 바꾼다.
+4. finalize 단계에서 이번 실행에 쓴 access token을 `server/.env.local`에 채우도록 정리하고, targeted test와 `pnpm verify`로 고정한다.
+
 ## 다음 작업: dedent 잔여 authored multiline 전수조사
 
 ### 목표

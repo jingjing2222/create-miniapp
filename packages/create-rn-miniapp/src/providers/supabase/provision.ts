@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import type { CommandSpec } from '../../command-spec.js'
 import { SUPABASE_CLI } from '../../external-tooling.js'
-import { runCommand, runCommandWithOutput, type CommandOutput } from '../../commands.js'
+import { extractJsonPayload } from '../../cli-structured-output.js'
+import { runCommand, runCommandWithOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
@@ -27,6 +27,7 @@ export type ProvisionedSupabaseProject = {
   projectRef: string
   publishableKey: string | null
   dbPassword: string | null
+  accessToken: string | null
   didApplyRemoteDb: boolean
   didDeployEdgeFunctions: boolean
   mode: ServerProjectMode
@@ -41,22 +42,17 @@ type ProvisionSupabaseProjectOptions = {
 
 const CREATE_SUPABASE_PROJECT_SENTINEL = '__create_supabase_project__'
 const SUPABASE_ACCESS_TOKENS_DASHBOARD_URL = 'https://supabase.com/dashboard/account/tokens'
-const ANSI_ESCAPE = String.fromCharCode(0x1b)
-const ANSI_BEL = String.fromCharCode(0x07)
-const OSC_HYPERLINK_PATTERN = new RegExp(
-  `${ANSI_ESCAPE}\\]8;;[\\s\\S]*?(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)[\\s\\S]*?${ANSI_ESCAPE}\\]8;;(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)`,
-  'g',
-)
-const OSC_SEQUENCE_PATTERN = new RegExp(
-  `${ANSI_ESCAPE}\\][\\s\\S]*?(?:${ANSI_BEL}|${ANSI_ESCAPE}\\\\)`,
-  'g',
-)
-
+const SUPABASE_ACCESS_TOKEN_REQUIRED_PATTERNS = [
+  'Access token not provided.',
+  'SUPABASE_ACCESS_TOKEN environment variable',
+  'Cannot use automatic login flow inside non-TTY environments.',
+  'Please provide --token flag',
+] as const
 export function buildCreateSupabaseProjectArgs(projectName: string) {
   return ['projects', 'create', projectName]
 }
 
-function buildSupabaseCommand(
+export function buildSupabaseCommand(
   packageManager: PackageManager,
   cwd: string,
   label: string,
@@ -69,6 +65,24 @@ function buildSupabaseCommand(
     ...adapter.dlx(SUPABASE_CLI, args),
     label,
   }
+}
+
+export function buildSupabaseBootstrapPlan(options: {
+  targetRoot: string
+  packageManager: PackageManager
+  functionName: string
+}) {
+  const serverRoot = path.join(options.targetRoot, 'server')
+
+  return [
+    buildSupabaseCommand(options.packageManager, serverRoot, 'server Supabase 준비하기', ['init']),
+    buildSupabaseCommand(
+      options.packageManager,
+      serverRoot,
+      'server Supabase Edge Function 만들기',
+      ['functions', 'new', options.functionName, '--workdir', '.', '--yes'],
+    ),
+  ] satisfies CommandSpec[]
 }
 
 function createSupabaseEnvValues(projectRef: string, publishableKey: string) {
@@ -162,28 +176,6 @@ function renderOptionalTextBlock(lines: string[]) {
   `
 }
 
-export function extractJsonPayload<T>(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
-  const cleanedStdout = stripCliStructuredOutput(output.stdout)
-  const fullStdout = cleanedStdout
-    .split(/\r?\n/)
-    .map((line) => stripVTControlCharacters(line).trimEnd())
-    .filter((line) => line.trim().length > 0)
-    .join('\n')
-    .trim()
-
-  if (fullStdout) {
-    try {
-      return JSON.parse(fullStdout) as T
-    } catch {}
-  }
-
-  throw new Error('JSON 결과를 해석하지 못했습니다.')
-}
-
-function stripCliStructuredOutput(source: string) {
-  return source.replace(OSC_HYPERLINK_PATTERN, '').replace(OSC_SEQUENCE_PATTERN, '')
-}
-
 export function resolveSupabaseClientApiKey(apiKeys: SupabaseApiKey[]) {
   const publishableKey =
     apiKeys.find((key) => key.name?.toLowerCase() === 'publishable')?.api_key ??
@@ -200,6 +192,112 @@ export function resolveSupabaseClientApiKey(apiKeys: SupabaseApiKey[]) {
   }
 
   throw new Error('Supabase 클라이언트용 publishable key를 찾지 못했습니다.')
+}
+
+function getSupabaseErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}
+
+export function isSupabaseAccessTokenRequiredError(error: unknown) {
+  const message = getSupabaseErrorMessage(error)
+
+  return SUPABASE_ACCESS_TOKEN_REQUIRED_PATTERNS.some((pattern) => message.includes(pattern))
+}
+
+export async function promptSupabaseAccessToken(prompt: CliPrompter) {
+  const requestToken = prompt.password ?? prompt.text
+
+  return (
+    await requestToken({
+      message: 'Supabase access token을 붙여 넣어 주세요',
+      guide: dedent`
+        아래 URL에서 token을 발급한 뒤 그대로 붙여 넣으면 돼요.
+        ${SUPABASE_ACCESS_TOKENS_DASHBOARD_URL}
+      `,
+      validate(value) {
+        if (value.trim().length === 0) {
+          return 'access token은 비워둘 수 없어요.'
+        }
+
+        return undefined
+      },
+    })
+  ).trim()
+}
+
+function formatSupabaseAccessTokenRetryFailureMessage(error: unknown) {
+  const originalMessage = getSupabaseErrorMessage(error).trim()
+
+  return dedent`
+    넣어 준 Supabase access token으로 다시 시도했는데도 인증이 안 됐어요.
+    token이 만료됐거나 다른 계정 토큰일 수 있어요. 아래 URL에서 새 token을 다시 발급해 확인해 주세요.
+    ${SUPABASE_ACCESS_TOKENS_DASHBOARD_URL}
+
+    원본 오류:
+    ${originalMessage}
+  `
+}
+
+async function withSupabaseAccessTokenEnv<T>(accessToken: string, action: () => Promise<T>) {
+  const previousAccessToken = process.env.SUPABASE_ACCESS_TOKEN
+  process.env.SUPABASE_ACCESS_TOKEN = accessToken
+
+  try {
+    return await action()
+  } finally {
+    if (typeof previousAccessToken === 'string') {
+      process.env.SUPABASE_ACCESS_TOKEN = previousAccessToken
+    } else {
+      delete process.env.SUPABASE_ACCESS_TOKEN
+    }
+  }
+}
+
+export async function withSupabaseAccessTokenRequirement<T>(options: {
+  packageManager: PackageManager
+  cwd: string
+  prompt: CliPrompter
+  action: () => Promise<T>
+  loginWithAccessToken?: (options: {
+    packageManager: PackageManager
+    cwd: string
+    accessToken: string
+  }) => Promise<void>
+}) {
+  try {
+    return {
+      result: await options.action(),
+      accessToken: null,
+    }
+  } catch (error) {
+    if (!isSupabaseAccessTokenRequiredError(error)) {
+      throw error
+    }
+  }
+
+  const accessToken = await promptSupabaseAccessToken(options.prompt)
+  await options.loginWithAccessToken?.({
+    packageManager: options.packageManager,
+    cwd: options.cwd,
+    accessToken,
+  })
+
+  try {
+    return {
+      result: await withSupabaseAccessTokenEnv(accessToken, options.action),
+      accessToken,
+    }
+  } catch (error) {
+    if (!isSupabaseAccessTokenRequiredError(error)) {
+      throw error
+    }
+
+    throw new Error(formatSupabaseAccessTokenRetryFailureMessage(error))
+  }
 }
 
 export function formatSupabaseManualSetupNote(options: {
@@ -294,6 +392,7 @@ export async function writeSupabaseServerLocalEnvFile(options: {
   targetRoot: string
   projectRef: string
   dbPassword?: string | null
+  accessToken?: string | null
 }) {
   const serverEnvPath = path.join(options.targetRoot, 'server', '.env.local')
   let existingSource = ''
@@ -339,6 +438,11 @@ export async function writeSupabaseServerLocalEnvFile(options: {
     if (trimmed.startsWith('SUPABASE_ACCESS_TOKEN=')) {
       hasAccessToken = true
       hasNonEmptyAccessToken = trimmed.slice('SUPABASE_ACCESS_TOKEN='.length).trim().length > 0
+
+      if (!hasNonEmptyAccessToken && options.accessToken) {
+        nextLines[index] = `SUPABASE_ACCESS_TOKEN=${options.accessToken}`
+        hasNonEmptyAccessToken = true
+      }
     }
   }
 
@@ -352,7 +456,8 @@ export async function writeSupabaseServerLocalEnvFile(options: {
   }
 
   if (!hasAccessToken) {
-    nextLines.push('SUPABASE_ACCESS_TOKEN=')
+    nextLines.push(`SUPABASE_ACCESS_TOKEN=${options.accessToken ?? ''}`)
+    hasNonEmptyAccessToken = Boolean(options.accessToken)
   }
 
   const normalizedSource = `${nextLines
@@ -388,13 +493,7 @@ async function listSupabaseProjects(packageManager: PackageManager, cwd: string)
 }
 
 async function ensureSupabaseProjects(packageManager: PackageManager, cwd: string) {
-  try {
-    return await listSupabaseProjects(packageManager, cwd)
-  } catch {
-    log.step('Supabase에 로그인할게요')
-    await runCommand(buildSupabaseCommand(packageManager, cwd, 'Supabase 로그인하기', ['login']))
-    return await listSupabaseProjects(packageManager, cwd)
-  }
+  return await listSupabaseProjects(packageManager, cwd)
 }
 
 async function sleep(delayMs: number) {
@@ -582,108 +681,121 @@ async function deploySupabaseFunctions(
 export async function provisionSupabaseProject(
   options: ProvisionSupabaseProjectOptions,
 ): Promise<ProvisionedSupabaseProject | null> {
-  const serverRoot = path.join(options.targetRoot, 'server')
-  const projects = await ensureSupabaseProjects(options.packageManager, options.targetRoot)
+  const provisionResult = await withSupabaseAccessTokenRequirement({
+    packageManager: options.packageManager,
+    cwd: options.targetRoot,
+    prompt: options.prompt,
+    action: async () => {
+      const serverRoot = path.join(options.targetRoot, 'server')
+      const projects = await ensureSupabaseProjects(options.packageManager, options.targetRoot)
 
-  let selectedProjectId: string | null = null
-  let resolvedProjectMode = options.projectMode
-  let createdProjectDbPassword: string | null = null
-  let shouldInitializeExistingRemoteContent = false
+      let selectedProjectId: string | null = null
+      let resolvedProjectMode = options.projectMode
+      let createdProjectDbPassword: string | null = null
+      let shouldInitializeExistingRemoteContent = false
 
-  if (resolvedProjectMode === null) {
-    const selectedProject = await selectSupabaseProject(options.prompt, projects, {
-      includeCreateOption: true,
-      message: '사용할 Supabase 프로젝트를 골라 주세요. 새 프로젝트도 바로 만들 수 있어요.',
-    })
+      if (resolvedProjectMode === null) {
+        const selectedProject = await selectSupabaseProject(options.prompt, projects, {
+          includeCreateOption: true,
+          message: '사용할 Supabase 프로젝트를 골라 주세요. 새 프로젝트도 바로 만들 수 있어요.',
+        })
 
-    if (selectedProject === CREATE_SUPABASE_PROJECT_SENTINEL) {
-      resolvedProjectMode = 'create'
-    } else {
-      resolvedProjectMode = 'existing'
-      selectedProjectId = selectedProject
-    }
-  }
+        if (selectedProject === CREATE_SUPABASE_PROJECT_SENTINEL) {
+          resolvedProjectMode = 'create'
+        } else {
+          resolvedProjectMode = 'existing'
+          selectedProjectId = selectedProject
+        }
+      }
 
-  if (resolvedProjectMode === 'create') {
-    const previousProjectIds = new Set(projects.map((project) => project.id))
-    const createdProject = await createSupabaseProject(
-      options.packageManager,
-      options.targetRoot,
-      options.prompt,
-    )
-    createdProjectDbPassword = createdProject.dbPassword
+      if (resolvedProjectMode === 'create') {
+        const previousProjectIds = new Set(projects.map((project) => project.id))
+        const createdProject = await createSupabaseProject(
+          options.packageManager,
+          options.targetRoot,
+          options.prompt,
+        )
+        createdProjectDbPassword = createdProject.dbPassword
 
-    const createdSupabaseProject = await pollForNewSupabaseProject([...previousProjectIds], {
-      listProjects: async () =>
-        await ensureSupabaseProjects(options.packageManager, options.targetRoot),
-    })
+        const createdSupabaseProject = await pollForNewSupabaseProject([...previousProjectIds], {
+          listProjects: async () =>
+            await ensureSupabaseProjects(options.packageManager, options.targetRoot),
+        })
 
-    if (createdSupabaseProject) {
-      selectedProjectId = createdSupabaseProject.id
-    } else {
-      const refreshedProjects = await ensureSupabaseProjects(
+        if (createdSupabaseProject) {
+          selectedProjectId = createdSupabaseProject.id
+        } else {
+          const refreshedProjects = await ensureSupabaseProjects(
+            options.packageManager,
+            options.targetRoot,
+          )
+          const newlyCreatedProjects = refreshedProjects.filter(
+            (project) => !previousProjectIds.has(project.id),
+          )
+
+          if (newlyCreatedProjects.length === 1) {
+            selectedProjectId = newlyCreatedProjects[0].id
+          } else {
+            selectedProjectId = await selectSupabaseProject(options.prompt, refreshedProjects, {
+              message: '연결할 Supabase 프로젝트를 골라 주세요.',
+            })
+          }
+        }
+      } else if (resolvedProjectMode === 'existing' && !selectedProjectId) {
+        selectedProjectId = await selectSupabaseProject(options.prompt, projects)
+      }
+
+      if (!selectedProjectId || !resolvedProjectMode) {
+        throw new Error('연결할 Supabase 프로젝트를 정하지 못했어요.')
+      }
+
+      if (resolvedProjectMode === 'existing') {
+        shouldInitializeExistingRemoteContent = await promptShouldInitializeExistingRemoteContent(
+          options.prompt,
+          '이 Supabase 프로젝트의 원격에 있는 내용을 초기화할까요?',
+        )
+      }
+
+      const publishableKey = await tryGetSupabasePublishableKey(
         options.packageManager,
         options.targetRoot,
-      )
-      const newlyCreatedProjects = refreshedProjects.filter(
-        (project) => !previousProjectIds.has(project.id),
+        selectedProjectId,
       )
 
-      if (newlyCreatedProjects.length === 1) {
-        selectedProjectId = newlyCreatedProjects[0].id
-      } else {
-        selectedProjectId = await selectSupabaseProject(options.prompt, refreshedProjects, {
-          message: '연결할 Supabase 프로젝트를 골라 주세요.',
-        })
+      await linkSupabaseProject(options.packageManager, serverRoot, selectedProjectId)
+      const didApplyRemoteDb = shouldAutoApplySupabaseRemoteDatabase(
+        resolvedProjectMode,
+        shouldInitializeExistingRemoteContent,
+      )
+
+      if (didApplyRemoteDb) {
+        await pushSupabaseDatabase(options.packageManager, serverRoot)
       }
-    }
-  } else if (resolvedProjectMode === 'existing' && !selectedProjectId) {
-    selectedProjectId = await selectSupabaseProject(options.prompt, projects)
-  }
 
-  if (!selectedProjectId || !resolvedProjectMode) {
-    throw new Error('연결할 Supabase 프로젝트를 정하지 못했어요.')
-  }
+      const didDeployEdgeFunctions = shouldAutoDeploySupabaseEdgeFunctions(
+        resolvedProjectMode,
+        shouldInitializeExistingRemoteContent,
+      )
 
-  if (resolvedProjectMode === 'existing') {
-    shouldInitializeExistingRemoteContent = await promptShouldInitializeExistingRemoteContent(
-      options.prompt,
-      '이 Supabase 프로젝트의 원격에 있는 내용을 초기화할까요?',
-    )
-  }
+      if (didDeployEdgeFunctions) {
+        await deploySupabaseFunctions(options.packageManager, serverRoot, selectedProjectId)
+      }
 
-  const publishableKey = await tryGetSupabasePublishableKey(
-    options.packageManager,
-    options.targetRoot,
-    selectedProjectId,
-  )
-
-  await linkSupabaseProject(options.packageManager, serverRoot, selectedProjectId)
-  const didApplyRemoteDb = shouldAutoApplySupabaseRemoteDatabase(
-    resolvedProjectMode,
-    shouldInitializeExistingRemoteContent,
-  )
-
-  if (didApplyRemoteDb) {
-    await pushSupabaseDatabase(options.packageManager, serverRoot)
-  }
-
-  const didDeployEdgeFunctions = shouldAutoDeploySupabaseEdgeFunctions(
-    resolvedProjectMode,
-    shouldInitializeExistingRemoteContent,
-  )
-
-  if (didDeployEdgeFunctions) {
-    await deploySupabaseFunctions(options.packageManager, serverRoot, selectedProjectId)
-  }
+      return {
+        projectRef: selectedProjectId,
+        publishableKey,
+        dbPassword: createdProjectDbPassword,
+        accessToken: null,
+        didApplyRemoteDb,
+        didDeployEdgeFunctions,
+        mode: resolvedProjectMode,
+      }
+    },
+  })
 
   return {
-    projectRef: selectedProjectId,
-    publishableKey,
-    dbPassword: createdProjectDbPassword,
-    didApplyRemoteDb,
-    didDeployEdgeFunctions,
-    mode: resolvedProjectMode,
+    ...provisionResult.result,
+    accessToken: provisionResult.accessToken,
   }
 }
 
@@ -705,6 +817,7 @@ export async function finalizeSupabaseProvisioning(options: {
     targetRoot: options.targetRoot,
     projectRef: options.provisionedProject.projectRef,
     dbPassword: options.provisionedProject.dbPassword,
+    accessToken: options.provisionedProject.accessToken,
   })
 
   if (options.provisionedProject.publishableKey) {

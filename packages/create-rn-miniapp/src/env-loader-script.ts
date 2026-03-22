@@ -24,7 +24,10 @@ export function renderTypedEnvReaderScriptLines() {
     "import { parseEnv } from 'node:util'",
     '',
     'function loadLocalEnv(filePath: string): Record<string, string> {',
-    "  return parseEnv(readFileSync(filePath, 'utf8'))",
+    "  const env = parseEnv(readFileSync(filePath, 'utf8'))",
+    '  return Object.fromEntries(',
+    "    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),",
+    '  )',
     '}',
     '',
   ]
