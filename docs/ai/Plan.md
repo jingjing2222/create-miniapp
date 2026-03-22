@@ -281,6 +281,25 @@
 - `create-rn-miniapp` CLI는 `skills` 서브커맨드를 더 이상 노출하지 않는다.
 - `skills-manager` CLI가 `sync|diff|upgrade`를 처리하고 기존 manifest/snapshot 테스트를 유지한다.
 - `pnpm verify`를 통과한다.
+
+## 현재 skills-manager split 릴리스 및 SSoT 감사
+
+### 목표
+- 방금 완료한 `skills-manager` 분리를 changeset과 PR까지 한국어로 정리해 배포 준비 상태로 만든다.
+- 공개 패키지 전체를 patch 대상으로 올리고, PR 제목/본문도 현재 브랜치 diff에 맞는 한국어 설명으로 정리한다.
+- 이어서 dead code, 과한 테스트, SSoT 중복 구현을 전수 확인하고 다음 정리 작업 계획까지 남긴다.
+
+### 작업 순서
+1. 현재 브랜치와 PR 상태를 확인하고 changeset 대상 패키지를 확정한다.
+2. `.changeset/*.md`에 한국어 patch changeset을 추가하고 필요하면 커밋한다.
+3. 브랜치를 원격에 push하고, 기존 PR이 있으면 제목/본문을 한국어로 갱신하고 없으면 새 PR을 만든다.
+4. repo 전체에서 dead code, 더 이상 의미 없는 회귀 테스트, duplicated catalog/manifest/rendering ownership을 grep과 파일 읽기로 감사한다.
+5. 감사 결과를 severity 순으로 정리하고, SSoT 복구 관점의 후속 작업 계획을 `docs/ai/Plan.md` 또는 최종 보고에 남긴다.
+
+### 완료 기준
+- 공개 패키지 전체 patch changeset이 존재한다.
+- 현재 브랜치용 PR 제목/본문이 한국어로 정리돼 있다.
+- dead code / redundant test / SSoT duplication 감사 결과와 후속 정리 계획이 남아 있다.
 4. 구현 누락이나 잘못된 ownership이 보이면 severity와 재현 근거를 정리한다.
 
 ## 진행 예정: Skill taxonomy migration
