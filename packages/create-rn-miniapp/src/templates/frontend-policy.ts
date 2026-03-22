@@ -160,7 +160,6 @@ export function renderSharedFrontendPolicyReferenceMarkdown() {
     '',
   ].join('\n')
 }
-
 export function resolveFrontendPolicyRuleSet() {
   const asyncStorageRestriction = getFrontendPolicyRestrictionDefinition('async-storage')
   const reactNativeRestriction = getFrontendPolicyRestrictionDefinition('react-native-ui')

@@ -1,3 +1,15 @@
+## 다음 작업: main 최신과 충돌 정리 후 브랜치 재푸시
+
+### 목표
+- `codex/static-frontend-policy` 브랜치를 최신 `origin/main` 기준으로 다시 맞춘다.
+- merge 과정에서 생기는 충돌은 실제 live contract 기준으로만 정리하고, 불필요한 과거 계획/실험 흔적은 끌고 오지 않는다.
+- 정리 후 `pnpm verify`를 다시 통과시키고 브랜치를 재푸시한다.
+
+### 작업 순서
+1. `origin/main...HEAD` 차이와 merge 방향을 확인한 뒤 `origin/main`을 현재 브랜치에 병합한다.
+2. 충돌 파일을 읽고 SSoT 기준으로 수동 정리한다.
+3. `pnpm verify`를 다시 통과시킨 뒤 merge commit과 함께 브랜치를 푸시한다.
+
 ## 다음 작업: skill SSoT 정리 변경을 release metadata에 반영
 
 ### 목표
@@ -45,7 +57,6 @@
 1. root README managed block, skill catalog/skills 디렉터리 정합성, provider mapping, shared frontend-policy reference를 red test로 먼저 고정한다.
 2. shared README renderer, provider metadata, skill catalog 정리, shared skill reference 파일을 구현하고 README를 sync한다.
 3. targeted test와 `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리한다.
-
 ## 다음 작업: frontend policy TDS 문구를 더 강하게 고정
 
 ### 목표
