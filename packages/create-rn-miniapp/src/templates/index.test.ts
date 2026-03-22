@@ -1533,16 +1533,20 @@ test('applyRootTemplates keeps biome guidance stable even when local core skills
   assert.doesNotMatch(biomeJson, /Granite UI로 보완/)
 })
 
-test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in pnpm manifest', async (t) => {
+test('syncRootWorkspaceManifest preserves root workspace order and normalizes package workspaces to packages/*', async (t) => {
   const targetRoot = await createTempTargetRoot(t)
   const tokens = createTokens('pnpm')
 
   await applyRootTemplates(targetRoot, tokens, ['frontend'])
-  await syncRootWorkspaceManifest(targetRoot, 'pnpm', ['frontend', 'packages/contracts'])
+  await syncRootWorkspaceManifest(targetRoot, 'pnpm', [
+    'frontend',
+    'marketing',
+    'packages/contracts',
+  ])
 
   assert.equal(
     await readFile(path.join(targetRoot, 'pnpm-workspace.yaml'), 'utf8'),
-    ['packages:', '  - frontend', '  - packages/*', ''].join('\n'),
+    ['packages:', '  - frontend', '  - marketing', '  - packages/*', ''].join('\n'),
   )
 })
 
@@ -2599,31 +2603,35 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
   const npmRoot = await createTempTargetRoot(t)
   const bunRoot = await createTempTargetRoot(t)
 
-  await applyRootTemplates(pnpmRoot, createTokens('pnpm'), ['frontend'])
-  await applyRootTemplates(yarnRoot, createTokens('yarn'), ['frontend'])
-  await applyRootTemplates(npmRoot, createTokens('npm'), ['frontend'])
-  await applyRootTemplates(bunRoot, createTokens('bun'), ['frontend'])
+  await applyRootTemplates(pnpmRoot, createTokens('pnpm'), ['frontend', 'marketing'])
+  await applyRootTemplates(yarnRoot, createTokens('yarn'), ['frontend', 'marketing'])
+  await applyRootTemplates(npmRoot, createTokens('npm'), ['frontend', 'marketing'])
+  await applyRootTemplates(bunRoot, createTokens('bun'), ['frontend', 'marketing'])
 
   await syncRootWorkspaceManifest(pnpmRoot, 'pnpm', [
     'frontend',
+    'marketing',
     'server',
     'packages/contracts',
     'packages/app-router',
   ])
   await syncRootWorkspaceManifest(yarnRoot, 'yarn', [
     'frontend',
+    'marketing',
     'backoffice',
     'packages/contracts',
     'packages/app-router',
   ])
   await syncRootWorkspaceManifest(npmRoot, 'npm', [
     'frontend',
+    'marketing',
     'server',
     'packages/contracts',
     'packages/app-router',
   ])
   await syncRootWorkspaceManifest(bunRoot, 'bun', [
     'frontend',
+    'marketing',
     'backoffice',
     'packages/contracts',
     'packages/app-router',
@@ -2642,8 +2650,16 @@ test('syncRootWorkspaceManifest adds newly added workspaces to existing root man
     workspaces?: string[]
   }
 
-  assert.equal(pnpmWorkspaceManifest, 'packages:\n  - frontend\n  - server\n  - packages/*\n')
-  assert.deepEqual(yarnPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
-  assert.deepEqual(npmPackageJson.workspaces, ['frontend', 'server', 'packages/*'])
-  assert.deepEqual(bunPackageJson.workspaces, ['frontend', 'packages/*', 'backoffice'])
+  assert.equal(
+    pnpmWorkspaceManifest,
+    'packages:\n  - frontend\n  - marketing\n  - server\n  - packages/*\n',
+  )
+  assert.deepEqual(yarnPackageJson.workspaces, [
+    'frontend',
+    'marketing',
+    'backoffice',
+    'packages/*',
+  ])
+  assert.deepEqual(npmPackageJson.workspaces, ['frontend', 'marketing', 'server', 'packages/*'])
+  assert.deepEqual(bunPackageJson.workspaces, ['frontend', 'marketing', 'backoffice', 'packages/*'])
 })

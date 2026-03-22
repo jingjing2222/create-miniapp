@@ -1,3 +1,17 @@
+## 다음 작업: root workspace topology를 manifest-driven으로 전환
+
+### 목표
+- `resolveRootWorkspaces`가 `frontend`, `server`, `backoffice` 같은 고정 디렉터리 목록을 직접 순회하지 않게 만든다.
+- `packages/*` 집계 규칙은 유지하되, 나머지 루트 workspace 목록과 순서는 실제 root workspace manifest에서 읽어 오게 바꾼다.
+- root template 생성, `--add` 경로의 manifest sync, inspector가 같은 topology source를 보게 정리해서 구조 확장 시 수정 지점을 줄인다.
+
+### 작업 순서
+1. 현재 root workspace contract를 red test로 먼저 고정한다. 새 테스트는 `pnpm-workspace.yaml` 또는 root `package.json#workspaces`를 source of truth로 읽어서 `frontend/server/backoffice` 외 새 workspace도 보존하고, `packages/*`만 계속 집계한다는 계약을 표현한다.
+2. `resolveRootWorkspaces`를 디렉터리 하드코딩 대신 실제 manifest reader 기반으로 교체한다. manifest가 없거나 아직 생성 전인 bootstrap 시점만 최소 fallback을 둔다.
+3. `normalizeRootWorkspaces`는 고정 canonical order를 버리고 manifest에 선언된 루트 workspace 순서를 보존하게 바꾼다. 단, `packages/...` 하위는 계속 `packages/*` 하나로 collapse한다.
+4. `syncRootWorkspaceManifest`와 `applyRootTemplates`가 같은 normalization/serialization helper를 공유하게 정리하고, package manager별 회귀 테스트를 갱신한다.
+5. `pnpm verify`로 회귀를 확인한 뒤 단일 목적 커밋으로 정리한다.
+
 ## 다음 작업: 외부 CLI 버전 고정과 Firebase provisioning 경계 재정의
 
 ### 목표

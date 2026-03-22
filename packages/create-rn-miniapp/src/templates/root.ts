@@ -1,8 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { stringify as stringifyYaml } from 'yaml'
 import { patchRootPackageJsonSource } from '../patching/package-json.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
+import { normalizeRootWorkspacePatterns, renderPnpmWorkspaceManifest } from '../root-workspaces.js'
 import {
   resolveFrontendPolicyRuleSet,
   renderFrontendPolicyVerifierSource,
@@ -18,17 +18,7 @@ import {
   FRONTEND_POLICY_CHECK_SCRIPT_NAME,
   ROOT_VERIFY_STEP_SCRIPT_NAMES,
 } from './root-script-catalog.js'
-import type { TemplateTokens, WorkspaceName } from './types.js'
-
-const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
-const NORMALIZED_ROOT_WORKSPACE_ORDER = [
-  'frontend',
-  'server',
-  NORMALIZED_PACKAGE_WORKSPACE,
-  'backoffice',
-] as const
-
-type NormalizedRootWorkspaceName = (typeof NORMALIZED_ROOT_WORKSPACE_ORDER)[number]
+import type { RootWorkspacePattern, TemplateTokens } from './types.js'
 
 export const ROOT_VERIFY_STEPS_TOKEN = '{{rootVerifyStepsMarkdown}}'
 
@@ -135,34 +125,13 @@ async function syncRootFrontendPolicyArtifacts(targetRoot: string, packageManage
   )
 }
 
-function normalizeRootWorkspaces(workspaces: WorkspaceName[]): NormalizedRootWorkspaceName[] {
-  const included = new Set<string>()
-
-  for (const workspace of workspaces) {
-    if (workspace.startsWith('packages/')) {
-      included.add(NORMALIZED_PACKAGE_WORKSPACE)
-      continue
-    }
-
-    included.add(workspace)
-  }
-
-  return NORMALIZED_ROOT_WORKSPACE_ORDER.filter((workspace) => included.has(workspace))
-}
-
-function renderPnpmWorkspaceManifest(workspaces: NormalizedRootWorkspaceName[]) {
-  return stringifyYaml({
-    packages: [...workspaces],
-  })
-}
-
 export async function syncRootWorkspaceManifest(
   targetRoot: string,
   packageManager: PackageManager,
-  workspaces: WorkspaceName[],
+  workspaces: RootWorkspacePattern[],
 ) {
   const adapter = getPackageManagerAdapter(packageManager)
-  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
+  const normalizedWorkspaces = normalizeRootWorkspacePatterns(workspaces)
 
   if (adapter.workspaceManifestFile) {
     await writeFile(
@@ -187,12 +156,12 @@ export async function syncRootWorkspaceManifest(
 export async function applyRootTemplates(
   targetRoot: string,
   tokens: TemplateTokens,
-  workspaces: WorkspaceName[],
+  workspaces: RootWorkspacePattern[],
 ) {
   const templatesRoot = resolveTemplatesPackageRoot()
   const rootTemplateDir = path.join(templatesRoot, 'root')
   const packageManager = getPackageManagerAdapter(tokens.packageManager)
-  const normalizedWorkspaces = normalizeRootWorkspaces(workspaces)
+  const normalizedWorkspaces = normalizeRootWorkspacePatterns(workspaces)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
   const fileMappings = [['nx.json', 'nx.json']] as const

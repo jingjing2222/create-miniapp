@@ -1,28 +1,75 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { maybeWriteNpmWorkspaceConfig } from './helpers.js'
+import { resolveRootWorkspaces } from './helpers.js'
 
-async function createTempWorkspaceRoot(t: test.TestContext) {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-scaffold-'))
+async function createTempTargetRoot(t: test.TestContext) {
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-scaffold-helpers-'))
   t.after(async () => {
-    await rm(workspaceRoot, { recursive: true, force: true })
+    await rm(targetRoot, { recursive: true, force: true })
   })
-  return workspaceRoot
+  return targetRoot
 }
 
-test('maybeWriteNpmWorkspaceConfig writes workspace .npmrc only for npm', async (t) => {
-  const npmWorkspaceRoot = await createTempWorkspaceRoot(t)
-  const pnpmWorkspaceRoot = await createTempWorkspaceRoot(t)
+test('resolveRootWorkspaces preserves declared pnpm manifest order and appends newly discovered workspaces', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
 
-  await maybeWriteNpmWorkspaceConfig(npmWorkspaceRoot, 'npm')
-  await maybeWriteNpmWorkspaceConfig(pnpmWorkspaceRoot, 'pnpm')
-
-  assert.equal(
-    await readFile(path.join(npmWorkspaceRoot, '.npmrc'), 'utf8'),
-    'legacy-peer-deps=true\n',
+  await writeFile(
+    path.join(targetRoot, 'pnpm-workspace.yaml'),
+    ['packages:', '  - frontend', '  - marketing', '  - packages/*', ''].join('\n'),
+    'utf8',
   )
-  await assert.rejects(readFile(path.join(pnpmWorkspaceRoot, '.npmrc'), 'utf8'))
+  await mkdir(path.join(targetRoot, 'server'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'server', 'package.json'),
+    '{\n  "name": "server"\n}\n',
+    'utf8',
+  )
+  await mkdir(path.join(targetRoot, 'packages', 'contracts'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'packages', 'contracts', 'package.json'),
+    '{\n  "name": "@workspace/contracts"\n}\n',
+    'utf8',
+  )
+
+  assert.deepEqual(await resolveRootWorkspaces(targetRoot), [
+    'frontend',
+    'marketing',
+    'packages/*',
+    'server',
+  ])
+})
+
+test('resolveRootWorkspaces reads package.json workspaces when a pnpm manifest is absent', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+
+  await writeFile(
+    path.join(targetRoot, 'package.json'),
+    JSON.stringify(
+      {
+        private: true,
+        workspaces: {
+          packages: ['frontend', 'apps/marketing', 'packages/*'],
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+  await mkdir(path.join(targetRoot, 'backoffice'), { recursive: true })
+  await writeFile(
+    path.join(targetRoot, 'backoffice', 'package.json'),
+    '{\n  "name": "backoffice"\n}\n',
+    'utf8',
+  )
+
+  assert.deepEqual(await resolveRootWorkspaces(targetRoot), [
+    'frontend',
+    'apps/marketing',
+    'packages/*',
+    'backoffice',
+  ])
 })

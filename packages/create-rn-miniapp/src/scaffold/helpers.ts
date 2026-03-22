@@ -2,11 +2,11 @@ import path from 'node:path'
 import { log } from '@clack/prompts'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import { getServerProviderAdapter, type ServerProvider } from '../providers/index.js'
+import { resolveRootWorkspacePatterns } from '../root-workspaces.js'
 import type { ServerScaffoldState } from '../server-project.js'
-import { APP_ROUTER_WORKSPACE_PATH, CONTRACTS_WORKSPACE_PATH } from '../trpc-workspace-metadata.js'
 import { pathExists, writeWorkspaceNpmrc } from '../templates/filesystem.js'
 import { applyTrpcWorkspaceTemplate } from '../templates/trpc.js'
-import type { TemplateTokens, WorkspaceName } from '../templates/types.js'
+import type { RootWorkspacePattern, TemplateTokens } from '../templates/types.js'
 
 export function createTemplateTokens(options: {
   appName: string
@@ -38,22 +38,8 @@ export async function maybeWriteNpmWorkspaceConfig(
   await writeWorkspaceNpmrc(workspaceRoot)
 }
 
-export async function resolveRootWorkspaces(targetRoot: string) {
-  const workspaces: WorkspaceName[] = []
-
-  for (const workspace of [
-    'frontend',
-    'server',
-    CONTRACTS_WORKSPACE_PATH,
-    APP_ROUTER_WORKSPACE_PATH,
-    'backoffice',
-  ] as const) {
-    if (await pathExists(path.join(targetRoot, workspace))) {
-      workspaces.push(workspace)
-    }
-  }
-
-  return workspaces
+export async function resolveRootWorkspaces(targetRoot: string): Promise<RootWorkspacePattern[]> {
+  return resolveRootWorkspacePatterns(targetRoot)
 }
 
 export async function maybePrepareServerWorkspace(options: {
