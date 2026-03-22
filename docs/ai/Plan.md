@@ -3408,3 +3408,16 @@ docs/
 - 완료 기준
   - 설치/미설치 두 상태에 대한 회귀 테스트 추가
   - `pnpm verify` 통과
+
+## 다음 작업: frontend-policy 조건부 decouple
+
+### 목표
+- scaffold 시 project-local core skill이 실제로 설치된 경우에만 `frontend-policy`와 root `biome.json`이 skill-aware reference를 사용한다.
+- core skill이 없으면 lint/verify/doc 문구는 skill path 대신 제품 규칙으로 직접 말한다.
+  - UI: TDS를 먼저 쓴다.
+  - route: Granite 규칙을 쓴다.
+- 분기 기준과 문구는 `frontend-policy` 한 곳에서 파생되게 정리한다.
+- 완료 기준
+  - root biome 기본값은 skill-free
+  - local core skill 설치 시 root biome/doc이 skill-aware로 전환
+  - `pnpm verify` 통과

@@ -310,7 +310,7 @@ const DOCUMENT_DEFINITIONS: DocumentDefinition[] = [
   {
     relativePath: 'docs/engineering/frontend-policy.md',
     ownership: 'code',
-    render: (tokens) => renderFrontendPolicyMarkdown(tokens.packageManager),
+    render: () => '',
     engineeringDoc: {
       agentsRepositoryLabel: 'frontend 정책',
     },
@@ -352,6 +352,7 @@ export async function applyDocsTemplates(
   const templatesRoot = resolveTemplatesPackageRoot()
   const baseTemplateDir = path.join(templatesRoot, 'base')
   const options = await resolveGeneratedWorkspaceOptions(targetRoot, hints)
+  const installedSkillIds = await listInstalledProjectSkills(targetRoot)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
   await copyFileWithTokens(
@@ -382,7 +383,9 @@ export async function applyDocsTemplates(
         ? await renderAgentsMarkdown(targetRoot, tokens, options)
         : definition.relativePath === 'README.md'
           ? await renderRootReadmeMarkdown(targetRoot, tokens, options)
-          : definition.render(tokens, options)
+          : definition.relativePath === 'docs/engineering/frontend-policy.md'
+            ? renderFrontendPolicyMarkdown(tokens.packageManager, installedSkillIds)
+            : definition.render(tokens, options)
 
     await writeCodeOwnedMarkdown(targetRoot, definition.relativePath, renderedSource)
   }

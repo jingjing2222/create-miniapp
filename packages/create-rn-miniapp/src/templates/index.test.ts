@@ -1115,6 +1115,10 @@ test('applyDocsTemplates keeps AGENTS skill-free and renders README onboarding w
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
   const readme = await readFile(path.join(targetRoot, 'README.md'), 'utf8')
+  const frontendPolicy = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'frontend-policy.md'),
+    'utf8',
+  )
 
   assert.doesNotMatch(agents, /\.agents\/skills/)
   assert.doesNotMatch(agents, /\.claude\/skills/)
@@ -1124,6 +1128,15 @@ test('applyDocsTemplates keeps AGENTS skill-free and renders README onboarding w
   assert.match(readme, /npx skills list/)
   assert.match(readme, /npx skills check/)
   assert.match(readme, /npx skills update/)
+  assert.doesNotMatch(frontendPolicy, /\.agents\/skills\//)
+  assert.match(
+    frontendPolicy,
+    /UI는 TDS를 우선하고, 필요한 경우에만 Granite 컴포넌트를 보완적으로 사용한다\./,
+  )
+  assert.match(
+    frontendPolicy,
+    /Granite router의 `:param` path params와 `validateParams`는 허용한다\./,
+  )
 })
 
 test('secondary agent docs defer onboarding rules to AGENTS instead of restating them', async () => {
@@ -1295,8 +1308,9 @@ test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
   assert.match(biomeJson, /Alert/)
   assert.match(biomeJson, /Text/)
   assert.match(biomeJson, /TDS `Txt`/)
+  assert.match(biomeJson, /TDS를 먼저 써 주세요/)
   assert.match(biomeJson, /docs\/engineering\/frontend-policy\.md/)
-  assert.match(biomeJson, /\.agents\/skills\/tds-ui\/generated\/catalog\.json/)
+  assert.doesNotMatch(biomeJson, /\.agents\/skills\/tds-ui\/generated\/catalog\.json/)
 })
 
 test('applyRootTemplates emits shared react-native guidance across package managers', async (t) => {
@@ -1329,6 +1343,28 @@ test('applyRootTemplates emits shared react-native guidance across package manag
 
   assert.equal(new Set(reactNativeMessages.map(([, message]) => message)).size, 1)
   assert.match(reactNativeMessages[0]?.[1] ?? '', /TDS `Txt`/)
+  assert.doesNotMatch(reactNativeMessages[0]?.[1] ?? '', /\.agents\/skills\/tds-ui/)
+})
+
+test('applyRootTemplates switches biome guidance to skill-aware mode when local core skills are installed', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  for (const skillId of ['miniapp-capabilities', 'granite-routing', 'tds-ui']) {
+    await mkdir(path.join(targetRoot, '.agents', 'skills', skillId), { recursive: true })
+    await writeFile(
+      path.join(targetRoot, '.agents', 'skills', skillId, 'SKILL.md'),
+      `# ${skillId}\n`,
+      'utf8',
+    )
+  }
+
+  await applyRootTemplates(targetRoot, tokens, ['frontend'])
+
+  const biomeJson = await readFile(path.join(targetRoot, 'biome.json'), 'utf8')
+
+  assert.match(biomeJson, /\.agents\/skills\/tds-ui\/generated\/catalog\.json/)
+  assert.match(biomeJson, /TDS를 먼저 써 주세요/)
 })
 
 test('syncRootWorkspaceManifest normalizes package workspaces to packages/* in pnpm manifest', async (t) => {
@@ -1792,6 +1828,31 @@ test('applyDocsTemplates replaces install CTA with installed skill summary when 
   assert.doesNotMatch(readme, /### Recommended/)
   assert.doesNotMatch(readme, /설치 예시:/)
   assert.doesNotMatch(readme, /npx skills add/)
+})
+
+test('applyDocsTemplates keeps skill references in frontend policy when project-local core skills are installed', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+  const tokens = createTokens('pnpm')
+
+  for (const skillId of ['miniapp-capabilities', 'granite-routing', 'tds-ui']) {
+    await mkdir(path.join(targetRoot, '.agents', 'skills', skillId), { recursive: true })
+    await writeFile(
+      path.join(targetRoot, '.agents', 'skills', skillId, 'SKILL.md'),
+      `# ${skillId}\n`,
+      'utf8',
+    )
+  }
+
+  await applyDocsTemplates(targetRoot, tokens, createDocsHints())
+
+  const frontendPolicy = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'frontend-policy.md'),
+    'utf8',
+  )
+
+  assert.match(frontendPolicy, /\.agents\/skills\/miniapp-capabilities\/SKILL\.md/)
+  assert.match(frontendPolicy, /\.agents\/skills\/granite-routing\/SKILL\.md/)
+  assert.match(frontendPolicy, /\.agents\/skills\/tds-ui\/SKILL\.md/)
 })
 
 test('applyDocsTemplates rerenders README recommendations when optional workspaces are added later', async (t) => {

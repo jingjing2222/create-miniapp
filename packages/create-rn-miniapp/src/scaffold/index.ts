@@ -12,7 +12,11 @@ import { patchBackofficeWorkspace } from '../patching/backoffice.js'
 import { patchFrontendWorkspace } from '../patching/frontend.js'
 import { writeServerScaffoldState } from '../patching/server.js'
 import { ensureEmptyDirectory, pathExists } from '../templates/filesystem.js'
-import { applyRootTemplates, syncRootWorkspaceManifest } from '../templates/root.js'
+import {
+  applyRootTemplates,
+  syncRootFrontendPolicyFiles,
+  syncRootWorkspaceManifest,
+} from '../templates/root.js'
 import { applyDocsTemplates } from '../templates/docs.js'
 import {
   buildSkillsInstallCommand,
@@ -327,6 +331,10 @@ export async function scaffoldWorkspace(options: ScaffoldOptions) {
     packageManager: options.packageManager,
     selectedSkills: options.selectedSkills,
   })
+
+  if (installedSkills.didInstall) {
+    await syncRootFrontendPolicyFiles(targetRoot, options.packageManager)
+  }
 
   await applyDocsTemplates(targetRoot, tokens, {
     serverProvider: options.serverProvider,

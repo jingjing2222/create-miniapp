@@ -247,6 +247,16 @@ test('skill auto-install captures raw copy logs and reports installed skill summ
   assert.doesNotMatch(scaffoldSource, /options\.selectedSkills\.join\('\\n- '\)/)
 })
 
+test('skill auto-install re-syncs root frontend policy files after installation succeeds', async () => {
+  const scaffoldSource = await readFile(
+    fileURLToPath(new URL('./index.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(scaffoldSource, /if \(installedSkills\.didInstall\) \{/)
+  assert.match(scaffoldSource, /syncRootFrontendPolicyFiles\(targetRoot, options\.packageManager\)/)
+})
+
 test('buildRootFinalizePlan adds yarn sdk generation after root install', () => {
   const targetRoot = path.join('/tmp', 'ebook')
   const plan = buildRootFinalizePlan({
