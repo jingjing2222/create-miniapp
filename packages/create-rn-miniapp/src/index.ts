@@ -11,7 +11,6 @@ import {
   resolveCliOptions,
 } from './cli.js'
 import { addWorkspaces, scaffoldWorkspace } from './scaffold/index.js'
-import { runSkillsCommand } from './skills-command.js'
 import { TRPC_WORKSPACE_PATHS } from './trpc-workspace-metadata.js'
 import { inspectWorkspace } from './workspace-inspector.js'
 
@@ -34,11 +33,6 @@ function describeWorkspaceLayout(options: {
 export async function main() {
   try {
     const rawArgs = hideBin(process.argv)
-
-    if (rawArgs[0] === 'skills') {
-      await runSkillsCommand(rawArgs.slice(1))
-      return
-    }
 
     const argv = await parseCliArgs(rawArgs)
 

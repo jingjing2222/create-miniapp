@@ -1,11 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { getPackageManagerAdapter } from '../package-manager.js'
 import {
   resolveTemplatesPackageRoot,
   copyDirectoryWithTokens,
   copyFileWithTokens,
+  resolveSkillsManagerPackageRoot,
   resolveSkillsPackageRoot,
 } from './filesystem.js'
 import {
@@ -233,8 +233,8 @@ function renderWorkspaceTopologyMarkdown(options: GeneratedWorkspaceOptions) {
 }
 
 type SkillsDocState = {
-  generatorPackage: string
-  generatorVersion: string
+  managerPackage: string
+  managerVersion: string
   catalogPackage: string
   catalogVersion: string
   customSkillPolicy: string
@@ -257,8 +257,8 @@ async function resolveSkillsDocState(
 
   if (manifest) {
     return {
-      generatorPackage: manifest.generatorPackage,
-      generatorVersion: manifest.generatorVersion,
+      managerPackage: manifest.managerPackage,
+      managerVersion: manifest.managerVersion,
       catalogPackage: manifest.catalogPackage,
       catalogVersion: manifest.catalogVersion,
       customSkillPolicy: manifest.customSkillPolicy,
@@ -269,8 +269,8 @@ async function resolveSkillsDocState(
     }
   }
 
-  const generatorPackage = await readPackageIdentity(
-    fileURLToPath(new URL('../../package.json', import.meta.url)),
+  const managerPackage = await readPackageIdentity(
+    path.join(resolveSkillsManagerPackageRoot(), 'package.json'),
   )
   const catalogPackage = await readPackageIdentity(
     path.join(resolveSkillsPackageRoot(), 'package.json'),
@@ -283,8 +283,8 @@ async function resolveSkillsDocState(
   )
 
   return {
-    generatorPackage: generatorPackage.name,
-    generatorVersion: generatorPackage.version,
+    managerPackage: managerPackage.name,
+    managerVersion: managerPackage.version,
     catalogPackage: catalogPackage.name,
     catalogVersion: catalogPackage.version,
     customSkillPolicy: 'preserve-unmanaged-siblings',
@@ -310,7 +310,7 @@ async function renderSkillsMarkdown(
     '## Managed Snapshot',
     '- canonical source: `.agents/skills/*`',
     '- Claude mirror: `.claude/skills/*`',
-    `- generator package: \`${state.generatorPackage}@${state.generatorVersion}\``,
+    `- manager package: \`${state.managerPackage}@${state.managerVersion}\``,
     `- catalog package: \`${state.catalogPackage}@${state.catalogVersion}\``,
     `- custom skill policy: \`${state.customSkillPolicy}\``,
     '',

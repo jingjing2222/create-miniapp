@@ -1,14 +1,17 @@
+#!/usr/bin/env node
+
 import { cp, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import yargs from 'yargs'
-import { createTemplateTokens, resolveRootWorkspaces } from './scaffold/helpers.js'
-import { applyDocsTemplates } from './templates/docs.js'
-import { pathExists } from './templates/filesystem.js'
-import { applyRootTemplates } from './templates/root.js'
-import { readSkillsManifest, syncGeneratedSkills } from './templates/skills.js'
-import { getSkillDefinition, type SkillId } from './templates/skill-catalog.js'
-import { inspectWorkspace } from './workspace-inspector.js'
+import { syncSkillsDoc } from './docs.js'
+import { createTemplateTokens, pathExists } from './filesystem.js'
+import { parsePackageManagerField } from './package-manager.js'
+import { syncSkillsRootScripts } from './root.js'
+import { getSkillDefinition, type SkillId } from './skill-catalog.js'
+import { readSkillsManifest, syncManagedSkills } from './skills.js'
+import { inspectWorkspace } from './workspace.js'
+import type { GeneratedWorkspaceHints, GeneratedWorkspaceOptions, ServerProvider } from './types.js'
 
 const IGNORED_DIFF_ENTRY_NAMES = new Set([
   '.git',
@@ -19,12 +22,26 @@ const IGNORED_DIFF_ENTRY_NAMES = new Set([
   '.DS_Store',
 ])
 
-export type SkillsCommandName = 'sync' | 'diff' | 'upgrade'
+export type SkillsManagerCommandName = 'install' | 'sync' | 'diff' | 'upgrade'
 
-export type ParsedSkillsCommandArgs = {
-  command: SkillsCommandName
+export type ParsedSkillsManagerArgs = {
+  command: SkillsManagerCommandName
   rootDir: string
   to?: string
+  appName?: string
+  displayName?: string
+  packageManager?: import('./package-manager.js').PackageManager
+  serverProvider?: ServerProvider | null
+  manualExtraSkills: string[]
+}
+
+type SyncInput = {
+  rootDir: string
+  appName: string
+  displayName: string
+  packageManager: import('./package-manager.js').PackageManager
+  serverProvider: ServerProvider | null
+  manualExtraSkills?: string[]
 }
 
 type DiffResult = {
@@ -32,12 +49,12 @@ type DiffResult = {
   report: string
 }
 
-function assertSkillsCommandName(value: string | undefined): SkillsCommandName {
-  if (value === 'sync' || value === 'diff' || value === 'upgrade') {
+function assertCommandName(value: string | undefined): SkillsManagerCommandName {
+  if (value === 'install' || value === 'sync' || value === 'diff' || value === 'upgrade') {
     return value
   }
 
-  throw new Error('`create-miniapp skills <sync|diff|upgrade>` 형식으로 실행해 주세요.')
+  throw new Error('`skills-manager <install|sync|diff|upgrade>` 형식으로 실행해 주세요.')
 }
 
 async function listWorkspaceFiles(rootDir: string, currentDir = ''): Promise<string[]> {
@@ -113,6 +130,36 @@ async function appendModifiedFiles(
   }
 }
 
+async function resolveGeneratedWorkspaceOptions(
+  rootDir: string,
+  serverProvider: ServerProvider | null,
+): Promise<GeneratedWorkspaceOptions> {
+  return {
+    hasBackoffice: await pathExists(path.join(rootDir, 'backoffice')),
+    serverProvider: (await pathExists(path.join(rootDir, 'server'))) ? serverProvider : null,
+    hasTrpc:
+      (await pathExists(path.join(rootDir, 'packages', 'contracts', 'package.json'))) &&
+      (await pathExists(path.join(rootDir, 'packages', 'app-router', 'package.json'))),
+  }
+}
+
+async function runSync(input: SyncInput) {
+  const tokens = createTemplateTokens({
+    appName: input.appName,
+    displayName: input.displayName,
+    packageManager: input.packageManager,
+  })
+  const hints: GeneratedWorkspaceHints = {
+    serverProvider: input.serverProvider,
+    manualExtraSkills: input.manualExtraSkills,
+  }
+  const options = await resolveGeneratedWorkspaceOptions(input.rootDir, input.serverProvider)
+
+  await syncSkillsRootScripts(input.rootDir, input.packageManager)
+  await syncManagedSkills(input.rootDir, tokens, hints)
+  await syncSkillsDoc(input.rootDir, input.packageManager, options, hints)
+}
+
 async function validateManualSkillIds(rootDir: string) {
   const manifest = await readSkillsManifest(rootDir)
 
@@ -131,14 +178,14 @@ async function validateManualSkillIds(rootDir: string) {
   }
 }
 
-export async function parseSkillsCommandArgs(rawArgs: string[], cwd = process.cwd()) {
+export async function parseSkillsManagerArgs(rawArgs: string[], cwd = process.cwd()) {
   const argv = await yargs(rawArgs)
     .help(false)
     .version(false)
     .exitProcess(false)
     .strictOptions()
     .fail(() => {
-      throw new Error('skills 명령 옵션을 읽지 못했어요.')
+      throw new Error('skills-manager 명령 옵션을 읽지 못했어요.')
     })
     .option('root-dir', {
       type: 'string',
@@ -149,29 +196,59 @@ export async function parseSkillsCommandArgs(rawArgs: string[], cwd = process.cw
       type: 'string',
       describe: 'upgrade target version',
     })
+    .option('app-name', {
+      type: 'string',
+      describe: 'install 시 scaffold appName',
+    })
+    .option('display-name', {
+      type: 'string',
+      describe: 'install 시 scaffold displayName',
+    })
+    .option('package-manager', {
+      choices: ['pnpm', 'yarn', 'npm', 'bun'] as const,
+      describe: 'install 시 사용할 package manager',
+    })
+    .option('server-provider', {
+      choices: ['supabase', 'cloudflare', 'firebase'] as const,
+      describe: 'install 시 사용할 server provider',
+    })
+    .option('manual-extra-skill', {
+      type: 'array',
+      string: true,
+      default: [],
+      describe: '추가 manual skill id 반복 지정',
+    })
     .parse()
 
   return {
-    command: assertSkillsCommandName(String(argv._[0] ?? '')),
+    command: assertCommandName(String(argv._[0] ?? '')),
     rootDir: path.resolve(String(argv.rootDir)),
     to: argv.to ? String(argv.to) : undefined,
-  } satisfies ParsedSkillsCommandArgs
+    appName: argv['app-name'] ? String(argv['app-name']) : undefined,
+    displayName: argv['display-name'] ? String(argv['display-name']) : undefined,
+    packageManager: argv['package-manager']
+      ? parsePackageManagerField(`${String(argv['package-manager'])}@0.0.0`)
+      : undefined,
+    serverProvider:
+      argv['server-provider'] !== undefined
+        ? (String(argv['server-provider']) as ServerProvider)
+        : undefined,
+    manualExtraSkills: (argv['manual-extra-skill'] as string[] | undefined) ?? [],
+  } satisfies ParsedSkillsManagerArgs
+}
+
+export async function installSkillsWorkspace(input: SyncInput) {
+  await runSync(input)
 }
 
 export async function syncSkillsWorkspace(rootDir: string) {
   const inspection = await inspectWorkspace(rootDir)
-  const tokens = createTemplateTokens({
+
+  await runSync({
+    rootDir,
     appName: inspection.appName,
     displayName: inspection.displayName,
     packageManager: inspection.packageManager,
-  })
-  const workspaces = await resolveRootWorkspaces(rootDir)
-
-  await applyRootTemplates(rootDir, tokens, workspaces)
-  await syncGeneratedSkills(rootDir, tokens, {
-    serverProvider: inspection.serverProvider,
-  })
-  await applyDocsTemplates(rootDir, tokens, {
     serverProvider: inspection.serverProvider,
   })
 }
@@ -217,11 +294,27 @@ export async function upgradeSkillsWorkspace(rootDir: string, _to: string) {
   await syncSkillsWorkspace(rootDir)
 }
 
-export async function runSkillsCommand(rawArgs: string[]) {
-  const args = await parseSkillsCommandArgs(rawArgs)
+export async function runSkillsManager(rawArgs: string[]) {
+  const args = await parseSkillsManagerArgs(rawArgs)
 
   if (!(await pathExists(args.rootDir))) {
     throw new Error(`rootDir를 찾지 못했어요: ${args.rootDir}`)
+  }
+
+  if (args.command === 'install') {
+    if (!args.appName || !args.displayName || !args.packageManager) {
+      throw new Error('install에는 --app-name, --display-name, --package-manager가 필요합니다.')
+    }
+
+    await installSkillsWorkspace({
+      rootDir: args.rootDir,
+      appName: args.appName,
+      displayName: args.displayName,
+      packageManager: args.packageManager,
+      serverProvider: args.serverProvider ?? null,
+      manualExtraSkills: args.manualExtraSkills,
+    })
+    return
   }
 
   if (args.command === 'sync') {
@@ -242,4 +335,8 @@ export async function runSkillsCommand(rawArgs: string[]) {
   }
 
   await upgradeSkillsWorkspace(args.rootDir, args.to ?? 'latest')
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+  void runSkillsManager(process.argv.slice(2))
 }

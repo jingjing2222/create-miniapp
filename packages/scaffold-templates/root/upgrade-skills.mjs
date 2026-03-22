@@ -26,12 +26,12 @@ async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
   const rootPackageJson = JSON.parse(await readFile(rootPackageJsonPath, 'utf8'))
   const packageManager = String(rootPackageJson.packageManager ?? '').split('@')[0]
-  const generatorPackage = manifest.generatorPackage ?? 'create-rn-miniapp'
+  const managerPackage = manifest.managerPackage ?? '@create-rn-miniapp/skills-manager'
   const targetVersion = process.argv[2] ?? 'latest'
   const invocation = resolvePackageManagerCommand(
     packageManager,
-    `${generatorPackage}@${targetVersion}`,
-    ['skills', 'upgrade', '--root-dir', '.', '--to', targetVersion],
+    `${managerPackage}@${targetVersion}`,
+    ['upgrade', '--root-dir', '.', '--to', targetVersion],
   )
 
   await new Promise((resolve, reject) => {

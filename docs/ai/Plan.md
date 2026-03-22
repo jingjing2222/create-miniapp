@@ -258,6 +258,29 @@
 1. old skill name / old 경로 / old 문서명이 남아 있는지 repo 전체 grep으로 확인한다.
 2. canonical source(`packages/agent-skills`)와 generator metadata(`templates/*`, `scaffold/*`, `patching/*`)가 같은 이름/구조를 소유하는지 대조한다.
 3. generated repo 계약인 `AGENTS.md`, `README.md`, `.agents/skills`, `.claude/skills`, `server/.create-rn-miniapp/state.json`, `server/README.md`가 서로 일치하는지 테스트와 렌더링 로직을 함께 읽어 검수한다.
+
+## 현재 skills-manager 하드컷 분리
+
+### 목표
+- `create-rn-miniapp`는 scaffold/create/add 흐름과 최초 skill install orchestration만 담당한다.
+- `@create-rn-miniapp/agent-skills`는 skill asset과 catalog metadata만 소유하고 CLI를 갖지 않는다.
+- 새 `@create-rn-miniapp/skills-manager`가 `.agents/skills`, `.claude/skills`, `docs/skills.md`, `.create-rn-miniapp/skills.json`의 lifecycle을 전담한다.
+- generated repo wrapper script는 더 이상 `create-miniapp skills ...`를 호출하지 않고 `skills-manager`만 호출한다.
+
+### 작업 순서
+1. release/template 테스트에 `skills-manager` package와 wrapper ownership 변경을 red로 추가한다.
+2. `packages/skills-manager` 패키지를 만들고 현재 `skills-command.ts` 중심 lifecycle 로직을 이동한다.
+3. `create-rn-miniapp`는 scaffold 시 최초 install 호출만 남기고 `skills` subcommand와 관련 import를 제거한다.
+4. generated root wrapper script와 manifest field를 `managerPackage`/`managerVersion` 기준으로 전환한다.
+5. `docs/skills.md` 렌더와 skill manifest reconcile ownership을 `skills-manager`로 넘긴다.
+6. `pnpm verify`를 통과시키고, 컷오버 완료 후 현재 브랜치에서 한 번 더 커밋한다.
+
+### 테스트 범위
+- release/dev-publish 테스트가 `@create-rn-miniapp/skills-manager`를 포함한다.
+- generated wrapper script가 `skills-manager`를 호출하고 `create-miniapp skills ...`를 더 이상 호출하지 않는다.
+- `create-rn-miniapp` CLI는 `skills` 서브커맨드를 더 이상 노출하지 않는다.
+- `skills-manager` CLI가 `sync|diff|upgrade`를 처리하고 기존 manifest/snapshot 테스트를 유지한다.
+- `pnpm verify`를 통과한다.
 4. 구현 누락이나 잘못된 ownership이 보이면 severity와 재현 근거를 정리한다.
 
 ## 진행 예정: Skill taxonomy migration

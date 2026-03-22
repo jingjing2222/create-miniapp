@@ -4,17 +4,16 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { getTestPackageManagerField } from './test-support/package-manager.js'
-import { copyDirectory } from './templates/index.js'
+import { copyDirectory } from './filesystem.js'
 import {
   diffSkillsWorkspace,
-  parseSkillsCommandArgs,
+  parseSkillsManagerArgs,
   syncSkillsWorkspace,
   upgradeSkillsWorkspace,
-} from './skills-command.js'
+} from './index.js'
 
 async function createTempWorkspace(t: test.TestContext) {
-  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skills-command-'))
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skills-manager-'))
   t.after(async () => {
     await rm(targetRoot, { recursive: true, force: true })
   })
@@ -29,7 +28,7 @@ async function writeWorkspaceFixture(targetRoot: string) {
       {
         name: 'ebook-miniapp',
         private: true,
-        packageManager: getTestPackageManagerField('pnpm'),
+        packageManager: 'pnpm@10.32.1',
       },
       null,
       2,
@@ -58,9 +57,9 @@ async function writeWorkspaceFixture(targetRoot: string) {
   )
 }
 
-test('parseSkillsCommandArgs parses sync and upgrade options', async () => {
-  const syncArgs = await parseSkillsCommandArgs(['sync', '--root-dir', '/tmp/miniapp'])
-  const upgradeArgs = await parseSkillsCommandArgs([
+test('parseSkillsManagerArgs parses sync and upgrade options', async () => {
+  const syncArgs = await parseSkillsManagerArgs(['sync', '--root-dir', '/tmp/miniapp'])
+  const upgradeArgs = await parseSkillsManagerArgs([
     'upgrade',
     '--root-dir',
     '/tmp/miniapp',
@@ -72,11 +71,21 @@ test('parseSkillsCommandArgs parses sync and upgrade options', async () => {
     command: 'sync',
     rootDir: '/tmp/miniapp',
     to: undefined,
+    appName: undefined,
+    displayName: undefined,
+    packageManager: undefined,
+    serverProvider: undefined,
+    manualExtraSkills: [],
   })
   assert.deepEqual(upgradeArgs, {
     command: 'upgrade',
     rootDir: '/tmp/miniapp',
     to: 'latest',
+    appName: undefined,
+    displayName: undefined,
+    packageManager: undefined,
+    serverProvider: undefined,
+    manualExtraSkills: [],
   })
 })
 
@@ -104,17 +113,20 @@ test('syncSkillsWorkspace bootstraps manual extras from an existing managed skil
   const manifest = JSON.parse(
     await readFile(path.join(targetRoot, '.create-rn-miniapp', 'skills.json'), 'utf8'),
   ) as {
+    managerPackage: string
     manualExtraSkills: string[]
     resolvedSkills: Array<{ id: string; mode: string }>
   }
   const skillsDoc = await readFile(path.join(targetRoot, 'docs', 'skills.md'), 'utf8')
 
+  assert.equal(manifest.managerPackage, '@create-rn-miniapp/skills-manager')
   assert.deepEqual(manifest.manualExtraSkills, ['backoffice-react'])
   assert.ok(
     manifest.resolvedSkills.some(
       (entry) => entry.id === 'backoffice-react' && entry.mode === 'manual',
     ),
   )
+  assert.match(skillsDoc, /manager package: `@create-rn-miniapp\/skills-manager@/)
   assert.match(skillsDoc, /`backoffice-react` \(manual\)/)
   assert.equal(
     await readFile(
@@ -152,8 +164,8 @@ test('upgradeSkillsWorkspace fails when the manifest references a removed manual
     JSON.stringify(
       {
         schema: 1,
-        generatorPackage: 'create-miniapp',
-        generatorVersion: '0.0.0-test',
+        managerPackage: '@create-rn-miniapp/skills-manager',
+        managerVersion: '0.0.0-test',
         catalogPackage: '@create-rn-miniapp/agent-skills',
         catalogVersion: '0.0.0-test',
         manualExtraSkills: ['removed-manual-skill'],

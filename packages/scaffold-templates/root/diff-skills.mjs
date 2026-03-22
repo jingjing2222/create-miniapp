@@ -26,17 +26,17 @@ async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
   const rootPackageJson = JSON.parse(await readFile(rootPackageJsonPath, 'utf8'))
   const packageManager = String(rootPackageJson.packageManager ?? '').split('@')[0]
-  const generatorPackage = manifest.generatorPackage ?? 'create-rn-miniapp'
-  const generatorVersion = manifest.generatorVersion
+  const managerPackage = manifest.managerPackage ?? '@create-rn-miniapp/skills-manager'
+  const managerVersion = manifest.managerVersion
 
-  if (!generatorVersion) {
-    throw new Error('skills manifest에 generatorVersion이 없습니다.')
+  if (!managerVersion) {
+    throw new Error('skills manifest에 managerVersion이 없습니다.')
   }
 
   const invocation = resolvePackageManagerCommand(
     packageManager,
-    `${generatorPackage}@${generatorVersion}`,
-    ['skills', 'diff', '--root-dir', '.'],
+    `${managerPackage}@${managerVersion}`,
+    ['diff', '--root-dir', '.'],
   )
 
   await new Promise((resolve, reject) => {

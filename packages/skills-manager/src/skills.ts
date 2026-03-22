@@ -2,30 +2,19 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
-  copyDirectory,
-  copyDirectoryWithTokens,
-  pathExists,
-  resolveSkillsManagerPackageRoot,
-  resolveSkillsPackageRoot,
-} from './filesystem.js'
-import { resolveGeneratedWorkspaceOptions } from './generated-workspace.js'
-import {
-  CORE_SKILL_DEFINITIONS as SHARED_CORE_SKILL_DEFINITIONS,
-  getCoreSkillDefinition as getCoreSkillDefinitionFromCatalog,
   getSkillDefinition,
   resolveSelectedSkillDefinitions,
-  type CoreSkillDefinition as SharedCoreSkillDefinition,
-  type CoreSkillId as SharedCoreSkillId,
   type SkillDefinition,
   type SkillId,
 } from './skill-catalog.js'
-import type { GeneratedWorkspaceOptions, GeneratedWorkspaceHints, TemplateTokens } from './types.js'
-
-export type CoreSkillDefinition = SharedCoreSkillDefinition
-export type CoreSkillId = SharedCoreSkillId
-
-export const CORE_SKILL_DEFINITIONS = SHARED_CORE_SKILL_DEFINITIONS
-export const getCoreSkillDefinition = getCoreSkillDefinitionFromCatalog
+import {
+  copyDirectory,
+  copyDirectoryWithTokens,
+  pathExists,
+  resolveManagerPackageRoot,
+  resolveSkillsPackageRoot,
+} from './filesystem.js'
+import type { GeneratedWorkspaceHints, GeneratedWorkspaceOptions, TemplateTokens } from './types.js'
 
 export type SkillSelectionMode = 'core' | 'derived' | 'manual'
 
@@ -46,35 +35,11 @@ export type SkillsManifest = {
   customSkillPolicy: 'preserve-unmanaged-siblings'
 }
 
-export const SKILLS_MANIFEST_RELATIVE_PATH = path.join('.create-rn-miniapp', 'skills.json')
 const CUSTOM_SKILL_POLICY = 'preserve-unmanaged-siblings' as const
+export const SKILLS_MANIFEST_RELATIVE_PATH = path.join('.create-rn-miniapp', 'skills.json')
 
-export function resolveManagedSkillSelections(
-  options: GeneratedWorkspaceOptions,
-  manualExtraSkills: string[],
-) {
-  const resolved: Array<{ definition: SkillDefinition; mode: SkillSelectionMode }> =
-    resolveSelectedSkillDefinitions(options).map((definition) => ({
-      definition,
-      mode: definition.kind === 'core' ? ('core' as const) : ('derived' as const),
-    }))
-  const seen = new Set(resolved.map((entry) => entry.definition.id))
-
-  for (const manualSkillId of manualExtraSkills) {
-    const definition = getSkillDefinition(manualSkillId as SkillId)
-
-    if (seen.has(definition.id)) {
-      continue
-    }
-
-    resolved.push({
-      definition,
-      mode: 'manual',
-    })
-    seen.add(definition.id)
-  }
-
-  return resolved
+function getSkillsManifestPath(targetRoot: string) {
+  return path.join(targetRoot, SKILLS_MANIFEST_RELATIVE_PATH)
 }
 
 async function listFilesRecursively(rootDir: string, currentDir = rootDir): Promise<string[]> {
@@ -116,8 +81,47 @@ async function readPackageIdentity(packageJsonPath: string) {
   }
 }
 
-export function getSkillsManifestPath(targetRoot: string) {
-  return path.join(targetRoot, SKILLS_MANIFEST_RELATIVE_PATH)
+async function resolveGeneratedWorkspaceOptions(
+  targetRoot: string,
+  hints: GeneratedWorkspaceHints,
+): Promise<GeneratedWorkspaceOptions> {
+  return {
+    hasBackoffice: await pathExists(path.join(targetRoot, 'backoffice')),
+    serverProvider: (await pathExists(path.join(targetRoot, 'server')))
+      ? hints.serverProvider
+      : null,
+    hasTrpc:
+      (await pathExists(path.join(targetRoot, 'packages', 'contracts', 'package.json'))) &&
+      (await pathExists(path.join(targetRoot, 'packages', 'app-router', 'package.json'))),
+  }
+}
+
+export function resolveManagedSkillSelections(
+  options: GeneratedWorkspaceOptions,
+  manualExtraSkills: string[],
+) {
+  const resolved: Array<{ definition: SkillDefinition; mode: SkillSelectionMode }> =
+    resolveSelectedSkillDefinitions(options).map((definition) => ({
+      definition,
+      mode: definition.kind === 'core' ? ('core' as const) : ('derived' as const),
+    }))
+  const seen = new Set(resolved.map((entry) => entry.definition.id))
+
+  for (const manualSkillId of manualExtraSkills) {
+    const definition = getSkillDefinition(manualSkillId as SkillId)
+
+    if (seen.has(definition.id)) {
+      continue
+    }
+
+    resolved.push({
+      definition,
+      mode: 'manual',
+    })
+    seen.add(definition.id)
+  }
+
+  return resolved
 }
 
 export async function readSkillsManifest(targetRoot: string): Promise<SkillsManifest | null> {
@@ -238,12 +242,7 @@ async function sanitizeGeneratedSkillSnapshot(targetRoot: string, definition: Sk
   }
 }
 
-async function writeSkillsManifest(
-  targetRoot: string,
-  manifest: Omit<SkillsManifest, 'resolvedSkills'> & {
-    resolvedSkills: ResolvedSkillManifestEntry[]
-  },
-) {
+async function writeSkillsManifest(targetRoot: string, manifest: SkillsManifest) {
   await mkdir(path.dirname(getSkillsManifestPath(targetRoot)), { recursive: true })
   await writeFile(
     getSkillsManifestPath(targetRoot),
@@ -261,7 +260,7 @@ export async function syncSkillsMirror(targetRoot: string) {
   await copyDirectory(canonicalTargetRoot, claudeMirrorRoot)
 }
 
-export async function syncGeneratedSkills(
+export async function syncManagedSkills(
   targetRoot: string,
   tokens: TemplateTokens,
   hints: GeneratedWorkspaceHints,
@@ -270,7 +269,7 @@ export async function syncGeneratedSkills(
   const existingManifest = await readSkillsManifest(targetRoot)
   const skillsRoot = resolveSkillsPackageRoot()
   const managerPackage = await readPackageIdentity(
-    path.join(resolveSkillsManagerPackageRoot(), 'package.json'),
+    path.join(resolveManagerPackageRoot(), 'package.json'),
   )
   const catalogPackage = await readPackageIdentity(path.join(skillsRoot, 'package.json'))
   const canonicalTargetRoot = path.join(targetRoot, '.agents', 'skills')

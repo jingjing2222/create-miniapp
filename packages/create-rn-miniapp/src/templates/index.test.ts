@@ -1590,7 +1590,7 @@ test('applyDocsTemplates omits optional workspace and skill references for base-
   assert.doesNotMatch(skillsDoc, /cloudflare-worker/)
   assert.match(skillsDoc, /skills:mirror/)
   assert.match(skillsDoc, /skills:upgrade/)
-  assert.match(skillsDoc, /generator package:/)
+  assert.match(skillsDoc, /manager package:/)
   assert.match(skillsDoc, /catalog package:/)
   assert.match(skillsDoc, /unmanaged custom skill/)
   assert.doesNotMatch(workspaceTopology, /optional provider workspace/)
@@ -1737,8 +1737,8 @@ test('applyDocsTemplates renders docs/skills from the current manifest when it e
     JSON.stringify(
       {
         schema: 1,
-        generatorPackage: 'create-miniapp',
-        generatorVersion: '1.2.3',
+        managerPackage: '@create-rn-miniapp/skills-manager',
+        managerVersion: '1.2.3',
         catalogPackage: '@create-rn-miniapp/agent-skills',
         catalogVersion: '4.5.6',
         manualExtraSkills: ['trpc-boundary'],
@@ -1766,11 +1766,36 @@ test('applyDocsTemplates renders docs/skills from the current manifest when it e
 
   const skillsDoc = await readFile(path.join(targetRoot, 'docs', 'skills.md'), 'utf8')
 
-  assert.match(skillsDoc, /generator package: `create-miniapp@1.2.3`/)
+  assert.match(skillsDoc, /manager package: `@create-rn-miniapp\/skills-manager@1.2.3`/)
   assert.match(skillsDoc, /catalog package: `@create-rn-miniapp\/agent-skills@4.5.6`/)
   assert.match(skillsDoc, /`trpc-boundary`/)
   assert.match(skillsDoc, /manual/)
   assert.match(skillsDoc, /`.claude\/skills`는 직접 수정하지 않는다\./)
+})
+
+test('applyRootTemplates emits skills wrapper scripts that invoke the skills-manager package', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+
+  await applyRootTemplates(targetRoot, createTokens('pnpm'), ['frontend'])
+
+  const syncScript = await readFile(path.join(targetRoot, 'scripts', 'sync-skills.mjs'), 'utf8')
+  const diffScript = await readFile(path.join(targetRoot, 'scripts', 'diff-skills.mjs'), 'utf8')
+  const upgradeScript = await readFile(
+    path.join(targetRoot, 'scripts', 'upgrade-skills.mjs'),
+    'utf8',
+  )
+
+  assert.match(syncScript, /managerPackage/)
+  assert.match(syncScript, /@create-rn-miniapp\/skills-manager/)
+  assert.doesNotMatch(syncScript, /generatorPackage/)
+  assert.doesNotMatch(syncScript, /create-miniapp skills/)
+  assert.match(diffScript, /managerVersion/)
+  assert.match(diffScript, /@create-rn-miniapp\/skills-manager/)
+  assert.doesNotMatch(diffScript, /create-miniapp skills/)
+  assert.match(upgradeScript, /managerPackage/)
+  assert.match(upgradeScript, /@create-rn-miniapp\/skills-manager/)
+  assert.doesNotMatch(upgradeScript, /generatorPackage/)
+  assert.doesNotMatch(upgradeScript, /create-miniapp skills/)
 })
 
 test('syncGeneratedSkills copies core skills, selected optional skills, and the claude mirror', async (t) => {
@@ -1926,8 +1951,8 @@ test('syncGeneratedSkills writes a manifest and preserves unmanaged custom skill
     JSON.stringify(
       {
         schema: 1,
-        generatorPackage: 'create-rn-miniapp',
-        generatorVersion: '0.0.0-test',
+        managerPackage: '@create-rn-miniapp/skills-manager',
+        managerVersion: '0.0.0-test',
         catalogPackage: '@create-rn-miniapp/agent-skills',
         catalogVersion: '0.0.0-test',
         manualExtraSkills: [],

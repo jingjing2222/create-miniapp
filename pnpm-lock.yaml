@@ -27,6 +27,8 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/agent-skills: {}
+
   packages/create-rn-miniapp:
     dependencies:
       '@clack/prompts':
@@ -38,6 +40,9 @@ importers:
       '@create-rn-miniapp/scaffold-templates':
         specifier: workspace:*
         version: link:../scaffold-templates
+      '@create-rn-miniapp/skills-manager':
+        specifier: workspace:*
+        version: link:../skills-manager
       '@swc/core':
         specifier: ^1.15.18
         version: 1.15.18
@@ -55,9 +60,20 @@ importers:
         specifier: ^17.0.33
         version: 17.0.35
 
-  packages/agent-skills: {}
-
   packages/scaffold-templates: {}
+
+  packages/skills-manager:
+    dependencies:
+      '@create-rn-miniapp/agent-skills':
+        specifier: workspace:*
+        version: link:../agent-skills
+      yargs:
+        specifier: ^18.0.0
+        version: 18.0.0
+    devDependencies:
+      '@types/yargs':
+        specifier: ^17.0.33
+        version: 17.0.35
 
 packages:
 

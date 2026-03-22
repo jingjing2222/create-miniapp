@@ -35,12 +35,17 @@ test('prepareDevPublishPackageJsons rewrites all publish manifests to the same d
       version: '0.0.9',
       dependencies: {
         '@create-rn-miniapp/agent-skills': 'workspace:*',
+        '@create-rn-miniapp/skills-manager': 'workspace:*',
         '@create-rn-miniapp/scaffold-templates': 'workspace:*',
         yargs: '^18.0.0',
       },
     },
     skillsPackageJson: {
       name: '@create-rn-miniapp/agent-skills',
+      version: '0.0.9',
+    },
+    managerPackageJson: {
+      name: '@create-rn-miniapp/skills-manager',
       version: '0.0.9',
     },
     templatesPackageJson: {
@@ -51,9 +56,14 @@ test('prepareDevPublishPackageJsons rewrites all publish manifests to the same d
 
   assert.equal(prepared.cliPackageJson.version, '0.0.0-dev.20260315090807')
   assert.equal(prepared.skillsPackageJson.version, '0.0.0-dev.20260315090807')
+  assert.equal(prepared.managerPackageJson.version, '0.0.0-dev.20260315090807')
   assert.equal(prepared.templatesPackageJson.version, '0.0.0-dev.20260315090807')
   assert.equal(
     prepared.cliPackageJson.dependencies?.['@create-rn-miniapp/agent-skills'],
+    '0.0.0-dev.20260315090807',
+  )
+  assert.equal(
+    prepared.cliPackageJson.dependencies?.['@create-rn-miniapp/skills-manager'],
     '0.0.0-dev.20260315090807',
   )
   assert.equal(
@@ -80,15 +90,29 @@ test('published package names match the released npm packages', () => {
   ) as {
     name: string
   }
+  const managerPackageJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'packages/skills-manager/package.json'), 'utf8'),
+  ) as {
+    name: string
+  }
 
   assert.equal(cliPackageJson.name, 'create-rn-miniapp')
   assert.equal(cliPackageJson.dependencies?.['@create-rn-miniapp/agent-skills'], 'workspace:*')
+  assert.equal(cliPackageJson.dependencies?.['@create-rn-miniapp/skills-manager'], 'workspace:*')
   assert.equal(
     cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-templates'],
     'workspace:*',
   )
   assert.equal(skillsPackageJson.name, '@create-rn-miniapp/agent-skills')
+  assert.equal(managerPackageJson.name, '@create-rn-miniapp/skills-manager')
   assert.equal(templatesPackageJson.name, '@create-rn-miniapp/scaffold-templates')
+})
+
+test('create-rn-miniapp package does not keep a local skills subcommand implementation', () => {
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'packages/create-rn-miniapp/src/skills-command.ts')),
+    false,
+  )
 })
 
 test('scaffold skills package does not hand-maintain one files entry per skill directory', () => {
@@ -238,5 +262,29 @@ test('scaffold skills tarball keeps flat skill sources', () => {
   assert.equal(
     packResult.files.some((file) => file.path === 'trpc-boundary/references/change-flow.md'),
     true,
+  )
+})
+
+test('skills manager tarball exposes a dist-only CLI package', () => {
+  const packJson = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+    cwd: path.join(repoRoot, 'packages/skills-manager'),
+    encoding: 'utf8',
+  })
+  const jsonMatch = packJson.match(/\[\s*\{[\s\S]*\}\s*]/)
+
+  assert.ok(jsonMatch)
+
+  const [packResult] = JSON.parse(jsonMatch[0]) as Array<{
+    files: Array<{ path: string }>
+  }>
+
+  assert.ok(packResult)
+  assert.equal(
+    packResult.files.some((file) => file.path === 'dist/index.js'),
+    true,
+  )
+  assert.equal(
+    packResult.files.some((file) => file.path === 'src/index.ts'),
+    false,
   )
 })
