@@ -1,5 +1,9 @@
 import path from 'node:path'
-import { APP_ROUTER_WORKSPACE_PATH, CONTRACTS_WORKSPACE_PATH } from './trpc-workspace-metadata.js'
+import {
+  APP_ROUTER_WORKSPACE_PATH,
+  CONTRACTS_WORKSPACE_PATH,
+  LEGACY_TRPC_WORKSPACE_PACKAGE_PATH,
+} from './trpc-workspace-metadata.js'
 import { pathExists } from './templates/filesystem.js'
 
 export type WorkspaceTopologySnapshot = {
@@ -19,7 +23,7 @@ export async function inspectWorkspaceTopology(
     hasContractsWorkspace: await pathExists(path.join(targetRoot, CONTRACTS_WORKSPACE_PATH)),
     hasAppRouterWorkspace: await pathExists(path.join(targetRoot, APP_ROUTER_WORKSPACE_PATH)),
     hasLegacyTrpcWorkspace: await pathExists(
-      path.join(targetRoot, 'packages', 'trpc', 'package.json'),
+      path.join(targetRoot, LEGACY_TRPC_WORKSPACE_PACKAGE_PATH),
     ),
   }
 }

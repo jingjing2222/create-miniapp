@@ -20,6 +20,21 @@ export function createProjectSkillGeneratedPath(skillId: string, relativePath: s
   return `${PROJECT_SKILLS_CANONICAL_DIR}/${skillId}/${relativePath}`
 }
 
+export function createSkillsAddArgs(options: {
+  source: string
+  skillIds: readonly string[]
+  copy?: boolean
+  yes?: boolean
+}) {
+  return [
+    'add',
+    options.source,
+    ...options.skillIds.flatMap((skillId) => ['--skill', skillId]),
+    ...(options.copy === false ? [] : ['--copy']),
+    ...(options.yes === true ? ['-y'] : []),
+  ]
+}
+
 export function renderInstalledProjectSkillsGuidanceLines() {
   return [
     `설치된 project-local skills가 있으면 \`${PROJECT_SKILLS_CANONICAL_DIR}/*\`를 canonical source로 사용한다.`,

@@ -4,6 +4,10 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { getTestPackageManagerField } from './test-support/package-manager.js'
+import {
+  APP_ROUTER_WORKSPACE_PATH,
+  LEGACY_TRPC_WORKSPACE_PACKAGE_PATH,
+} from './trpc-workspace-metadata.js'
 import { inspectWorkspace } from './workspace-inspector.js'
 
 async function createTempWorkspace(t: test.TestContext) {
@@ -310,7 +314,7 @@ test('inspectWorkspace detects tRPC workspace from packages/app-router/package.j
 
   await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
   await mkdir(path.join(targetRoot, 'server'), { recursive: true })
-  await mkdir(path.join(targetRoot, 'packages', 'app-router'), { recursive: true })
+  await mkdir(path.join(targetRoot, APP_ROUTER_WORKSPACE_PATH), { recursive: true })
   await writeFile(
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
@@ -348,7 +352,7 @@ test('inspectWorkspace detects tRPC workspace from packages/app-router/package.j
     'utf8',
   )
   await writeFile(
-    path.join(targetRoot, 'packages', 'app-router', 'package.json'),
+    path.join(targetRoot, APP_ROUTER_WORKSPACE_PATH, 'package.json'),
     JSON.stringify({ name: '@workspace/app-router', private: true }, null, 2),
     'utf8',
   )
@@ -364,7 +368,9 @@ test('inspectWorkspace still detects legacy tRPC workspace from packages/trpc/pa
 
   await mkdir(path.join(targetRoot, 'frontend'), { recursive: true })
   await mkdir(path.join(targetRoot, 'server'), { recursive: true })
-  await mkdir(path.join(targetRoot, 'packages', 'trpc'), { recursive: true })
+  await mkdir(path.join(targetRoot, path.dirname(LEGACY_TRPC_WORKSPACE_PACKAGE_PATH)), {
+    recursive: true,
+  })
   await writeFile(
     path.join(targetRoot, 'package.json'),
     JSON.stringify(
@@ -402,7 +408,7 @@ test('inspectWorkspace still detects legacy tRPC workspace from packages/trpc/pa
     'utf8',
   )
   await writeFile(
-    path.join(targetRoot, 'packages', 'trpc', 'package.json'),
+    path.join(targetRoot, LEGACY_TRPC_WORKSPACE_PACKAGE_PATH),
     JSON.stringify({ name: '@workspace/trpc', private: true }, null, 2),
     'utf8',
   )

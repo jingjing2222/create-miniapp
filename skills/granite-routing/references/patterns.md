@@ -93,8 +93,8 @@
 
 ## 6) References
 
-- Quick API lookup: `.agents/skills/miniapp-capabilities/references/feature-map.md`
-- Full API catalog: `.agents/skills/miniapp-capabilities/references/full-index.md`
+- Quick API lookup: `../miniapp-capabilities/references/feature-map.md`
+- Full API catalog: `../miniapp-capabilities/references/full-index.md`
 - Hard rules: `docs/engineering/frontend-policy.md`
 
 ## 7) Granite Reference Evidence

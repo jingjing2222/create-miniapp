@@ -22,6 +22,19 @@
 3. 남아 있는 import/format/type/test 회귀를 최소 수정으로 정리한다.
 4. `pnpm verify`를 다시 통과시킨 뒤 diff를 검토하고 커밋한다.
 
+## 다음 작업: 2차 SSoT 감사와 잔여 중복 제거
+
+### 목표
+- 1차 리팩터 뒤에도 남아 있는 "같은 사실을 여러 곳에서 직접 적는" 경로와 조합 로직을 다시 걷어낸다.
+- skill 설치 명령, project-local skill 탐색, skill catalog path 파생, tRPC legacy workspace path, skill 간 cross-reference path를 한 군데 기준으로 줄인다.
+- 회귀 테스트를 먼저 추가한 뒤 수정하고 다시 커밋한다.
+
+### 작업 순서
+1. 남아 있는 SSoT 위반 후보를 코드와 문서에서 다시 수집한다.
+2. failing test부터 추가한다.
+3. `skills-install`, `skill-catalog`, `trpc-workspace-metadata`, skill reference 문서를 단일 source 기준으로 정리한다.
+4. targeted test와 `pnpm verify`를 다시 통과시키고 커밋한다.
+
 ## 다음 작업: Optional Skills README Onboarding
 
 ### 목표

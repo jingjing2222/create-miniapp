@@ -1,72 +1,54 @@
 import { createProjectSkillDocPath, createProjectSkillGeneratedPath } from '../skills-contract.js'
 
 type SkillReferenceMetadata = {
-  templateDir: string
-  docsPath: string
   agentsLabel: string
   topologyLabel: string
 }
 
 type CoreSkillMetadata = SkillReferenceMetadata & {
   frontendPolicyReferenceLabel: string
-  referenceCatalogPath?: string
+  referenceCatalogRelativePath?: string
 }
 
 type OptionalSkillMetadata = SkillReferenceMetadata
 
 const CORE_SKILL_METADATA_BY_ID = {
   'miniapp-capabilities': {
-    templateDir: 'miniapp-capabilities',
-    docsPath: createProjectSkillDocPath('miniapp-capabilities'),
     agentsLabel: 'MiniApp capability / 공식 API 탐색',
     topologyLabel: 'MiniApp capability',
     frontendPolicyReferenceLabel: '기능 축과 공식 문서 진입',
   },
   'granite-routing': {
-    templateDir: 'granite-routing',
-    docsPath: createProjectSkillDocPath('granite-routing'),
     agentsLabel: 'route / page / navigation 패턴',
     topologyLabel: 'Granite page/route patterns',
     frontendPolicyReferenceLabel: 'route / navigation 패턴',
   },
   'tds-ui': {
-    templateDir: 'tds-ui',
-    docsPath: createProjectSkillDocPath('tds-ui'),
     agentsLabel: 'TDS UI 선택과 form 패턴',
     topologyLabel: 'TDS UI selection',
     frontendPolicyReferenceLabel: 'TDS component 선택',
-    referenceCatalogPath: createProjectSkillGeneratedPath('tds-ui', 'generated/catalog.json'),
+    referenceCatalogRelativePath: 'generated/catalog.json',
   },
 } as const satisfies Record<string, CoreSkillMetadata>
 
 const OPTIONAL_SKILL_METADATA_BY_ID = {
   'backoffice-react': {
-    templateDir: 'backoffice-react',
-    docsPath: createProjectSkillDocPath('backoffice-react'),
     agentsLabel: 'backoffice React 작업',
     topologyLabel: 'Backoffice React workflow',
   },
   'cloudflare-worker': {
-    templateDir: 'cloudflare-worker',
-    docsPath: createProjectSkillDocPath('cloudflare-worker'),
     agentsLabel: 'Cloudflare Worker 작업',
     topologyLabel: 'Cloudflare Worker 운영 가이드',
   },
   'supabase-project': {
-    templateDir: 'supabase-project',
-    docsPath: createProjectSkillDocPath('supabase-project'),
     agentsLabel: 'Supabase project 작업',
     topologyLabel: 'Supabase 프로젝트 운영 가이드',
   },
   'firebase-functions': {
-    templateDir: 'firebase-functions',
-    docsPath: createProjectSkillDocPath('firebase-functions'),
     agentsLabel: 'Firebase Functions 작업',
     topologyLabel: 'Firebase Functions 운영 가이드',
   },
   'trpc-boundary': {
-    templateDir: 'trpc-boundary',
-    docsPath: createProjectSkillDocPath('trpc-boundary'),
     agentsLabel: 'tRPC boundary 변경',
     topologyLabel: 'tRPC boundary change flow',
   },
@@ -78,35 +60,56 @@ export type SkillId = CoreSkillId | OptionalSkillId
 
 export type SkillReferenceDefinition = SkillReferenceMetadata & {
   id: SkillId
+  docsPath: string
 }
 
-export type CoreSkillDefinition = SkillReferenceMetadata & {
+export type CoreSkillDefinition = SkillReferenceDefinition & {
   id: CoreSkillId
   kind: 'core'
   frontendPolicyReferenceLabel: string
   referenceCatalogPath?: string
 }
 
-export type OptionalSkillDefinition = SkillReferenceMetadata & {
+export type OptionalSkillDefinition = SkillReferenceDefinition & {
   id: OptionalSkillId
   kind: 'optional'
 }
 
 export type SkillDefinition = CoreSkillDefinition | OptionalSkillDefinition
 
-function resolveCoreSkillDefinition(id: CoreSkillId): CoreSkillDefinition {
+function createSkillReferenceDefinition<TId extends SkillId>(
+  id: TId,
+  metadata: SkillReferenceMetadata,
+) {
   return {
     id,
+    docsPath: createProjectSkillDocPath(id),
+    agentsLabel: metadata.agentsLabel,
+    topologyLabel: metadata.topologyLabel,
+  }
+}
+
+function resolveCoreSkillDefinition(id: CoreSkillId): CoreSkillDefinition {
+  const metadata = CORE_SKILL_METADATA_BY_ID[id]
+  const referenceCatalogRelativePath =
+    'referenceCatalogRelativePath' in metadata ? metadata.referenceCatalogRelativePath : undefined
+
+  return {
+    ...createSkillReferenceDefinition(id, metadata),
     kind: 'core',
-    ...CORE_SKILL_METADATA_BY_ID[id],
+    frontendPolicyReferenceLabel: metadata.frontendPolicyReferenceLabel,
+    ...(referenceCatalogRelativePath
+      ? {
+          referenceCatalogPath: createProjectSkillGeneratedPath(id, referenceCatalogRelativePath),
+        }
+      : {}),
   }
 }
 
 function createOptionalSkillDefinition(id: OptionalSkillId): OptionalSkillDefinition {
   return {
-    id,
+    ...createSkillReferenceDefinition(id, OPTIONAL_SKILL_METADATA_BY_ID[id]),
     kind: 'optional',
-    ...OPTIONAL_SKILL_METADATA_BY_ID[id],
   }
 }
 

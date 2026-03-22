@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
   buildSkillsInstallCommand,
+  hasInstalledProjectSkills,
+  listInstalledProjectSkills,
   normalizeSelectedSkillIds,
   renderSkillsAddCommand,
   resolveRecommendedSkillIds,
@@ -63,4 +67,20 @@ test('buildSkillsInstallCommand uses the package manager dlx adapter and local r
     '--copy',
     '-y',
   ])
+})
+
+test('project-local skill detection ignores non-skill files and derives presence from actual skill directories', async (t) => {
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skills-install-'))
+
+  t.after(async () => {
+    await rm(targetRoot, { recursive: true, force: true })
+  })
+
+  await mkdir(path.join(targetRoot, '.agents', 'skills'), { recursive: true })
+  await mkdir(path.join(targetRoot, '.claude', 'skills'), { recursive: true })
+  await writeFile(path.join(targetRoot, '.agents', 'skills', 'README.md'), 'not a skill\n', 'utf8')
+  await writeFile(path.join(targetRoot, '.claude', 'skills', 'notes.txt'), 'mirror note\n', 'utf8')
+
+  assert.equal(await hasInstalledProjectSkills(targetRoot), false)
+  assert.deepEqual(await listInstalledProjectSkills(targetRoot), [])
 })

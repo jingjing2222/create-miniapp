@@ -1,6 +1,6 @@
 # create-rn-miniapp
 
-![example](https://raw.githubusercontent.com/jingjing2222/create-rn-miniapp/main/example.gif)
+![example](./example.gif)
 
 `create-rn-miniapp`은 AppInToss MiniApp을 만들고, 생성 직후부터 바로 작업을 시작할 수 있게 문서와 optional agent skill 가이드까지 함께 준비해주는 CLI예요.
 
@@ -76,15 +76,17 @@ agent skill은 에이전트가 같은 기준으로 화면, 라우팅, 서버 작
 - `cloudflare-worker`, `supabase-project`, `firebase-functions`: 고른 `server` provider에 맞춰 골라요.
 - `trpc-boundary`: `cloudflare` 위에 `tRPC`를 올렸을 때 같이 봐요.
 
-설치 예시는 이렇게 쓰면 돼요.
+이 저장소를 clone한 상태라면 repo root에서 이렇게 바로 설치해볼 수 있어요.
 
 ```bash
-npx skills add jingjing2222/create-rn-miniapp \
+npx skills add . \
   --skill miniapp-capabilities \
   --skill granite-routing \
   --skill tds-ui \
   --copy
 ```
+
+생성된 repo의 `README.md`는 그 시점의 source repo 기준 설치 예시를 자동으로 다시 보여줘요.
 
 설치 뒤에는 표준 명령만 기억하면 돼요.
 

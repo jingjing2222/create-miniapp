@@ -365,11 +365,12 @@ test('docs and feature modules do not keep separate skill manifests', async () =
   assert.match(featureCatalogSource, /resolveOptionalSkillDefinition/)
   assert.match(featureCatalogSource, /resolveRecommendedSkillDefinitions/)
   assert.doesNotMatch(sharedSkillCatalogSource, /enabled:\s*\(options\)/)
-  assert.match(sharedSkillCatalogSource, /templateDir: 'backoffice-react'/)
-  assert.match(sharedSkillCatalogSource, /templateDir: 'cloudflare-worker'/)
-  assert.match(sharedSkillCatalogSource, /templateDir: 'supabase-project'/)
-  assert.match(sharedSkillCatalogSource, /templateDir: 'firebase-functions'/)
-  assert.match(sharedSkillCatalogSource, /templateDir: 'trpc-boundary'/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /templateDir:/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /createProjectSkillDocPath\('backoffice-react'\)/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /createProjectSkillDocPath\('cloudflare-worker'\)/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /createProjectSkillDocPath\('supabase-project'\)/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /createProjectSkillDocPath\('firebase-functions'\)/)
+  assert.doesNotMatch(sharedSkillCatalogSource, /createProjectSkillDocPath\('trpc-boundary'\)/)
 })
 
 test('skill taxonomy metadata is centralized in a shared catalog', async () => {
@@ -401,6 +402,11 @@ test('skill taxonomy metadata is centralized in a shared catalog', async () => {
   assert.match(skillsInstallSource, /from '\.\/skills-contract\.js'/)
   assert.match(docsSource, /from '\.\.\/skills-contract\.js'/)
   assert.match(skillsContractSource, /PROJECT_SKILLS_CANONICAL_DIR/)
+  assert.match(catalogSource, /createProjectSkillDocPath\(id\)/)
+  assert.doesNotMatch(
+    catalogSource,
+    /createProjectSkillGeneratedPath\('tds-ui', 'generated\/catalog\.json'\)/,
+  )
   assert.match(sharedFeatureSource, /from '\.\/skill-catalog\.js'/)
   assert.doesNotMatch(sharedFeatureSource, /templateDir: 'backoffice-react'/)
   assert.doesNotMatch(sharedFeatureSource, /templateDir: 'cloudflare-worker'/)
@@ -450,7 +456,12 @@ test('frontend policy derives core skill references from the core skill catalog'
   assert.match(frontendPolicySource, /getCoreSkillDefinition\('miniapp-capabilities'/)
   assert.match(frontendPolicySource, /getCoreSkillDefinition\('granite-routing'/)
   assert.match(frontendPolicySource, /getCoreSkillDefinition\('tds-ui'/)
+  assert.match(skillCatalogSource, /referenceCatalogRelativePath: 'generated\/catalog\.json'/)
   assert.match(
+    skillCatalogSource,
+    /createProjectSkillGeneratedPath\(\s*id,\s*referenceCatalogRelativePath\)/,
+  )
+  assert.doesNotMatch(
     skillCatalogSource,
     /createProjectSkillGeneratedPath\('tds-ui', 'generated\/catalog\.json'\)/,
   )
@@ -740,8 +751,16 @@ test('tRPC workspace paths are not hardcoded outside the shared workspace metada
     fileURLToPath(new URL('../package-manager.ts', import.meta.url)),
     'utf8',
   )
+  const trpcMetadataSource = await readFile(
+    fileURLToPath(new URL('../trpc-workspace-metadata.ts', import.meta.url)),
+    'utf8',
+  )
   const patchingSharedSource = await readFile(
     fileURLToPath(new URL('../patching/shared.ts', import.meta.url)),
+    'utf8',
+  )
+  const workspaceTopologySource = await readFile(
+    fileURLToPath(new URL('../workspace-topology.ts', import.meta.url)),
     'utf8',
   )
 
@@ -749,6 +768,9 @@ test('tRPC workspace paths are not hardcoded outside the shared workspace metada
   assert.doesNotMatch(cliSource, /packages\/app-router/)
   assert.doesNotMatch(packageManagerSource, /packages\/contracts/)
   assert.doesNotMatch(packageManagerSource, /packages\/app-router/)
+  assert.match(trpcMetadataSource, /LEGACY_TRPC_WORKSPACE_PACKAGE_PATH/)
+  assert.match(workspaceTopologySource, /LEGACY_TRPC_WORKSPACE_PACKAGE_PATH/)
+  assert.doesNotMatch(workspaceTopologySource, /packages\/trpc/)
   assert.doesNotMatch(patchingSharedSource, /\.\.\/packages\/app-router/)
 })
 
@@ -877,7 +899,8 @@ test('README treats generated skills as a first-class scaffold output and avoids
     /agent skill은 에이전트가 같은 기준으로 화면, 라우팅, 서버 작업을 이어가게 도와주는 작업 가이드예요\./,
   )
   assert.match(readmeSource, /root `skills\/`에 두고, 생성된 repo에는 설치 가이드만 남겨요\./)
-  assert.match(readmeSource, /npx skills add jingjing2222\/create-rn-miniapp/)
+  assert.match(readmeSource, /npx skills add \./)
+  assert.doesNotMatch(readmeSource, /npx skills add jingjing2222\/create-rn-miniapp/)
   assert.match(
     readmeSource,
     /- `miniapp-capabilities`: MiniApp capability와 공식 API를 찾을 때 봐요\./,
@@ -891,6 +914,27 @@ test('README treats generated skills as a first-class scaffold output and avoids
   assert.doesNotMatch(readmeSource, /source of truth/i)
   assert.doesNotMatch(readmeSource, /생성물 계약/)
   assert.doesNotMatch(readmeSource, /Provider IaC/)
+})
+
+test('skill references do not hardcode the project-local skills root when sibling paths are enough', async () => {
+  const featureMapSource = await readFile(
+    fileURLToPath(
+      new URL('../../../../skills/miniapp-capabilities/references/feature-map.md', import.meta.url),
+    ),
+    'utf8',
+  )
+  const routingPatternsSource = await readFile(
+    fileURLToPath(
+      new URL('../../../../skills/granite-routing/references/patterns.md', import.meta.url),
+    ),
+    'utf8',
+  )
+
+  assert.doesNotMatch(featureMapSource, /\.agents\/skills\//)
+  assert.doesNotMatch(routingPatternsSource, /\.agents\/skills\//)
+  assert.match(featureMapSource, /\.\.\/tds-ui\/generated\/catalog\.json/)
+  assert.match(routingPatternsSource, /\.\.\/miniapp-capabilities\/references\/feature-map\.md/)
+  assert.match(routingPatternsSource, /\.\.\/miniapp-capabilities\/references\/full-index\.md/)
 })
 
 test('root AGENTS follows the code-owned generated AGENTS contract', async () => {

@@ -3,7 +3,11 @@ import path from 'node:path'
 import type { CommandSpec } from './command-spec.js'
 import { getPackageManagerAdapter, type PackageManager } from './package-manager.js'
 import type { ServerProvider } from './providers/index.js'
-import { PROJECT_SKILLS_DIR_CANDIDATES, SKILLS_SOURCE_REPO } from './skills-contract.js'
+import {
+  createSkillsAddArgs,
+  PROJECT_SKILLS_DIR_CANDIDATES,
+  SKILLS_SOURCE_REPO,
+} from './skills-contract.js'
 import { resolveRecommendedSkillDefinitions } from './templates/feature-catalog.js'
 import { SKILL_CATALOG, getSkillDefinition, type SkillId } from './templates/skill-catalog.js'
 
@@ -49,19 +53,7 @@ async function resolveInstalledProjectSkillIds(targetRoot: string) {
 }
 
 export async function hasInstalledProjectSkills(targetRoot: string) {
-  for (const relativeDir of PROJECT_SKILLS_DIR_CANDIDATES) {
-    const skillsRoot = path.join(targetRoot, relativeDir)
-
-    if (!(await pathExists(skillsRoot))) {
-      continue
-    }
-
-    if ((await readdir(skillsRoot)).length > 0) {
-      return true
-    }
-  }
-
-  return false
+  return (await resolveInstalledProjectSkillIds(targetRoot)).length > 0
 }
 
 export async function listInstalledProjectSkills(targetRoot: string) {
@@ -102,10 +94,10 @@ export function renderSkillsAddCommand(skillIds: string[]) {
   const baseArgs = [
     'npx',
     'skills',
-    'add',
-    SKILLS_SOURCE_REPO,
-    ...skillIds.flatMap((skillId) => ['--skill', skillId]),
-    '--copy',
+    ...createSkillsAddArgs({
+      source: SKILLS_SOURCE_REPO,
+      skillIds,
+    }),
   ]
 
   return baseArgs.join(' ')
@@ -135,13 +127,14 @@ export async function buildSkillsInstallCommand(options: {
 
   return {
     cwd: options.targetRoot,
-    ...adapter.dlx('skills', [
-      'add',
-      source,
-      ...options.skillIds.flatMap((skillId) => ['--skill', skillId]),
-      '--copy',
-      '-y',
-    ]),
+    ...adapter.dlx(
+      'skills',
+      createSkillsAddArgs({
+        source,
+        skillIds: options.skillIds,
+        yes: true,
+      }),
+    ),
     label: '추천 agent skills 설치하기',
   }
 }
