@@ -1,3 +1,9 @@
+import {
+  CREATE_CLOUDFLARE_CLI,
+  CREATE_GRANITE_APP_CLI,
+  CREATE_VITE_CLI,
+  type ExternalCliTool,
+} from './external-tooling.js'
 import type { TrpcWorkspacePath } from './trpc-workspace-metadata.js'
 
 export const PACKAGE_MANAGERS = ['pnpm', 'yarn', 'npm', 'bun'] as const
@@ -30,7 +36,7 @@ export type PackageManagerAdapter = {
   install(): PackageManagerCommand
   add(packages: string[], options?: { dev?: boolean }): PackageManagerCommand
   exec(binary: string, args: string[]): PackageManagerCommand
-  dlx(packageName: string, args: string[]): PackageManagerCommand
+  dlx(tool: ExternalCliTool, args: string[]): PackageManagerCommand
   createGraniteApp(targetDirectory: string): PackageManagerCommand
   createViteApp(targetDirectory: string): PackageManagerCommand
   createCloudflareApp(targetDirectory: string): PackageManagerCommand
@@ -38,7 +44,7 @@ export type PackageManagerAdapter = {
   runScriptInDirectory(directory: string, script: string): PackageManagerCommand
   installInDirectoryCommand(directory: string): string
   runScriptInDirectoryCommand(directory: string, script: string): string
-  dlxCommand(packageName: string, args: string[]): string
+  dlxCommand(tool: ExternalCliTool, args: string[]): string
   workspaceRunCommand(
     workspace: 'frontend' | 'backoffice' | 'server' | TrpcWorkspacePath,
     script: string,
@@ -105,16 +111,14 @@ const pnpmAdapter: PackageManagerAdapter = {
   exec(binary, args) {
     return withArgs('pnpm', ['exec', binary, ...args])
   },
-  dlx(packageName, args) {
-    return withArgs('pnpm', ['dlx', packageName, ...args])
+  dlx(tool, args) {
+    return withArgs('pnpm', ['dlx', tool.packageSpec, ...args])
   },
   createGraniteApp(targetDirectory) {
-    return withArgs('pnpm', ['create', 'granite-app', targetDirectory, '--tools', 'biome'])
+    return this.dlx(CREATE_GRANITE_APP_CLI, [targetDirectory, '--tools', 'biome'])
   },
   createViteApp(targetDirectory) {
-    return withArgs('pnpm', [
-      'dlx',
-      'create-vite',
+    return this.dlx(CREATE_VITE_CLI, [
       targetDirectory,
       '--template',
       'react-ts',
@@ -122,9 +126,7 @@ const pnpmAdapter: PackageManagerAdapter = {
     ])
   },
   createCloudflareApp(targetDirectory) {
-    return withArgs('pnpm', [
-      'create',
-      'cloudflare@latest',
+    return this.dlx(CREATE_CLOUDFLARE_CLI, [
       targetDirectory,
       '--type',
       'hello-world',
@@ -147,8 +149,8 @@ const pnpmAdapter: PackageManagerAdapter = {
   runScriptInDirectoryCommand(directory, script) {
     return renderCommandString(this.runScriptInDirectory(directory, script))
   },
-  dlxCommand(packageName, args) {
-    return renderCommandString(this.dlx(packageName, args))
+  dlxCommand(tool, args) {
+    return renderCommandString(this.dlx(tool, args))
   },
   workspaceRunCommand(workspace, script) {
     return `pnpm --dir ${workspace} ${script}`
@@ -201,16 +203,14 @@ const yarnAdapter: PackageManagerAdapter = {
   exec(binary, args) {
     return withArgs('yarn', ['exec', binary, ...args])
   },
-  dlx(packageName, args) {
-    return withArgs('yarn', ['dlx', packageName, ...args])
+  dlx(tool, args) {
+    return withArgs('yarn', ['dlx', tool.packageSpec, ...args])
   },
   createGraniteApp(targetDirectory) {
-    return withArgs('yarn', ['dlx', 'create-granite-app', targetDirectory, '--tools', 'biome'])
+    return this.dlx(CREATE_GRANITE_APP_CLI, [targetDirectory, '--tools', 'biome'])
   },
   createViteApp(targetDirectory) {
-    return withArgs('yarn', [
-      'dlx',
-      'create-vite',
+    return this.dlx(CREATE_VITE_CLI, [
       targetDirectory,
       '--template',
       'react-ts',
@@ -218,9 +218,7 @@ const yarnAdapter: PackageManagerAdapter = {
     ])
   },
   createCloudflareApp(targetDirectory) {
-    return withArgs('yarn', [
-      'create',
-      'cloudflare@latest',
+    return this.dlx(CREATE_CLOUDFLARE_CLI, [
       targetDirectory,
       '--type',
       'hello-world',
@@ -243,8 +241,8 @@ const yarnAdapter: PackageManagerAdapter = {
   runScriptInDirectoryCommand(directory, script) {
     return renderCommandString(this.runScriptInDirectory(directory, script))
   },
-  dlxCommand(packageName, args) {
-    return renderCommandString(this.dlx(packageName, args))
+  dlxCommand(tool, args) {
+    return renderCommandString(this.dlx(tool, args))
   },
   workspaceRunCommand(workspace, script) {
     return `yarn workspace ${workspace} ${script}`
@@ -296,15 +294,14 @@ const npmAdapter: PackageManagerAdapter = {
   exec(binary, args) {
     return withArgs('npm', ['exec', '--', binary, ...args])
   },
-  dlx(packageName, args) {
-    return withArgs('npx', [packageName, ...args])
+  dlx(tool, args) {
+    return withArgs('npx', [tool.packageSpec, ...args])
   },
   createGraniteApp(targetDirectory) {
-    return withArgs('npx', ['create-granite-app', targetDirectory, '--tools', 'biome'])
+    return this.dlx(CREATE_GRANITE_APP_CLI, [targetDirectory, '--tools', 'biome'])
   },
   createViteApp(targetDirectory) {
-    return withArgs('npx', [
-      'create-vite',
+    return this.dlx(CREATE_VITE_CLI, [
       targetDirectory,
       '--template',
       'react-ts',
@@ -312,8 +309,7 @@ const npmAdapter: PackageManagerAdapter = {
     ])
   },
   createCloudflareApp(targetDirectory) {
-    return withArgs('npx', [
-      'create-cloudflare@latest',
+    return this.dlx(CREATE_CLOUDFLARE_CLI, [
       targetDirectory,
       '--type',
       'hello-world',
@@ -336,8 +332,8 @@ const npmAdapter: PackageManagerAdapter = {
   runScriptInDirectoryCommand(directory, script) {
     return renderCommandString(this.runScriptInDirectory(directory, script))
   },
-  dlxCommand(packageName, args) {
-    return renderCommandString(this.dlx(packageName, args))
+  dlxCommand(tool, args) {
+    return renderCommandString(this.dlx(tool, args))
   },
   workspaceRunCommand(workspace, script) {
     return `npm --workspace ${workspace} run ${script}`
@@ -385,15 +381,14 @@ const bunAdapter: PackageManagerAdapter = {
   exec(binary, args) {
     return withArgs('bunx', [binary, ...args])
   },
-  dlx(packageName, args) {
-    return withArgs('bunx', [packageName, ...args])
+  dlx(tool, args) {
+    return withArgs('bunx', [tool.packageSpec, ...args])
   },
   createGraniteApp(targetDirectory) {
-    return withArgs('bunx', ['create-granite-app', targetDirectory, '--tools', 'biome'])
+    return this.dlx(CREATE_GRANITE_APP_CLI, [targetDirectory, '--tools', 'biome'])
   },
   createViteApp(targetDirectory) {
-    return withArgs('bunx', [
-      'create-vite',
+    return this.dlx(CREATE_VITE_CLI, [
       targetDirectory,
       '--template',
       'react-ts',
@@ -401,8 +396,7 @@ const bunAdapter: PackageManagerAdapter = {
     ])
   },
   createCloudflareApp(targetDirectory) {
-    return withArgs('bunx', [
-      'create-cloudflare@latest',
+    return this.dlx(CREATE_CLOUDFLARE_CLI, [
       targetDirectory,
       '--type',
       'hello-world',
@@ -425,8 +419,8 @@ const bunAdapter: PackageManagerAdapter = {
   runScriptInDirectoryCommand(directory, script) {
     return renderCommandString(this.runScriptInDirectory(directory, script))
   },
-  dlxCommand(packageName, args) {
-    return renderCommandString(this.dlx(packageName, args))
+  dlxCommand(tool, args) {
+    return renderCommandString(this.dlx(tool, args))
   },
   workspaceRunCommand(workspace, script) {
     return `bun run --cwd ${workspace} ${script}`

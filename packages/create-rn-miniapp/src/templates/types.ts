@@ -11,6 +11,7 @@ export const ROOT_WORKSPACE_ORDER = [
 ] as const
 
 export type WorkspaceName = (typeof ROOT_WORKSPACE_ORDER)[number]
+export type RootWorkspacePattern = string
 
 export type TemplateTokens = {
   appName: string

@@ -3,12 +3,14 @@ import path from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import type { CommandSpec } from '../../command-spec.js'
+import { SUPABASE_CLI } from '../../external-tooling.js'
 import { runCommand, runCommandWithOutput, type CommandOutput } from '../../commands.js'
 import type { CliPrompter } from '../../cli.js'
 import { getPackageManagerAdapter, type PackageManager } from '../../package-manager.js'
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
 import { pathExists } from '../../templates/filesystem.js'
 import { promptShouldInitializeExistingRemoteContent } from '../shared.js'
+import dedent, { dedentWithTrailingNewline } from '../../dedent.js'
 
 type SupabaseProject = {
   id: string
@@ -64,7 +66,7 @@ function buildSupabaseCommand(
 
   return {
     cwd,
-    ...adapter.dlx('supabase', args),
+    ...adapter.dlx(SUPABASE_CLI, args),
     label,
   }
 }
@@ -73,27 +75,24 @@ function createSupabaseEnvValues(projectRef: string, publishableKey: string) {
   const supabaseUrl = `https://${projectRef}.supabase.co`
 
   return {
-    frontend: [
-      `MINIAPP_SUPABASE_URL=${supabaseUrl}`,
-      `MINIAPP_SUPABASE_PUBLISHABLE_KEY=${publishableKey}`,
-      '',
-    ].join('\n'),
-    backoffice: [
-      `VITE_SUPABASE_URL=${supabaseUrl}`,
-      `VITE_SUPABASE_PUBLISHABLE_KEY=${publishableKey}`,
-      '',
-    ].join('\n'),
+    frontend: dedentWithTrailingNewline`
+  MINIAPP_SUPABASE_URL=${supabaseUrl}
+  MINIAPP_SUPABASE_PUBLISHABLE_KEY=${publishableKey}
+`,
+    backoffice: dedentWithTrailingNewline`
+  VITE_SUPABASE_URL=${supabaseUrl}
+  VITE_SUPABASE_PUBLISHABLE_KEY=${publishableKey}
+`,
   }
 }
 
 function createSupabaseServerEnvValues(projectRef: string, dbPassword = '', accessToken = '') {
-  return [
-    '# Used by server/package.json db:apply and functions:deploy for remote Supabase operations.',
-    `SUPABASE_PROJECT_REF=${projectRef}`,
-    `SUPABASE_DB_PASSWORD=${dbPassword}`,
-    `SUPABASE_ACCESS_TOKEN=${accessToken}`,
-    '',
-  ].join('\n')
+  return dedentWithTrailingNewline`
+  # Used by server/package.json db:apply and functions:deploy for remote Supabase operations.
+  SUPABASE_PROJECT_REF=${projectRef}
+  SUPABASE_DB_PASSWORD=${dbPassword}
+  SUPABASE_ACCESS_TOKEN=${accessToken}
+`
 }
 
 function getSupabaseApiSettingsUrl(projectRef: string) {
@@ -152,6 +151,17 @@ function formatSupabaseEdgeFunctionSkipGuidance() {
   ]
 }
 
+function renderOptionalTextBlock(lines: string[]) {
+  if (lines.length === 0) {
+    return ''
+  }
+
+  return dedent`
+
+    ${lines.join('\n')}
+  `
+}
+
 export function extractJsonPayload<T>(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
   const cleanedStdout = stripCliStructuredOutput(output.stdout)
   const fullStdout = cleanedStdout
@@ -205,50 +215,45 @@ export function formatSupabaseManualSetupNote(options: {
     options.projectRef,
     '<Supabase Settings > API에서 복사한 Publishable key>',
   )
-  const lines = [
-    'Supabase publishable key를 자동으로 가져오지 못했습니다. 아래 URL에서 키를 확인한 뒤 직접 넣어주세요.',
-    '',
-    getSupabaseApiSettingsUrl(options.projectRef),
-    '',
-    path.join(options.targetRoot, 'frontend', '.env.local'),
-    env.frontend.trimEnd(),
-  ]
-
-  if (options.hasBackoffice) {
-    lines.push(
-      '',
-      path.join(options.targetRoot, 'backoffice', '.env.local'),
-      env.backoffice.trimEnd(),
-    )
-  }
-
-  lines.push(
-    '',
-    path.join(options.targetRoot, 'server', '.env.local'),
-    createSupabaseServerEnvValues(options.projectRef, '<프로젝트 DB password>').trimEnd(),
-  )
-
-  if (options.didApplyRemoteDb === false) {
-    lines.push('', ...formatSupabaseRemoteDbSkipGuidance())
-  }
-
-  if (options.didDeployEdgeFunctions === false) {
-    lines.push('', ...formatSupabaseEdgeFunctionSkipGuidance())
-  }
-
   const secretGuidance = formatSupabaseSecretGuidance({
     projectRef: options.projectRef,
     hasDbPassword: options.hasDbPassword,
     hasAccessToken: options.hasAccessToken ?? false,
   })
+  const backofficeBlock = options.hasBackoffice
+    ? dedent`
 
-  if (secretGuidance.length > 0) {
-    lines.push('', ...secretGuidance)
-  }
+        ${path.join(options.targetRoot, 'backoffice', '.env.local')}
+        ${env.backoffice.trimEnd()}
+      `
+    : ''
+  const remoteDbSkipBlock =
+    options.didApplyRemoteDb === false
+      ? renderOptionalTextBlock(formatSupabaseRemoteDbSkipGuidance())
+      : ''
+  const edgeFunctionSkipBlock =
+    options.didDeployEdgeFunctions === false
+      ? renderOptionalTextBlock(formatSupabaseEdgeFunctionSkipGuidance())
+      : ''
+  const secretGuidanceBlock = renderOptionalTextBlock(secretGuidance)
+  const serverEnv = createSupabaseServerEnvValues(
+    options.projectRef,
+    '<프로젝트 DB password>',
+  ).trimEnd()
 
   return {
     title: 'Supabase 연결 값을 이렇게 넣어 주세요',
-    body: lines.join('\n'),
+    body: dedent`
+      Supabase publishable key를 자동으로 가져오지 못했습니다. 아래 URL에서 키를 확인한 뒤 직접 넣어주세요.
+
+      ${getSupabaseApiSettingsUrl(options.projectRef)}
+
+      ${path.join(options.targetRoot, 'frontend', '.env.local')}
+      ${env.frontend.trimEnd()}${backofficeBlock}
+
+      ${path.join(options.targetRoot, 'server', '.env.local')}
+      ${serverEnv}${remoteDbSkipBlock}${edgeFunctionSkipBlock}${secretGuidanceBlock}
+    `,
   }
 }
 
@@ -713,25 +718,31 @@ export async function finalizeSupabaseProvisioning(options: {
     return [
       {
         title: 'Supabase 연결 값을 적어뒀어요',
-        body: [
-          hasBackoffice
-            ? 'frontend/.env.local 과 backoffice/.env.local 에 Supabase 연결 값을 적어뒀어요.'
-            : 'frontend/.env.local 에 Supabase 연결 값을 적어뒀어요.',
-          'server/.env.local 에도 필요한 값을 적어뒀어요.',
-          ...(options.provisionedProject.didApplyRemoteDb
-            ? []
-            : formatSupabaseRemoteDbSkipGuidance()),
-          ...(options.provisionedProject.didDeployEdgeFunctions
-            ? []
-            : formatSupabaseEdgeFunctionSkipGuidance()),
-          ...(serverEnv.hasDbPassword && serverEnv.hasAccessToken
-            ? []
-            : formatSupabaseSecretGuidance({
-                projectRef: options.provisionedProject.projectRef,
-                hasDbPassword: serverEnv.hasDbPassword,
-                hasAccessToken: serverEnv.hasAccessToken,
-              })),
-        ].join('\n'),
+        body: dedent`
+          ${
+            hasBackoffice
+              ? 'frontend/.env.local 과 backoffice/.env.local 에 Supabase 연결 값을 적어뒀어요.'
+              : 'frontend/.env.local 에 Supabase 연결 값을 적어뒀어요.'
+          }
+          server/.env.local 에도 필요한 값을 적어뒀어요.
+          ${(
+            options.provisionedProject.didApplyRemoteDb ? [] : formatSupabaseRemoteDbSkipGuidance()
+          ).join('\n')}
+          ${(
+            options.provisionedProject.didDeployEdgeFunctions
+              ? []
+              : formatSupabaseEdgeFunctionSkipGuidance()
+          ).join('\n')}
+          ${(
+            serverEnv.hasDbPassword && serverEnv.hasAccessToken
+              ? []
+              : formatSupabaseSecretGuidance({
+                  projectRef: options.provisionedProject.projectRef,
+                  hasDbPassword: serverEnv.hasDbPassword,
+                  hasAccessToken: serverEnv.hasAccessToken,
+                })
+          ).join('\n')}
+        `,
       },
     ] satisfies ProvisioningNote[]
   }

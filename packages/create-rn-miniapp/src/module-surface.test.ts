@@ -8,6 +8,44 @@ import { fileURLToPath } from 'node:url'
 const SRC_ROOT = fileURLToPath(new URL('../src/', import.meta.url))
 const FORBIDDEN_RUNTIME_MODULES = ['templates/runtime.ts', 'patching/runtime.ts'] as const
 const FORBIDDEN_INTERNAL_BARRELS = new Set(['templates/index.ts', 'patching/index.ts'])
+const DEDENT_REGRESSION_PATTERNS = [
+  {
+    relativePath: 'patching/server.ts',
+    description: 'renderServerScaffoldStateSection manual line-array assembly',
+    pattern: /function renderServerScaffoldStateSection\(\)\s*{\s*return \[/,
+  },
+  {
+    relativePath: 'patching/ast/granite.ts',
+    description: 'renderGranitePresetSource manual parts assembly',
+    pattern: /const parts = \[/,
+  },
+  {
+    relativePath: 'templates/server.ts',
+    description: 'renderFirebaseFunctionsGitignore manual line-array assembly',
+    pattern:
+      /function renderFirebaseFunctionsGitignore\(packageManager: string\)\s*{\s*const lines = \['lib\/', 'node_modules\/'\]/,
+  },
+  {
+    relativePath: 'providers/cloudflare/provision.ts',
+    description: 'formatCloudflareManualSetupNote manual line-array assembly',
+    pattern: /export function formatCloudflareManualSetupNote[\s\S]*?const lines = \[/,
+  },
+  {
+    relativePath: 'providers/supabase/provision.ts',
+    description: 'formatSupabaseManualSetupNote manual line-array assembly',
+    pattern: /export function formatSupabaseManualSetupNote[\s\S]*?const lines = \[/,
+  },
+  {
+    relativePath: 'providers/firebase/provision.ts',
+    description: 'firebase fallback message inline newline assembly',
+    pattern: /return `\$\{options\.rawMessage\}\\n상세 로그: \$\{debugLogPath\}`/,
+  },
+  {
+    relativePath: 'providers/firebase/provision.ts',
+    description: 'formatFirebaseManualSetupNote manual line-array assembly',
+    pattern: /export function formatFirebaseManualSetupNote[\s\S]*?const lines = \[/,
+  },
+] as const
 
 async function listSourceFiles(currentDir: string): Promise<string[]> {
   const { readdir } = await import('node:fs/promises')
@@ -86,6 +124,69 @@ function collectRelativeModuleSpecifiers(sourceFile: ts.SourceFile) {
   }
 
   return moduleSpecifiers
+}
+
+function collectReExportSites(sourceFile: ts.SourceFile) {
+  const sites: string[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier) {
+      continue
+    }
+
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(statement.getStart())
+    sites.push(`${line + 1}:${character + 1}`)
+  }
+
+  return sites
+}
+
+function isNewlineJoinCall(node: ts.Node): node is ts.CallExpression & {
+  expression: ts.PropertyAccessExpression & { expression: ts.ArrayLiteralExpression }
+} {
+  return (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === 'join' &&
+    node.arguments.length === 1 &&
+    ts.isStringLiteral(node.arguments[0]) &&
+    node.arguments[0].text === '\n' &&
+    ts.isArrayLiteralExpression(node.expression.expression)
+  )
+}
+
+function isPureStaticMultilineArray(arrayLiteral: ts.ArrayLiteralExpression) {
+  return arrayLiteral.elements.every((element) => {
+    return (
+      ts.isStringLiteral(element) ||
+      ts.isNoSubstitutionTemplateLiteral(element) ||
+      ts.isTemplateExpression(element)
+    )
+  })
+}
+
+function collectStaticMultilineArrayJoinSites(sourceFile: ts.SourceFile) {
+  const sites: string[] = []
+
+  function visit(node: ts.Node) {
+    if (!isNewlineJoinCall(node)) {
+      ts.forEachChild(node, visit)
+      return
+    }
+
+    const arrayLiteral = node.expression.expression
+
+    if (isPureStaticMultilineArray(arrayLiteral)) {
+      const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart())
+      sites.push(`${line + 1}:${character + 1}`)
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+
+  return sites
 }
 
 function collectForwardedRelativeBindings(sourceFile: ts.SourceFile) {
@@ -220,11 +321,13 @@ test('non-index source modules do not use re-export syntax', async () => {
 
   for (const filePath of nonIndexFiles) {
     const source = await readFile(filePath, 'utf8')
+    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true)
+    const reExportSites = collectReExportSites(sourceFile)
 
-    assert.doesNotMatch(
-      source,
-      /^\s*export\s+(?:type\s+)?(?:\{[\s\S]*?\}|\*)\s+from\s+['"][^'"]+['"]/m,
-      `re-export found in ${path.relative(SRC_ROOT, filePath)}`,
+    assert.deepEqual(
+      reExportSites,
+      [],
+      `re-export found in ${path.relative(SRC_ROOT, filePath)}: ${reExportSites.join(', ')}`,
     )
   }
 })
@@ -298,5 +401,35 @@ test('non-test implementation modules do not import templates or patching barrel
         `internal barrel import found in ${path.relative(SRC_ROOT, filePath)} -> ${moduleSpecifier}`,
       )
     }
+  }
+})
+
+test('non-test implementation modules do not build authored multiline strings with static array join', async () => {
+  const sourceFiles = await listSourceFiles(SRC_ROOT)
+  const productionFiles = sourceFiles.filter((filePath) => !filePath.endsWith('.test.ts'))
+
+  for (const filePath of productionFiles) {
+    const source = await readFile(filePath, 'utf8')
+    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true)
+    const staticJoinSites = collectStaticMultilineArrayJoinSites(sourceFile)
+
+    assert.deepEqual(
+      staticJoinSites,
+      [],
+      `static multiline array join found in ${path.relative(SRC_ROOT, filePath)}: ${staticJoinSites.join(', ')}`,
+    )
+  }
+})
+
+test('runtime authored multiline helpers do not regress to manual string assembly', async () => {
+  for (const rule of DEDENT_REGRESSION_PATTERNS) {
+    const filePath = path.join(SRC_ROOT, rule.relativePath)
+    const source = await readFile(filePath, 'utf8')
+
+    assert.equal(
+      rule.pattern.test(source),
+      false,
+      `manual multiline assembly found in ${rule.relativePath}: ${rule.description}`,
+    )
   }
 })

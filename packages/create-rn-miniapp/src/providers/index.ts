@@ -1,5 +1,6 @@
 import path from 'node:path'
 import type { CommandSpec } from '../command-spec.js'
+import { SUPABASE_CLI } from '../external-tooling.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerScaffoldState } from '../server-project.js'
 import type { OptionalSkillId } from '../templates/skill-catalog.js'
@@ -63,12 +64,12 @@ function buildSupabasePlan(options: ProviderPlanOptions): CommandSpec[] {
   return [
     {
       cwd: serverRoot,
-      ...packageManager.dlx('supabase', ['init']),
+      ...packageManager.dlx(SUPABASE_CLI, ['init']),
       label: 'server Supabase 준비하기',
     },
     {
       cwd: serverRoot,
-      ...packageManager.dlx('supabase', [
+      ...packageManager.dlx(SUPABASE_CLI, [
         'functions',
         'new',
         SUPABASE_DEFAULT_FUNCTION_NAME,

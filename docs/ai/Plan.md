@@ -1,3 +1,82 @@
+## 다음 작업: dedent 잔여 authored multiline 전수조사
+
+### 목표
+- `packages/create-rn-miniapp/src` runtime 코드에서 아직 `dedent`로 올려야 하는 authored multiline string이 남았는지 다시 전수 조사한다.
+- 계산형 line collection과 runtime data join은 예외로 두고, 사람이 직접 쓴 block/string assembly만 후보로 분류한다.
+- 이번 턴은 구현보다 감사 범위를 먼저 닫고, 파일/패턴별로 바로 바꿔야 할 후보와 그대로 둬도 되는 예외를 구분해 기록한다.
+
+### 작업 순서
+1. `patching`, `templates/docs`, `providers`, `기타 runtime/helpers` 네 영역으로 나눠 병렬 감사한다.
+2. `join('\n')`, multiline template literal, fragment concatenation, conditional block assembly를 다시 훑어서 authored block 후보를 모은다.
+3. 후보마다 `dedent 필요`, `계산형 예외`, `애매하지만 유지 가능`으로 분류한다.
+4. 결과를 합쳐 다음 구현 턴에서 바로 수정 가능한 shortlist로 정리한다.
+
+## 다음 작업: server README에 pinned CLI 버전 기입
+
+### 목표
+- 생성되거나 patch되는 각 `server/README.md`에 이 workspace가 어떤 pinned CLI 버전 기준으로 스캐폴딩/프로비저닝됐는지 설명과 함께 남긴다.
+- provider별로 실제 의존한 CLI만 노출한다.
+- template 경로와 patch 경로가 같은 helper를 써서 버전 표기 contract가 한 곳에서만 관리되게 만든다.
+
+### 작업 순서
+1. Cloudflare/Firebase/Supabase server README 회귀 테스트를 먼저 깨뜨려서 버전 섹션과 설명 문구를 고정한다.
+2. pinned CLI source of truth는 `external-tooling.ts`를 그대로 쓰고, README용 공통 renderer helper를 추가한다.
+3. `templates/server.ts`와 `patching/server.ts`가 같은 helper로 provider별 CLI 버전 섹션을 렌더하게 바꾼다.
+4. `pnpm verify`로 회귀를 확인한다.
+
+## 다음 작업: runtime dedent 잔여 authored block 재감사
+
+### 목표
+- 1차 `dedent` 전환 뒤에도 남아 있는 runtime `join('\n')` 사용처를 다시 전수 조사한다.
+- 계산형 line collection과 `dedent` 내부 interpolation join은 예외로 남기고, 사람이 직접 authoring한 multiline block이 남아 있으면 추가로 `dedent`로 올린다.
+- audit 결과를 테스트와 `pnpm verify`로 다시 고정한다.
+
+### 작업 순서
+1. 남아 있는 runtime `join('\n')`를 파일별로 분류해서 계산형 예외와 authored multiline 후보를 나눈다.
+2. 아직 array literal/fragment 조립으로 남아 있는 authored block은 `dedent` 또는 `dedentWithTrailingNewline`으로 전환한다.
+3. targeted test와 `pnpm verify`로 회귀를 다시 확인한다.
+
+## 다음 작업: runtime multiline string을 dedent 기준으로 정리
+
+### 목표
+- `packages/create-rn-miniapp/src` 런타임 코드에서 사람이 직접 authoring한 multiline 문자열을 `['...'].join('\n')` 대신 `dedent` 기준으로 정리한다.
+- `dedent`는 `create-rn-miniapp` direct dependency로 추가하고, 얇은 로컬 helper 경유로만 import하게 통일한다.
+- 테스트 문자열은 이번 1차 범위에서 제외하고, runtime source에 새 static array literal `join('\n')` 패턴이 남지 않게 meta-test로 막는다.
+
+### 작업 순서
+1. `docs/ai/Plan.md` 갱신 후, runtime source에 남아 있는 static array literal `join('\n')`를 감지하는 red test를 먼저 추가한다.
+2. `packages/create-rn-miniapp`에 `dedent`를 direct dependency로 추가하고, `src/dedent.ts` 같은 얇은 helper를 만든다.
+3. `patching/*`, `templates/*`, `providers/*` 순서로 사람이 작성한 multiline literal을 `dedent` tagged template로 전환한다. 줄바꿈 contract가 필요한 경우 trailing newline을 명시적으로 유지한다.
+4. 계산형 line collection(`map/filter/slice` 결과 join 등)만 예외로 남기고, meta-test allowlist를 최소 범위로 고정한다.
+5. targeted test와 `pnpm verify`를 통과시킨 뒤 단일 목적 커밋으로 정리한다.
+
+## 다음 작업: root workspace topology를 manifest-driven으로 전환
+
+### 목표
+- `resolveRootWorkspaces`가 `frontend`, `server`, `backoffice` 같은 고정 디렉터리 목록을 직접 순회하지 않게 만든다.
+- `packages/*` 집계 규칙은 유지하되, 나머지 루트 workspace 목록과 순서는 실제 root workspace manifest에서 읽어 오게 바꾼다.
+- root template 생성, `--add` 경로의 manifest sync, inspector가 같은 topology source를 보게 정리해서 구조 확장 시 수정 지점을 줄인다.
+
+### 작업 순서
+1. 현재 root workspace contract를 red test로 먼저 고정한다. 새 테스트는 `pnpm-workspace.yaml` 또는 root `package.json#workspaces`를 source of truth로 읽어서 `frontend/server/backoffice` 외 새 workspace도 보존하고, `packages/*`만 계속 집계한다는 계약을 표현한다.
+2. `resolveRootWorkspaces`를 디렉터리 하드코딩 대신 실제 manifest reader 기반으로 교체한다. manifest가 없거나 아직 생성 전인 bootstrap 시점만 최소 fallback을 둔다.
+3. `normalizeRootWorkspaces`는 고정 canonical order를 버리고 manifest에 선언된 루트 workspace 순서를 보존하게 바꾼다. 단, `packages/...` 하위는 계속 `packages/*` 하나로 collapse한다.
+4. `syncRootWorkspaceManifest`와 `applyRootTemplates`가 같은 normalization/serialization helper를 공유하게 정리하고, package manager별 회귀 테스트를 갱신한다.
+5. `pnpm verify`로 회귀를 확인한 뒤 단일 목적 커밋으로 정리한다.
+
+## 다음 작업: 외부 CLI 버전 고정과 Firebase provisioning 경계 재정의
+
+### 목표
+- `adapter.dlx(...)`와 `create-cloudflare@latest`에 흩어진 live CLI 의존을 repo-owned tool manifest 기준으로 exact version pin 한다.
+- `wrangler`, `firebase-tools`, `supabase`, `create-cloudflare` 호출 결과가 lockfile 밖 최신 upstream 동작에 흔들리지 않게 만든다.
+- Firebase provisioning은 `firebase-tools`로 가능한 범위와 GCP 권한 surface가 필요한 범위를 분리한다.
+
+### 작업 순서
+1. package-manager adapter와 provider/scaffold 호출부를 전수 조사해서 external CLI inventory와 pinned package spec source of truth를 만든다. `adapter.dlx(...)`가 raw package name 대신 manifest entry만 받도록 red test를 먼저 추가한다.
+2. `wrangler`, `firebase-tools`, `supabase`, `create-cloudflare` 호출을 exact version spec으로 바꾸고, package manager adapter가 `pnpm dlx`, `yarn dlx`, `npx`, `bunx`로 같은 spec을 일관되게 렌더하도록 정리한다.
+3. Firebase provisioning을 surface별로 분리한다. `projects:addfirebase`, app/web config, deploy는 pinned `firebase-tools`로 유지하고, Firestore 기본 DB 준비는 `firebase-tools` 전환 가능성을 live contract test로 먼저 검증한다. Blaze billing 확인/전환, Cloud Build service account/IAM 보정, Terms 수락은 `gcloud`/console/공식 API 경계로 명시한다.
+4. 관련 README/에러 메시지/회귀 테스트를 새 계약 기준으로 갱신하고 `pnpm verify`로 고정한다.
+
 ## 다음 작업: parser/spec hardening 잔여 이슈 마감
 
 ### 목표

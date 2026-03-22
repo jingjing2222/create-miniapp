@@ -1,5 +1,6 @@
 import type { CommandSpec } from '../command-spec.js'
 import { buildCreateCommandPhases } from '../commands.js'
+import { YARN_SDKS_CLI } from '../external-tooling.js'
 import { getPackageManagerAdapter, type PackageManager } from '../package-manager.js'
 import type { ServerProvider } from '../providers/index.js'
 
@@ -28,7 +29,7 @@ export function buildRootFinalizePlan(options: {
   if (options.packageManager === 'yarn') {
     plan.push({
       cwd: options.targetRoot,
-      ...packageManager.dlx('@yarnpkg/sdks', ['base']),
+      ...packageManager.dlx(YARN_SDKS_CLI, ['base']),
       label: '루트 yarn SDK 만들기',
     })
   }

@@ -5,6 +5,12 @@ import path from 'node:path'
 import test from 'node:test'
 import { parse } from 'jsonc-parser'
 import {
+  CREATE_CLOUDFLARE_CLI,
+  FIREBASE_TOOLS_CLI,
+  SUPABASE_CLI,
+  WRANGLER_CLI,
+} from '../external-tooling.js'
+import {
   createCloudflareServerScriptCatalog,
   createFirebaseServerScriptCatalog,
   createSupabaseServerScriptCatalog,
@@ -41,6 +47,24 @@ async function pathExists(targetPath: string) {
 
 function extractReadmeScriptNames(readme: string) {
   return Array.from(readme.matchAll(/- `cd server && [^`]+ ([a-z0-9:-]+)`:/g), (match) => match[1])
+}
+
+function assertReadmeIncludesPinnedCliVersions(
+  readme: string,
+  expectedPackageSpecs: string[],
+  unexpectedPackageSpecs: string[] = [],
+) {
+  assert.match(readme, /## 생성 기준 CLI 버전/)
+  assert.match(readme, /pinned CLI 버전 기준으로 스캐폴딩\/프로비저닝 흐름을 맞췄어요\./)
+  assert.match(readme, /README의 명령 예시와 운영 메모도 이 버전 contract를 기준으로 설명해요\./)
+
+  for (const packageSpec of expectedPackageSpecs) {
+    assert.match(readme, new RegExp(packageSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  for (const packageSpec of unexpectedPackageSpecs) {
+    assert.doesNotMatch(readme, new RegExp(packageSpec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
 }
 
 test('patchFrontendWorkspace keeps supabase bootstrap out when no server provider is selected', async (t) => {
@@ -1786,6 +1810,11 @@ test('patchCloudflareServerWorkspace keeps worker scripts and removes local tool
   assert.match(readme, /D1/)
   assert.match(readme, /R2/)
   assert.match(readme, /## Scaffold State/)
+  assertReadmeIncludesPinnedCliVersions(
+    readme,
+    [CREATE_CLOUDFLARE_CLI.packageSpec, WRANGLER_CLI.packageSpec],
+    [FIREBASE_TOOLS_CLI.packageSpec, SUPABASE_CLI.packageSpec],
+  )
   assert.match(readme, /\.create-rn-miniapp\/state\.json/)
   assert.match(readme, /## Remote Ops/)
   assert.match(readme, /print-next-commands\.mjs/)
@@ -1947,6 +1976,11 @@ test('patchCloudflareServerWorkspace wires local worker test config and handler 
   assert.match(readme, /wrangler\.vitest\.jsonc/)
   assert.match(readme, /local D1\/R2 binding/)
   assert.match(readme, /## Scaffold State/)
+  assertReadmeIncludesPinnedCliVersions(
+    readme,
+    [CREATE_CLOUDFLARE_CLI.packageSpec, WRANGLER_CLI.packageSpec],
+    [FIREBASE_TOOLS_CLI.packageSpec, SUPABASE_CLI.packageSpec],
+  )
   assert.match(readme, /## Remote Ops/)
   assert.doesNotMatch(readme, /trpc:sync/)
   assert.equal(scaffoldState.remoteInitialization, 'applied')
@@ -2029,6 +2063,11 @@ test('patchSupabaseServerWorkspace creates a server README with remote and local
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Supabase/)
   assert.match(readme, /## Scaffold State/)
+  assertReadmeIncludesPinnedCliVersions(
+    readme,
+    [SUPABASE_CLI.packageSpec],
+    [CREATE_CLOUDFLARE_CLI.packageSpec, FIREBASE_TOOLS_CLI.packageSpec, WRANGLER_CLI.packageSpec],
+  )
   assert.match(readme, /## Remote Ops/)
   assert.match(readme, /supabase\/config\.toml/)
   assert.match(readme, /supabase\/migrations\//)
@@ -2180,10 +2219,10 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
     private: true,
     scripts: {
       deploy:
-        'pnpm dlx firebase-tools deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
+        'pnpm dlx firebase-tools@15.11.0 deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
       build: 'pnpm --dir ./functions install && pnpm --dir ./functions build',
       typecheck: 'pnpm --dir ./functions install && pnpm --dir ./functions typecheck',
-      logs: 'pnpm dlx firebase-tools functions:log',
+      logs: 'pnpm dlx firebase-tools@15.11.0 functions:log',
       test: `node -e "console.log('firebase server test placeholder')"`,
     },
   })
@@ -2256,6 +2295,11 @@ test('patchFirebaseServerWorkspace creates a server README for firebase function
   assert.match(readme, /^# server$/m)
   assert.match(readme, /Firebase Functions/)
   assert.match(readme, /## Scaffold State/)
+  assertReadmeIncludesPinnedCliVersions(
+    readme,
+    [FIREBASE_TOOLS_CLI.packageSpec],
+    [CREATE_CLOUDFLARE_CLI.packageSpec, SUPABASE_CLI.packageSpec, WRANGLER_CLI.packageSpec],
+  )
   assert.match(readme, /## Remote Ops/)
   assert.match(readme, /server\/functions\/src\/index\.ts/)
   assert.match(readme, /firestore\.rules/)
@@ -2328,7 +2372,7 @@ test('patchFirebaseServerWorkspace adds firebase-only yarn packageExtensions to 
     private: true,
     scripts: {
       deploy:
-        'yarn dlx firebase-tools deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
+        'yarn dlx firebase-tools@15.11.0 deploy --only functions,firestore:rules,firestore:indexes --config firebase.json',
     },
   })
   await writeFile(

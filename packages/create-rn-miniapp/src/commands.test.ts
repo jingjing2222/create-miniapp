@@ -89,7 +89,13 @@ test('buildCommandPlan emits yarn commands when yarn is selected', () => {
   })
 
   assert.equal(plan[0]?.command, 'yarn')
-  assert.deepEqual(plan[0]?.args, ['dlx', 'create-granite-app', 'frontend', '--tools', 'biome'])
+  assert.deepEqual(plan[0]?.args, [
+    'dlx',
+    'create-granite-app@1.0.7',
+    'frontend',
+    '--tools',
+    'biome',
+  ])
   assert.deepEqual(plan[1]?.args, ['install'])
   assert.deepEqual(plan[2]?.args, ['add', '@apps-in-toss/framework'])
   assert.deepEqual(plan[3]?.args, [
@@ -102,10 +108,10 @@ test('buildCommandPlan emits yarn commands when yarn is selected', () => {
     'ebook',
     '--skip-input',
   ])
-  assert.deepEqual(plan[5]?.args, ['dlx', 'supabase', 'init'])
+  assert.deepEqual(plan[5]?.args, ['dlx', 'supabase@2.83.0', 'init'])
   assert.deepEqual(plan[6]?.args, [
     'dlx',
-    'supabase',
+    'supabase@2.83.0',
     'functions',
     'new',
     'api',
@@ -115,7 +121,7 @@ test('buildCommandPlan emits yarn commands when yarn is selected', () => {
   ])
   assert.deepEqual(plan[7]?.args, [
     'dlx',
-    'create-vite',
+    'create-vite@9.0.3',
     'backoffice',
     '--template',
     'react-ts',
@@ -161,8 +167,8 @@ test('buildCommandPlan emits Cloudflare C3 commands when cloudflare is selected'
     ],
   )
   assert.deepEqual(plan[5]?.args, [
-    'create',
-    'cloudflare@latest',
+    'dlx',
+    'create-cloudflare@2.64.9',
     'server',
     '--type',
     'hello-world',
@@ -209,10 +215,10 @@ test('buildAddCommandPlan only includes requested missing workspaces', () => {
     plan.map((step) => step.label),
     ['server Supabase 준비하기', 'server Supabase Edge Function 만들기', 'backoffice Vite 만들기'],
   )
-  assert.deepEqual(plan[0]?.args, ['dlx', 'supabase', 'init'])
+  assert.deepEqual(plan[0]?.args, ['dlx', 'supabase@2.83.0', 'init'])
   assert.deepEqual(plan[1]?.args, [
     'dlx',
-    'supabase',
+    'supabase@2.83.0',
     'functions',
     'new',
     'api',
@@ -222,7 +228,7 @@ test('buildAddCommandPlan only includes requested missing workspaces', () => {
   ])
   assert.deepEqual(plan[2]?.args, [
     'dlx',
-    'create-vite',
+    'create-vite@9.0.3',
     'backoffice',
     '--template',
     'react-ts',
@@ -244,8 +250,8 @@ test('buildAddCommandPlan emits cloudflare add step when requested', () => {
     ['server Cloudflare Workers 준비하기'],
   )
   assert.deepEqual(plan[0]?.args, [
-    'create',
-    'cloudflare@latest',
+    'dlx',
+    'create-cloudflare@2.64.9',
     'server',
     '--type',
     'hello-world',
@@ -275,12 +281,12 @@ test('buildCommandPlan emits npm and bun scaffold commands for supported manager
   })
 
   assert.equal(npmPlan[0]?.command, 'npx')
-  assert.deepEqual(npmPlan[0]?.args, ['create-granite-app', 'frontend', '--tools', 'biome'])
+  assert.deepEqual(npmPlan[0]?.args, ['create-granite-app@1.0.7', 'frontend', '--tools', 'biome'])
   assert.deepEqual(npmPlan[1]?.args, ['install'])
   assert.deepEqual(npmPlan[2]?.args, ['install', '@apps-in-toss/framework'])
-  assert.deepEqual(npmPlan[5]?.args, ['supabase', 'init'])
+  assert.deepEqual(npmPlan[5]?.args, ['supabase@2.83.0', 'init'])
   assert.deepEqual(npmPlan[7]?.args, [
-    'create-vite',
+    'create-vite@9.0.3',
     'backoffice',
     '--template',
     'react-ts',
@@ -288,9 +294,9 @@ test('buildCommandPlan emits npm and bun scaffold commands for supported manager
   ])
 
   assert.equal(bunPlan[0]?.command, 'bunx')
-  assert.deepEqual(bunPlan[0]?.args, ['create-granite-app', 'frontend', '--tools', 'biome'])
+  assert.deepEqual(bunPlan[0]?.args, ['create-granite-app@1.0.7', 'frontend', '--tools', 'biome'])
   assert.deepEqual(bunPlan[5]?.args, [
-    'create-cloudflare@latest',
+    'create-cloudflare@2.64.9',
     'server',
     '--type',
     'hello-world',

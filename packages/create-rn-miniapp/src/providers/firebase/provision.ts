@@ -5,6 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 import { log } from '@clack/prompts'
 import JSON5 from 'json5'
 import type { CommandSpec } from '../../command-spec.js'
+import { FIREBASE_TOOLS_CLI } from '../../external-tooling.js'
 import {
   CommandExecutionError,
   runCommand,
@@ -22,6 +23,7 @@ import {
   patchFirebaseFunctionRegion,
   patchFirebaseServerProjectId,
 } from '../../templates/server.js'
+import dedent, { dedentWithTrailingNewline } from '../../dedent.js'
 
 type FirebaseProject = {
   projectId: string
@@ -147,7 +149,7 @@ export function buildFirebaseCommand(
 
   return {
     cwd,
-    ...adapter.dlx('firebase-tools', args),
+    ...adapter.dlx(FIREBASE_TOOLS_CLI, args),
     label,
   }
 }
@@ -165,6 +167,37 @@ export function buildFirebaseFunctionsDeployCommand(
     'firebase.json',
     '--project',
     projectId,
+  ])
+}
+
+export function buildFirebaseFirestoreDatabaseGetCommand(
+  packageManager: PackageManager,
+  cwd: string,
+  projectId: string,
+) {
+  return buildFirebaseCommand(packageManager, cwd, 'Cloud Firestore 기본 database 확인', [
+    'firestore:databases:get',
+    FIRESTORE_DEFAULT_DATABASE_ID,
+    '--project',
+    projectId,
+    '--json',
+  ])
+}
+
+export function buildFirebaseFirestoreDatabaseCreateCommand(
+  packageManager: PackageManager,
+  cwd: string,
+  projectId: string,
+  location: string,
+) {
+  return buildFirebaseCommand(packageManager, cwd, 'Cloud Firestore 기본 database 생성', [
+    'firestore:databases:create',
+    FIRESTORE_DEFAULT_DATABASE_ID,
+    '--project',
+    projectId,
+    '--location',
+    location,
+    '--json',
   ])
 }
 
@@ -215,10 +248,10 @@ export function resolveGoogleCloudCliArchiveSpec(
   }
 
   throw new Error(
-    [
-      `자동 gcloud 설치를 지원하지 않는 환경입니다. (${platform}/${arch})`,
-      GOOGLE_CLOUD_INSTALL_URL,
-    ].join('\n'),
+    dedent`
+      자동 gcloud 설치를 지원하지 않는 환경입니다. (${platform}/${arch})
+      ${GOOGLE_CLOUD_INSTALL_URL}
+    `,
   )
 }
 
@@ -329,27 +362,25 @@ function normalizeFirebaseWebSdkConfig(payload: unknown) {
 
 function createFirebaseEnvValues(config: FirebaseWebSdkConfig, functionRegion?: string) {
   return {
-    frontend: [
-      `MINIAPP_FIREBASE_API_KEY=${config.apiKey}`,
-      `MINIAPP_FIREBASE_AUTH_DOMAIN=${config.authDomain}`,
-      `MINIAPP_FIREBASE_PROJECT_ID=${config.projectId}`,
-      `MINIAPP_FIREBASE_STORAGE_BUCKET=${config.storageBucket}`,
-      `MINIAPP_FIREBASE_MESSAGING_SENDER_ID=${config.messagingSenderId}`,
-      `MINIAPP_FIREBASE_APP_ID=${config.appId}`,
-      `MINIAPP_FIREBASE_MEASUREMENT_ID=${config.measurementId ?? ''}`,
-      `MINIAPP_FIREBASE_FUNCTION_REGION=${functionRegion ?? FIREBASE_DEFAULT_FUNCTION_REGION}`,
-      '',
-    ].join('\n'),
-    backoffice: [
-      `VITE_FIREBASE_API_KEY=${config.apiKey}`,
-      `VITE_FIREBASE_AUTH_DOMAIN=${config.authDomain}`,
-      `VITE_FIREBASE_PROJECT_ID=${config.projectId}`,
-      `VITE_FIREBASE_STORAGE_BUCKET=${config.storageBucket}`,
-      `VITE_FIREBASE_MESSAGING_SENDER_ID=${config.messagingSenderId}`,
-      `VITE_FIREBASE_APP_ID=${config.appId}`,
-      `VITE_FIREBASE_MEASUREMENT_ID=${config.measurementId ?? ''}`,
-      '',
-    ].join('\n'),
+    frontend: dedentWithTrailingNewline`
+  MINIAPP_FIREBASE_API_KEY=${config.apiKey}
+  MINIAPP_FIREBASE_AUTH_DOMAIN=${config.authDomain}
+  MINIAPP_FIREBASE_PROJECT_ID=${config.projectId}
+  MINIAPP_FIREBASE_STORAGE_BUCKET=${config.storageBucket}
+  MINIAPP_FIREBASE_MESSAGING_SENDER_ID=${config.messagingSenderId}
+  MINIAPP_FIREBASE_APP_ID=${config.appId}
+  MINIAPP_FIREBASE_MEASUREMENT_ID=${config.measurementId ?? ''}
+  MINIAPP_FIREBASE_FUNCTION_REGION=${functionRegion ?? FIREBASE_DEFAULT_FUNCTION_REGION}
+`,
+    backoffice: dedentWithTrailingNewline`
+  VITE_FIREBASE_API_KEY=${config.apiKey}
+  VITE_FIREBASE_AUTH_DOMAIN=${config.authDomain}
+  VITE_FIREBASE_PROJECT_ID=${config.projectId}
+  VITE_FIREBASE_STORAGE_BUCKET=${config.storageBucket}
+  VITE_FIREBASE_MESSAGING_SENDER_ID=${config.messagingSenderId}
+  VITE_FIREBASE_APP_ID=${config.appId}
+  VITE_FIREBASE_MEASUREMENT_ID=${config.measurementId ?? ''}
+`,
   }
 }
 
@@ -391,14 +422,13 @@ function createFirebaseServerEnvValues(
   token = '',
   credentials = '',
 ) {
-  return [
-    '# Firebase project metadata for this workspace.',
-    `FIREBASE_PROJECT_ID=${projectId}`,
-    `FIREBASE_FUNCTION_REGION=${functionRegion}`,
-    `FIREBASE_TOKEN=${token}`,
-    `GOOGLE_APPLICATION_CREDENTIALS=${credentials}`,
-    '',
-  ].join('\n')
+  return dedentWithTrailingNewline`
+  # Firebase project metadata for this workspace.
+  FIREBASE_PROJECT_ID=${projectId}
+  FIREBASE_FUNCTION_REGION=${functionRegion}
+  FIREBASE_TOKEN=${token}
+  GOOGLE_APPLICATION_CREDENTIALS=${credentials}
+`
 }
 
 function parseGoogleCloudBillingInfoPayload(output: Pick<CommandOutput, 'stdout' | 'stderr'>) {
@@ -663,17 +693,17 @@ export function formatFirebaseBlazeUpgradeMessage(options: {
     ? options.billingInfo.billingAccountName
     : '(연결된 billing account 없음)'
 
-  return [
-    'Firebase Functions(2nd gen) 배포를 계속하려면 Blaze 플랜이 필요합니다.',
-    '',
-    `현재 프로젝트 \`${options.projectId}\` 는 아직 Blaze가 아닙니다. (\`billingEnabled=${billingState}\`)`,
-    `연결된 billing account: ${billingAccount}`,
-    '',
-    '아래 링크에서 Blaze 플랜으로 올리거나 billing account를 활성화한 뒤 다시 확인하세요.',
-    GOOGLE_CLOUD_PROJECT_BILLING_URL(options.projectId),
-    FIREBASE_PRICING_URL,
-    GOOGLE_CLOUD_VERIFY_BILLING_URL,
-  ].join('\n')
+  return dedent`
+    Firebase Functions(2nd gen) 배포를 계속하려면 Blaze 플랜이 필요합니다.
+    
+    현재 프로젝트 \`${options.projectId}\` 는 아직 Blaze가 아닙니다. (\`billingEnabled=${billingState}\`)
+    연결된 billing account: ${billingAccount}
+    
+    아래 링크에서 Blaze 플랜으로 올리거나 billing account를 활성화한 뒤 다시 확인하세요.
+    ${GOOGLE_CLOUD_PROJECT_BILLING_URL(options.projectId)}
+    ${FIREBASE_PRICING_URL}
+    ${GOOGLE_CLOUD_VERIFY_BILLING_URL}
+  `
 }
 
 function extractCloudBuildLogUrl(message: string) {
@@ -691,6 +721,29 @@ function trimLogSnippet(source: string, maxLines = 20) {
   }
 
   return lines.slice(-maxLines).join('\n')
+}
+
+function renderOptionalMarkdownLines(lines: string[]) {
+  if (lines.length === 0) {
+    return ''
+  }
+
+  return dedent`
+
+    ${lines.join('\n')}
+  `
+}
+
+function renderOptionalMarkdownBlock(title: string, body: string | null) {
+  if (!body) {
+    return ''
+  }
+
+  return dedent`
+
+    ${title}
+    ${body}
+  `
 }
 
 async function readFirebaseDebugLog(cwd: string) {
@@ -910,55 +963,28 @@ async function enableGoogleCloudServices(
   })
 }
 
-async function describeGoogleCloudFirestoreDatabase(
+async function describeFirebaseFirestoreDatabase(
+  packageManager: PackageManager,
   cwd: string,
   projectId: string,
-  gcloudCommand: string,
 ) {
-  const output = await runCommandWithOutput({
-    cwd,
-    command: gcloudCommand,
-    args: [
-      'firestore',
-      'databases',
-      'describe',
-      '--project',
-      projectId,
-      '--database',
-      FIRESTORE_DEFAULT_DATABASE_ID,
-      '--format=json',
-    ],
-    label: 'Cloud Firestore 기본 database 확인',
-  })
+  const output = await runCommandWithOutput(
+    buildFirebaseFirestoreDatabaseGetCommand(packageManager, cwd, projectId),
+  )
 
   return parseGoogleCloudFirestoreDatabasePayload(output)
 }
 
-async function createGoogleCloudFirestoreDatabase(
+async function createFirebaseFirestoreDatabase(
+  packageManager: PackageManager,
   cwd: string,
   projectId: string,
   location: string,
-  gcloudCommand: string,
 ) {
   log.step('Cloud Firestore 기본 database 준비')
-  await runCommandWithOutput({
-    cwd,
-    command: gcloudCommand,
-    args: [
-      'firestore',
-      'databases',
-      'create',
-      '--project',
-      projectId,
-      '--database',
-      FIRESTORE_DEFAULT_DATABASE_ID,
-      '--location',
-      location,
-      '--type',
-      'firestore-native',
-    ],
-    label: 'Cloud Firestore 기본 database 생성',
-  })
+  await runCommandWithOutput(
+    buildFirebaseFirestoreDatabaseCreateCommand(packageManager, cwd, projectId, location),
+  )
 }
 
 async function addGoogleCloudProjectIamBinding(
@@ -1149,12 +1175,12 @@ export async function ensureFirebaseBuildServiceAccountPermissions(options: {
         }
 
         throw new Error(
-          [
-            `Cloud Build 기본 service account \`${buildServiceAccountEmail}\` 가 존재하지 않습니다.`,
-            '이 계정이 막 만들어지는 중이면 잠깐 뒤에 다시 확인해 보는 게 좋아요.',
-            '계속 보이지 않으면 이 계정이 삭제된 상태일 수 있어서 복구하거나 Cloud Build 기본 service account 설정을 다시 확인해야 해요.',
-            '참고 문서: https://cloud.google.com/build/docs/cloud-build-service-account-updates',
-          ].join('\n'),
+          dedent`
+  Cloud Build 기본 service account \`${buildServiceAccountEmail}\` 가 존재하지 않습니다.
+  이 계정이 막 만들어지는 중이면 잠깐 뒤에 다시 확인해 보는 게 좋아요.
+  계속 보이지 않으면 이 계정이 삭제된 상태일 수 있어서 복구하거나 Cloud Build 기본 service account 설정을 다시 확인해야 해요.
+  참고 문서: https://cloud.google.com/build/docs/cloud-build-service-account-updates
+`,
         )
       }
 
@@ -1209,7 +1235,7 @@ export function formatFirebaseAddFirebaseFailureMessage(options: {
 }) {
   const debugLogPath = path.join(options.cwd, 'firebase-debug.log')
   const retryCommand = getPackageManagerAdapter(options.packageManager).dlxCommand(
-    'firebase-tools',
+    FIREBASE_TOOLS_CLI,
     ['projects:addfirebase', options.projectId],
   )
 
@@ -1217,22 +1243,25 @@ export function formatFirebaseAddFirebaseFailureMessage(options: {
     options.debugLogContent &&
     isFirebaseAddFirebasePermissionDeniedError(options.debugLogContent)
   ) {
-    return [
-      'Firebase 리소스를 붙이는 중에 실패했어요.',
-      '',
-      `Google Cloud 프로젝트 \`${options.projectId}\` 는 생성됐지만 Firebase를 붙이는 API가 \`403 PERMISSION_DENIED\` 로 거절됐습니다.`,
-      '보통은 지금 로그인한 계정에 해당 프로젝트에서 Firebase를 활성화할 권한이 없거나, Firebase Terms of Service를 아직 수락하지 않은 경우예요.',
-      '',
-      '이렇게 확인해 주세요',
-      '- https://console.firebase.google.com/ 에 로그인해서 Firebase Terms of Service를 먼저 수락해 주세요.',
-      `- 프로젝트 \`${options.projectId}\` 의 IAM에서 지금 계정에 Owner 또는 Editor 권한이 있는지 확인해 주세요.`,
-      `- 권한 정리 뒤에 \`${retryCommand}\` 로 다시 시도해 주세요.`,
-      `- 자세한 원본 로그: ${debugLogPath}`,
-      `- 참고 문서: ${FIREBASE_EXISTING_GCP_PROJECTS_DOC_URL}`,
-    ].join('\n')
+    return dedent`
+  Firebase 리소스를 붙이는 중에 실패했어요.
+
+  Google Cloud 프로젝트 \`${options.projectId}\` 는 생성됐지만 Firebase를 붙이는 API가 \`403 PERMISSION_DENIED\` 로 거절됐습니다.
+  보통은 지금 로그인한 계정에 해당 프로젝트에서 Firebase를 활성화할 권한이 없거나, Firebase Terms of Service를 아직 수락하지 않은 경우예요.
+
+  이렇게 확인해 주세요
+  - https://console.firebase.google.com/ 에 로그인해서 Firebase Terms of Service를 먼저 수락해 주세요.
+  - 프로젝트 \`${options.projectId}\` 의 IAM에서 지금 계정에 Owner 또는 Editor 권한이 있는지 확인해 주세요.
+  - 권한 정리 뒤에 \`${retryCommand}\` 로 다시 시도해 주세요.
+  - 자세한 원본 로그: ${debugLogPath}
+  - 참고 문서: ${FIREBASE_EXISTING_GCP_PROJECTS_DOC_URL}
+`
   }
 
-  return `${options.rawMessage}\n상세 로그: ${debugLogPath}`
+  return dedent`
+    ${options.rawMessage}
+    상세 로그: ${debugLogPath}
+  `
 }
 
 export function formatFirebaseFunctionsDeployFailureMessage(options: {
@@ -1251,29 +1280,29 @@ export function formatFirebaseFunctionsDeployFailureMessage(options: {
   if (isFirebaseFunctionsBuildServiceAccountPermissionError(combinedMessage)) {
     const cloudBuildLogUrl = extractCloudBuildLogUrl(combinedMessage)
 
-    return [
-      'Firebase Functions를 배포하는 중에 실패했어요.',
-      '',
-      `프로젝트 \`${options.projectId}\` 의 함수 소스 업로드와 사전 build는 끝났지만, 원격 Cloud Build에서 build service account 권한 부족으로 이미지 빌드가 중단됐습니다.`,
-      '이건 로컬 Yarn/PnP 문제가 아니라 Google Cloud IAM 또는 조직 정책 문제예요.',
-      '',
-      '이렇게 진행해 주세요',
-      '- custom build service account를 쓰거나, default Compute Engine service account에 `roles/cloudbuild.builds.builder` 를 부여해 주세요.',
-      `- Cloud Functions 문제 해결 가이드: ${FIREBASE_FUNCTIONS_BUILD_SERVICE_ACCOUNT_DOC_URL}`,
-      `- Cloud Build service account 권한 가이드: ${CLOUD_BUILD_SERVICE_ACCOUNT_ACCESS_DOC_URL}`,
-      ...(cloudBuildLogUrl ? [`- Cloud Build 로그: ${cloudBuildLogUrl}`] : []),
-      `- 자세한 원본 로그: ${debugLogPath}`,
-      '- 권한을 정리한 뒤 server/package.json의 deploy 스크립트로 다시 시도해 주세요.',
-      ...(rawOutputSnippet ? ['', '원본 CLI 출력', rawOutputSnippet] : []),
-      ...(debugLogSnippet ? ['', 'firebase-debug.log tail', debugLogSnippet] : []),
-    ].join('\n')
+    return dedent`
+      Firebase Functions를 배포하는 중에 실패했어요.
+      
+      프로젝트 \`${options.projectId}\` 의 함수 소스 업로드와 사전 build는 끝났지만, 원격 Cloud Build에서 build service account 권한 부족으로 이미지 빌드가 중단됐습니다.
+      이건 로컬 Yarn/PnP 문제가 아니라 Google Cloud IAM 또는 조직 정책 문제예요.
+      
+      이렇게 진행해 주세요
+      - custom build service account를 쓰거나, default Compute Engine service account에 \`roles/cloudbuild.builds.builder\` 를 부여해 주세요.
+      - Cloud Functions 문제 해결 가이드: ${FIREBASE_FUNCTIONS_BUILD_SERVICE_ACCOUNT_DOC_URL}
+      - Cloud Build service account 권한 가이드: ${CLOUD_BUILD_SERVICE_ACCOUNT_ACCESS_DOC_URL}
+      ${cloudBuildLogUrl ? `- Cloud Build 로그: ${cloudBuildLogUrl}` : ''}
+      - 자세한 원본 로그: ${debugLogPath}
+      - 권한을 정리한 뒤 server/package.json의 deploy 스크립트로 다시 시도해 주세요.
+      ${renderOptionalMarkdownBlock('원본 CLI 출력', rawOutputSnippet)}
+      ${renderOptionalMarkdownBlock('firebase-debug.log tail', debugLogSnippet)}
+    `
   }
 
-  return [
-    options.rawMessage,
-    `상세 로그: ${debugLogPath}`,
-    ...(debugLogSnippet ? ['', 'firebase-debug.log tail', debugLogSnippet] : []),
-  ].join('\n')
+  return dedent`
+    ${options.rawMessage}
+    상세 로그: ${debugLogPath}
+    ${renderOptionalMarkdownBlock('firebase-debug.log tail', debugLogSnippet)}
+  `
 }
 
 async function listFirebaseProjects(packageManager: PackageManager, cwd: string) {
@@ -1348,6 +1377,7 @@ async function tryRecoverFirebaseProjectCreation(
 
 export async function ensureFirebaseFirestoreReady(options: {
   cwd: string
+  packageManager: PackageManager
   projectId: string
   databaseLocation: string
   ensureGcloudInstalled?: (cwd: string) => Promise<string>
@@ -1359,22 +1389,42 @@ export async function ensureFirebaseFirestoreReady(options: {
   enableGoogleCloudServices?: (cwd: string, projectId: string, services: string[]) => Promise<void>
   createFirestoreDatabase?: (cwd: string, projectId: string, location: string) => Promise<void>
 }) {
-  const gcloudCommand = await (options.ensureGcloudInstalled ?? ensureGcloudCliInstalled)(
-    options.cwd,
-  )
-  const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
   const describeFirestoreDatabase =
     options.describeFirestoreDatabase ??
     (async (cwd: string, projectId: string) =>
-      await describeGoogleCloudFirestoreDatabase(cwd, projectId, gcloudCommand))
+      await describeFirebaseFirestoreDatabase(options.packageManager, cwd, projectId))
+  const ensureAuth = options.ensureGcloudAuth ?? ensureGcloudAuth
+  let gcloudCommand: string | null = null
+  const getGcloudCommand = async () => {
+    if (gcloudCommand) {
+      return gcloudCommand
+    }
+
+    gcloudCommand = await (options.ensureGcloudInstalled ?? ensureGcloudCliInstalled)(options.cwd)
+    return gcloudCommand
+  }
   const enableServices =
     options.enableGoogleCloudServices ??
     (async (cwd: string, projectId: string, services: string[]) =>
-      await enableGoogleCloudServices(cwd, projectId, services, gcloudCommand))
+      await enableGoogleCloudServices(cwd, projectId, services, await getGcloudCommand()))
   const createFirestoreDatabase =
     options.createFirestoreDatabase ??
     (async (cwd: string, projectId: string, location: string) =>
-      await createGoogleCloudFirestoreDatabase(cwd, projectId, location, gcloudCommand))
+      await createFirebaseFirestoreDatabase(options.packageManager, cwd, projectId, location))
+  const enableServicesWithRetry = async (services: string[]) => {
+    while (true) {
+      try {
+        await enableServices(options.cwd, options.projectId, services)
+        return
+      } catch (error) {
+        if (!isGoogleCloudAuthRefreshError(error)) {
+          throw error
+        }
+
+        await ensureAuth(options.cwd, await getGcloudCommand())
+      }
+    }
+  }
 
   while (true) {
     let shouldCreateDatabase = false
@@ -1384,12 +1434,7 @@ export async function ensureFirebaseFirestoreReady(options: {
       return
     } catch (error) {
       if (isGoogleCloudServiceDisabledError(error, FIRESTORE_API_SERVICE)) {
-        await enableServices(options.cwd, options.projectId, [FIRESTORE_API_SERVICE])
-        continue
-      }
-
-      if (isGoogleCloudAuthRefreshError(error)) {
-        await ensureAuth(options.cwd, gcloudCommand)
+        await enableServicesWithRetry([FIRESTORE_API_SERVICE])
         continue
       }
 
@@ -1409,12 +1454,7 @@ export async function ensureFirebaseFirestoreReady(options: {
       return
     } catch (error) {
       if (isGoogleCloudServiceDisabledError(error, FIRESTORE_API_SERVICE)) {
-        await enableServices(options.cwd, options.projectId, [FIRESTORE_API_SERVICE])
-        continue
-      }
-
-      if (isGoogleCloudAuthRefreshError(error)) {
-        await ensureAuth(options.cwd, gcloudCommand)
+        await enableServicesWithRetry([FIRESTORE_API_SERVICE])
         continue
       }
 
@@ -1792,7 +1832,7 @@ function createFirebaseDeployAuthLines(options: {
   }
 
   const loginCommand = getPackageManagerAdapter(options.packageManager).dlxCommand(
-    'firebase-tools',
+    FIREBASE_TOOLS_CLI,
     ['login:ci'],
   )
   const summary =
@@ -1837,55 +1877,47 @@ export function formatFirebaseManualSetupNote(options: {
     },
     options.functionRegion,
   )
+  const skippedInitializationBlock =
+    options.didInitializeRemoteContent === false
+      ? renderOptionalMarkdownLines([
+          '기존 Firebase 프로젝트를 골라서 Blaze와 build IAM 확인은 먼저 진행했고, 원격 초기화와 배포는 자동으로 건너뛰었어요.',
+        ])
+      : ''
+  const backofficeBlock = options.hasBackoffice
+    ? dedent`
 
-  const lines = [
-    'Firebase Web SDK 설정을 자동으로 가져오지 못했어요. 아래 URL에서 앱 설정을 확인한 뒤 직접 넣어 주세요.',
-  ]
-
-  if (options.didInitializeRemoteContent === false) {
-    lines.push(
-      '',
-      '기존 Firebase 프로젝트를 골라서 Blaze와 build IAM 확인은 먼저 진행했고, 원격 초기화와 배포는 자동으로 건너뛰었어요.',
-    )
-  }
-
-  lines.push(
-    '',
-    FIREBASE_CONSOLE_SETTINGS_URL(options.projectId),
-    '',
-    path.join(options.targetRoot, 'frontend', '.env.local'),
-    env.frontend.trimEnd(),
-  )
-
-  if (options.hasBackoffice) {
-    lines.push(
-      '',
-      path.join(options.targetRoot, 'backoffice', '.env.local'),
-      env.backoffice.trimEnd(),
-    )
-  }
-
-  lines.push(
-    '',
-    path.join(options.targetRoot, 'server', '.env.local'),
-    createFirebaseServerEnvValues(
-      options.projectId,
-      options.functionRegion,
-      options.hasConfiguredToken ? '<기존 값 유지>' : '',
-      options.hasConfiguredCredentials ? '<기존 값 유지>' : '',
-    ).trimEnd(),
-    '',
-    ...createFirebaseDeployAuthLines({
+        ${path.join(options.targetRoot, 'backoffice', '.env.local')}
+        ${env.backoffice.trimEnd()}
+      `
+    : ''
+  const deployAuthBlock = renderOptionalMarkdownLines(
+    createFirebaseDeployAuthLines({
       packageManager: options.packageManager,
       projectId: options.projectId,
       hasConfiguredToken: options.hasConfiguredToken,
       hasConfiguredCredentials: options.hasConfiguredCredentials,
     }),
   )
+  const serverEnv = createFirebaseServerEnvValues(
+    options.projectId,
+    options.functionRegion,
+    options.hasConfiguredToken ? '<기존 값 유지>' : '',
+    options.hasConfiguredCredentials ? '<기존 값 유지>' : '',
+  ).trimEnd()
 
   return {
     title: 'Firebase 연결 값을 이렇게 넣어 주세요',
-    body: lines.join('\n'),
+    body: dedent`
+      Firebase Web SDK 설정을 자동으로 가져오지 못했어요. 아래 URL에서 앱 설정을 확인한 뒤 직접 넣어 주세요.${skippedInitializationBlock}
+
+      ${FIREBASE_CONSOLE_SETTINGS_URL(options.projectId)}
+
+      ${path.join(options.targetRoot, 'frontend', '.env.local')}
+      ${env.frontend.trimEnd()}${backofficeBlock}
+
+      ${path.join(options.targetRoot, 'server', '.env.local')}
+      ${serverEnv}${deployAuthBlock}
+    `,
   } satisfies ProvisioningNote
 }
 
@@ -2009,6 +2041,7 @@ export async function provisionFirebaseProject(
   if (didInitializeRemoteContent) {
     await ensureFirebaseFirestoreReady({
       cwd: options.targetRoot,
+      packageManager: options.packageManager,
       projectId: selectedProjectId,
       databaseLocation: functionRegion,
     })
@@ -2070,25 +2103,30 @@ export async function finalizeFirebaseProvisioning(options: {
     return [
       {
         title: 'Firebase 연결 값을 적어뒀어요',
-        body: [
-          hasBackoffice
-            ? 'frontend/.env.local 과 backoffice/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.'
-            : 'frontend/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.',
-          'server/.env.local 에는 Firebase project 메타데이터를 적어뒀어요.',
-          ...(options.provisionedProject.didInitializeRemoteContent
-            ? []
-            : [
-                '',
-                '기존 Firebase 프로젝트를 골라서 Blaze와 build IAM 확인은 먼저 진행했고, 원격 초기화와 배포는 자동으로 건너뛰었어요.',
-              ]),
-          '',
-          ...createFirebaseDeployAuthLines({
-            packageManager: options.packageManager,
-            projectId: options.provisionedProject.projectId,
-            hasConfiguredToken: serverEnv.hasConfiguredToken,
-            hasConfiguredCredentials: serverEnv.hasConfiguredCredentials,
-          }),
-        ].join('\n'),
+        body: dedent`
+          ${
+            hasBackoffice
+              ? 'frontend/.env.local 과 backoffice/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.'
+              : 'frontend/.env.local 에 Firebase Web SDK 연결 값을 적어뒀어요.'
+          }
+          server/.env.local 에는 Firebase project 메타데이터를 적어뒀어요.
+          ${renderOptionalMarkdownLines(
+            options.provisionedProject.didInitializeRemoteContent
+              ? []
+              : [
+                  '기존 Firebase 프로젝트를 골라서 Blaze와 build IAM 확인은 먼저 진행했고, 원격 초기화와 배포는 자동으로 건너뛰었어요.',
+                ],
+          )}
+          
+          ${renderOptionalMarkdownLines(
+            createFirebaseDeployAuthLines({
+              packageManager: options.packageManager,
+              projectId: options.provisionedProject.projectId,
+              hasConfiguredToken: serverEnv.hasConfiguredToken,
+              hasConfiguredCredentials: serverEnv.hasConfiguredCredentials,
+            }),
+          )}
+        `,
       },
     ] satisfies ProvisioningNote[]
   }

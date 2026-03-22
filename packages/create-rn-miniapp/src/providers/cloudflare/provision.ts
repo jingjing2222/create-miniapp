@@ -9,6 +9,7 @@ import envPaths from 'env-paths'
 import { parse } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import type { CommandSpec } from '../../command-spec.js'
+import { WRANGLER_CLI } from '../../external-tooling.js'
 import {
   createCloudflareVitestWranglerConfigSource,
   patchWranglerConfigSource,
@@ -19,6 +20,7 @@ import { getPackageManagerAdapter, type PackageManager } from '../../package-man
 import type { ProvisioningNote, ServerProjectMode } from '../../server-project.js'
 import { pathExists } from '../../templates/filesystem.js'
 import { promptShouldInitializeExistingRemoteContent } from '../shared.js'
+import dedent, { dedentWithTrailingNewline } from '../../dedent.js'
 
 type WranglerAuth = {
   oauthToken: string
@@ -99,7 +101,7 @@ function buildWranglerCommand(
 
   return {
     cwd,
-    ...adapter.dlx('wrangler', args),
+    ...adapter.dlx(WRANGLER_CLI, args),
     label,
   }
 }
@@ -127,17 +129,21 @@ function buildCloudflareR2OverviewUrl(accountId: string) {
 }
 
 export function formatCloudflareR2EnableMessage(accountId: string) {
-  return [
-    'Cloudflare account에서 R2를 먼저 켜야 이 흐름을 계속할 수 있어요.',
-    '아래 URL에서 R2를 켠 뒤, 같은 화면에서 다시 확인해 주세요.',
-    buildCloudflareR2OverviewUrl(accountId),
-  ].join('\n')
+  return dedent`
+    Cloudflare account에서 R2를 먼저 켜야 이 흐름을 계속할 수 있어요.
+    아래 URL에서 R2를 켠 뒤, 같은 화면에서 다시 확인해 주세요.
+    ${buildCloudflareR2OverviewUrl(accountId)}
+  `
 }
 
 function createCloudflareEnvValues(apiBaseUrl: string) {
   return {
-    frontend: [`MINIAPP_API_BASE_URL=${apiBaseUrl}`, ''].join('\n'),
-    backoffice: [`VITE_API_BASE_URL=${apiBaseUrl}`, ''].join('\n'),
+    frontend: dedentWithTrailingNewline`
+  MINIAPP_API_BASE_URL=${apiBaseUrl}
+`,
+    backoffice: dedentWithTrailingNewline`
+  VITE_API_BASE_URL=${apiBaseUrl}
+`,
   }
 }
 
@@ -149,16 +155,15 @@ function createCloudflareServerEnvValues(options: {
   r2BucketName: string
   apiToken?: string
 }) {
-  return [
-    '# Cloudflare Worker metadata for this workspace.',
-    `CLOUDFLARE_ACCOUNT_ID=${options.accountId}`,
-    `CLOUDFLARE_WORKER_NAME=${options.workerName}`,
-    `CLOUDFLARE_D1_DATABASE_ID=${options.d1DatabaseId}`,
-    `CLOUDFLARE_D1_DATABASE_NAME=${options.d1DatabaseName}`,
-    `CLOUDFLARE_R2_BUCKET_NAME=${options.r2BucketName}`,
-    `CLOUDFLARE_API_TOKEN=${options.apiToken ?? ''}`,
-    '',
-  ].join('\n')
+  return dedentWithTrailingNewline`
+  # Cloudflare Worker metadata for this workspace.
+  CLOUDFLARE_ACCOUNT_ID=${options.accountId}
+  CLOUDFLARE_WORKER_NAME=${options.workerName}
+  CLOUDFLARE_D1_DATABASE_ID=${options.d1DatabaseId}
+  CLOUDFLARE_D1_DATABASE_NAME=${options.d1DatabaseName}
+  CLOUDFLARE_R2_BUCKET_NAME=${options.r2BucketName}
+  CLOUDFLARE_API_TOKEN=${options.apiToken ?? ''}
+`
 }
 
 function buildCloudflareApiTokenGuideLines() {
@@ -173,6 +178,17 @@ function buildCloudflareApiTokenGuideLines() {
     CLOUDFLARE_CREATE_TOKEN_DOC_URL,
     CLOUDFLARE_WORKERS_AUTH_DOC_URL,
   ]
+}
+
+function renderOptionalMarkdownLines(lines: string[]) {
+  if (lines.length === 0) {
+    return ''
+  }
+
+  return dedent`
+
+    ${lines.join('\n')}
+  `
 }
 
 function hasConfiguredCloudflareApiToken(source: string) {
@@ -776,12 +792,12 @@ function isCloudflareWorkersDevOnboardingError(message: string) {
 
 export function formatCloudflareDeployFailureMessage(message: string) {
   if (message.includes('[code: 10034]') || message.includes('verify your email address')) {
-    return [
-      'Cloudflare 계정 이메일 인증이 필요해서 Worker 배포를 계속할 수 없어요.',
-      '',
-      '아래 문서를 보고 이메일 인증을 마친 뒤 다시 실행해 주세요.',
-      CLOUDFLARE_VERIFY_EMAIL_URL,
-    ].join('\n')
+    return dedent`
+      Cloudflare 계정 이메일 인증이 필요해서 Worker 배포를 계속할 수 없어요.
+      
+      아래 문서를 보고 이메일 인증을 마친 뒤 다시 실행해 주세요.
+      ${CLOUDFLARE_VERIFY_EMAIL_URL}
+    `
   }
 
   if (isCloudflareWorkersDevOnboardingError(message)) {
@@ -791,12 +807,12 @@ export function formatCloudflareDeployFailureMessage(message: string) {
     const onboardingUrl =
       onboardingUrlMatch?.[0] ?? 'https://dash.cloudflare.com/?to=/:account/workers/onboarding'
 
-    return [
-      'Cloudflare account의 workers.dev 서브도메인 등록이 필요해서 Worker 배포를 계속할 수 없어요.',
-      '',
-      '아래 URL에서 workers.dev onboarding을 마친 뒤 다시 실행해 주세요.',
-      onboardingUrl,
-    ].join('\n')
+    return dedent`
+      Cloudflare account의 workers.dev 서브도메인 등록이 필요해서 Worker 배포를 계속할 수 없어요.
+      
+      아래 URL에서 workers.dev onboarding을 마친 뒤 다시 실행해 주세요.
+      ${onboardingUrl}
+    `
   }
 
   return message
@@ -842,49 +858,44 @@ export function formatCloudflareManualSetupNote(options: {
   r2BucketName: string
   didInitializeRemoteContent?: boolean
 }): ProvisioningNote {
-  const lines = [
-    `Cloudflare Worker \`${options.workerName}\`의 배포 URL을 확인한 뒤 아래 파일에 직접 넣어 주세요.`,
-  ]
+  const skippedInitializationBlock =
+    options.didInitializeRemoteContent === false
+      ? dedent`
 
-  if (options.didInitializeRemoteContent === false) {
-    lines.push('', '기존 Cloudflare Worker를 골라서 원격 초기화는 자동으로 건너뛰었어요.')
-  }
+          기존 Cloudflare Worker를 골라서 원격 초기화는 자동으로 건너뛰었어요.
+        `
+      : ''
+  const backofficeBlock = options.hasBackoffice
+    ? dedent`
 
-  lines.push(
-    '',
-    path.join(options.targetRoot, 'frontend', '.env.local'),
-    'MINIAPP_API_BASE_URL=<배포된 Worker URL>',
-  )
-
-  if (options.hasBackoffice) {
-    lines.push(
-      '',
-      path.join(options.targetRoot, 'backoffice', '.env.local'),
-      'VITE_API_BASE_URL=<배포된 Worker URL>',
-    )
-  }
-
-  lines.push(
-    '',
-    path.join(options.targetRoot, 'server', '.env.local'),
-    createCloudflareServerEnvValues({
-      accountId: options.accountId,
-      workerName: options.workerName,
-      d1DatabaseId: options.d1DatabaseId,
-      d1DatabaseName: options.d1DatabaseName,
-      r2BucketName: options.r2BucketName,
-      apiToken: '<optional api token>',
-    }).trimEnd(),
-    '',
-    'server/.env.local 에는 Cloudflare Worker, D1, R2 메타데이터를 적어둬요.',
-    'server/package.json 의 deploy 는 server/.env.local 의 auth 값을 읽고 wrangler.jsonc 기준으로 원격 Worker를 다시 배포해요.',
-    '',
-    ...buildCloudflareApiTokenGuideLines(),
-  )
+        ${path.join(options.targetRoot, 'backoffice', '.env.local')}
+        VITE_API_BASE_URL=<배포된 Worker URL>
+      `
+    : ''
+  const tokenGuideBlock = renderOptionalMarkdownLines(buildCloudflareApiTokenGuideLines())
+  const serverEnv = createCloudflareServerEnvValues({
+    accountId: options.accountId,
+    workerName: options.workerName,
+    d1DatabaseId: options.d1DatabaseId,
+    d1DatabaseName: options.d1DatabaseName,
+    r2BucketName: options.r2BucketName,
+    apiToken: '<optional api token>',
+  }).trimEnd()
 
   return {
     title: 'Cloudflare API URL을 이렇게 넣어 주세요',
-    body: lines.join('\n'),
+    body: dedent`
+      Cloudflare Worker \`${options.workerName}\`의 배포 URL을 확인한 뒤 아래 파일에 직접 넣어 주세요.${skippedInitializationBlock}
+
+      ${path.join(options.targetRoot, 'frontend', '.env.local')}
+      MINIAPP_API_BASE_URL=<배포된 Worker URL>${backofficeBlock}
+
+      ${path.join(options.targetRoot, 'server', '.env.local')}
+      ${serverEnv}
+
+      server/.env.local 에는 Cloudflare Worker, D1, R2 메타데이터를 적어둬요.
+      server/package.json 의 deploy 는 server/.env.local 의 auth 값을 읽고 wrangler.jsonc 기준으로 원격 Worker를 다시 배포해요.${tokenGuideBlock}
+    `,
   }
 }
 
@@ -1290,17 +1301,21 @@ export async function finalizeCloudflareProvisioning(options: {
     return [
       {
         title: 'Cloudflare API URL을 적어뒀어요',
-        body: [
-          hasBackoffice
-            ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 적어뒀어요.'
-            : 'frontend/.env.local 에 Cloudflare API URL을 적어뒀어요.',
-          'server/.env.local 에는 Cloudflare Worker, D1, R2 메타데이터를 적어뒀어요.',
-          ...(options.provisionedWorker.didInitializeRemoteContent
-            ? ['server/package.json 의 deploy 로 원격 Worker를 다시 배포할 수 있어요.']
-            : ['기존 Cloudflare Worker를 골라서 원격 초기화는 자동으로 건너뛰었어요.']),
-          `Cloudflare D1 binding은 ${CLOUDFLARE_D1_BINDING_NAME}, R2 binding은 ${CLOUDFLARE_R2_BINDING_NAME} 을 써요.`,
-          ...(!hasApiToken ? ['', ...buildCloudflareApiTokenGuideLines()] : []),
-        ].join('\n'),
+        body: dedent`
+          ${
+            hasBackoffice
+              ? 'frontend/.env.local 과 backoffice/.env.local 에 Cloudflare API URL을 적어뒀어요.'
+              : 'frontend/.env.local 에 Cloudflare API URL을 적어뒀어요.'
+          }
+          server/.env.local 에는 Cloudflare Worker, D1, R2 메타데이터를 적어뒀어요.
+          ${
+            options.provisionedWorker.didInitializeRemoteContent
+              ? 'server/package.json 의 deploy 로 원격 Worker를 다시 배포할 수 있어요.'
+              : '기존 Cloudflare Worker를 골라서 원격 초기화는 자동으로 건너뛰었어요.'
+          }
+          Cloudflare D1 binding은 ${CLOUDFLARE_D1_BINDING_NAME}, R2 binding은 ${CLOUDFLARE_R2_BINDING_NAME} 을 써요.
+          ${renderOptionalMarkdownLines(!hasApiToken ? buildCloudflareApiTokenGuideLines() : [])}
+        `,
       },
     ] satisfies ProvisioningNote[]
   }
