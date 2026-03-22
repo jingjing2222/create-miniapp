@@ -1,4 +1,6 @@
+import { createProjectSkillDocPath, createProjectSkillGeneratedPath } from '../skills-contract.js'
 import type { PackageManager } from '../package-manager.js'
+import type { InstalledProjectSkill } from '../skills-install.js'
 import { resolveRootHelperScriptCommands } from './root-script-catalog.js'
 import { getCoreSkillDefinition } from './skill-catalog.js'
 
@@ -8,9 +10,9 @@ type NativeImportPatternRule = {
 }
 
 type FrontendPolicySkillState = {
-  hasMiniappCapabilitiesSkill: boolean
-  hasGraniteRoutingSkill: boolean
-  hasTdsUiSkill: boolean
+  miniappCapabilitiesSkillsRoot: string | null
+  graniteRoutingSkillsRoot: string | null
+  tdsUiSkillsRoot: string | null
 }
 
 type FrontendPolicyRestrictionDefinition = {
@@ -49,29 +51,54 @@ const FILENAME_DOLLAR_PATTERN_REGEX_SOURCE =
   '(?:^|[\\\\/])(?:\\$[a-zA-Z][a-zA-Z0-9_]*\\.[^.]+|[^\\\\/]+\\.\\$[a-zA-Z][a-zA-Z0-9_]*)'
 
 export const FRONTEND_POLICY_DOC_PATH = 'docs/engineering/frontend-policy.md'
-export const FRONTEND_POLICY_TDS_REFERENCE_PATH =
-  TDS_CORE_SKILL.referenceCatalogPath ?? TDS_CORE_SKILL.docsPath
-
 const FRONTEND_POLICY_DOC_REFERENCE = `자세한 기준은 \`${FRONTEND_POLICY_DOC_PATH}\`를 먼저 봐 주세요.`
 const FRONTEND_POLICY_GRANITE_NATIVE_MESSAGE = `직접 import하지 말고 \`@granite-js/native\` 경로를 써 주세요. ${FRONTEND_POLICY_DOC_REFERENCE}`
 const FRONTEND_POLICY_ASYNC_STORAGE_BASE_MESSAGE =
   'AsyncStorage는 쓰면 안 돼요. 대신 `@apps-in-toss/framework` storage API를 써 주세요.'
 
-function resolveFrontendPolicySkillState(
-  installedSkillIds: readonly string[] = [],
-): FrontendPolicySkillState {
-  const installed = new Set(installedSkillIds)
+function resolveInstalledSkillRoot(
+  installedSkills: readonly InstalledProjectSkill[],
+  skillId: string,
+) {
+  return installedSkills.find((skill) => skill.id === skillId)?.skillsRoot ?? null
+}
 
+function resolveFrontendPolicySkillState(
+  installedSkills: readonly InstalledProjectSkill[] = [],
+): FrontendPolicySkillState {
   return {
-    hasMiniappCapabilitiesSkill: installed.has(MINIAPP_CORE_SKILL.id),
-    hasGraniteRoutingSkill: installed.has(GRANITE_CORE_SKILL.id),
-    hasTdsUiSkill: installed.has(TDS_CORE_SKILL.id),
+    miniappCapabilitiesSkillsRoot: resolveInstalledSkillRoot(
+      installedSkills,
+      MINIAPP_CORE_SKILL.id,
+    ),
+    graniteRoutingSkillsRoot: resolveInstalledSkillRoot(installedSkills, GRANITE_CORE_SKILL.id),
+    tdsUiSkillsRoot: resolveInstalledSkillRoot(installedSkills, TDS_CORE_SKILL.id),
   }
 }
 
+function resolveCoreSkillDocPath(skillId: string, skillsRoot: string | null) {
+  return skillsRoot ? createProjectSkillDocPath(skillId, skillsRoot) : null
+}
+
+function resolveCoreSkillGeneratedPath(
+  skillId: string,
+  relativePath: string | undefined,
+  skillsRoot: string | null,
+) {
+  return relativePath && skillsRoot
+    ? createProjectSkillGeneratedPath(skillId, relativePath, skillsRoot)
+    : null
+}
+
 function renderFrontendPolicyReactNativeBaseMessage(skillState: FrontendPolicySkillState) {
-  if (skillState.hasTdsUiSkill) {
-    return `\`react-native\` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS를 먼저 써 주세요. 필요한 경우에만 Granite UI로 보완해 주세요. 특히 \`Text\` 대신 TDS \`Txt\`를 써 주세요. \`Pressable\`이 정말 필요하면 \`biome-ignore\`에 이유를 같이 남겨 주세요. 먼저 \`${FRONTEND_POLICY_TDS_REFERENCE_PATH}\`를 확인해 주세요.`
+  const tdsReferencePath = resolveCoreSkillGeneratedPath(
+    TDS_CORE_SKILL.id,
+    TDS_CORE_SKILL.referenceCatalogRelativePath,
+    skillState.tdsUiSkillsRoot,
+  )
+
+  if (tdsReferencePath) {
+    return `\`react-native\` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS를 먼저 써 주세요. 필요한 경우에만 Granite UI로 보완해 주세요. 특히 \`Text\` 대신 TDS \`Txt\`를 써 주세요. \`Pressable\`이 정말 필요하면 \`biome-ignore\`에 이유를 같이 남겨 주세요. 먼저 \`${tdsReferencePath}\`를 확인해 주세요.`
   }
 
   return '`react-native` 기본 UI 컴포넌트는 바로 쓰지 말고 TDS를 먼저 써 주세요. 필요한 경우에만 Granite UI로 보완해 주세요. 특히 `Text` 대신 TDS `Txt`를 써 주세요. `Pressable`이 정말 필요하면 `biome-ignore`에 이유를 같이 남겨 주세요.'
@@ -167,15 +194,25 @@ export const FRONTEND_POLICY_PAGE_STRUCTURE_RULES = [
 ]
 
 function resolveFrontendPolicyReferenceLines(skillState: FrontendPolicySkillState) {
+  const miniappCapabilitiesDocPath = resolveCoreSkillDocPath(
+    MINIAPP_CORE_SKILL.id,
+    skillState.miniappCapabilitiesSkillsRoot,
+  )
+  const graniteRoutingDocPath = resolveCoreSkillDocPath(
+    GRANITE_CORE_SKILL.id,
+    skillState.graniteRoutingSkillsRoot,
+  )
+  const tdsUiDocPath = resolveCoreSkillDocPath(TDS_CORE_SKILL.id, skillState.tdsUiSkillsRoot)
+
   return [
-    skillState.hasMiniappCapabilitiesSkill
-      ? `- ${MINIAPP_CORE_SKILL.frontendPolicyReferenceLabel}: \`${MINIAPP_CORE_SKILL.docsPath}\``
+    miniappCapabilitiesDocPath
+      ? `- ${MINIAPP_CORE_SKILL.frontendPolicyReferenceLabel}: \`${miniappCapabilitiesDocPath}\``
       : '- 기능 축과 공식 문서 진입: MiniApp/AppInToss 공식 문서와 현재 runtime code를 같이 본다.',
-    skillState.hasGraniteRoutingSkill
-      ? `- ${GRANITE_CORE_SKILL.frontendPolicyReferenceLabel}: \`${GRANITE_CORE_SKILL.docsPath}\``
+    graniteRoutingDocPath
+      ? `- ${GRANITE_CORE_SKILL.frontendPolicyReferenceLabel}: \`${graniteRoutingDocPath}\``
       : '- route / navigation 패턴: Granite router 규칙(`:param`, `validateParams`)을 source of truth로 사용한다.',
-    skillState.hasTdsUiSkill
-      ? `- ${TDS_CORE_SKILL.frontendPolicyReferenceLabel}: \`${TDS_CORE_SKILL.docsPath}\``
+    tdsUiDocPath
+      ? `- ${TDS_CORE_SKILL.frontendPolicyReferenceLabel}: \`${tdsUiDocPath}\``
       : '- TDS component 선택: TDS를 먼저 검토하고, 필요한 경우에만 Granite UI를 보완적으로 사용한다.',
   ]
 }
@@ -187,8 +224,10 @@ export const FRONTEND_POLICY_COMPLETION_CHECKS = [
   '필요한 permission/loading/error/analytics 고려를 `Plan`에 남겼는가',
 ]
 
-export function resolveFrontendPolicyRuleSet(installedSkillIds: readonly string[] = []) {
-  const skillState = resolveFrontendPolicySkillState(installedSkillIds)
+export function resolveFrontendPolicyRuleSet(
+  installedSkills: readonly InstalledProjectSkill[] = [],
+) {
+  const skillState = resolveFrontendPolicySkillState(installedSkills)
   const asyncStorageRestriction = getFrontendPolicyRestrictionDefinition(
     'async-storage',
     skillState,
@@ -383,10 +422,10 @@ export function renderFrontendPolicyVerifierSource() {
 
 export function renderFrontendPolicyMarkdown(
   packageManager: PackageManager,
-  installedSkillIds: readonly string[] = [],
+  installedSkills: readonly InstalledProjectSkill[] = [],
 ) {
   const helperScriptCommands = resolveRootHelperScriptCommands(packageManager)
-  const policyRules = resolveFrontendPolicyRuleSet(installedSkillIds)
+  const policyRules = resolveFrontendPolicyRuleSet(installedSkills)
 
   return [
     '# Frontend Policy',

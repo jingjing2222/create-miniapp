@@ -19,6 +19,11 @@ type SkillRecommendationContext = {
   hasTrpc: boolean
 }
 
+export type InstalledProjectSkill = {
+  id: string
+  skillsRoot: (typeof PROJECT_SKILLS_DIR_CANDIDATES)[number]
+}
+
 async function pathExists(targetPath: string) {
   try {
     await stat(targetPath)
@@ -28,38 +33,49 @@ async function pathExists(targetPath: string) {
   }
 }
 
-async function resolveInstalledProjectSkillIds(targetRoot: string) {
-  const installed = new Set<string>()
+async function resolveInstalledProjectSkills(targetRoot: string) {
+  const installed = new Map<string, InstalledProjectSkill>()
 
-  for (const relativeDir of PROJECT_SKILLS_DIR_CANDIDATES) {
-    const skillsRoot = path.join(targetRoot, relativeDir)
+  for (const skillsRoot of PROJECT_SKILLS_DIR_CANDIDATES) {
+    const skillDirectory = path.join(targetRoot, skillsRoot)
 
-    if (!(await pathExists(skillsRoot))) {
+    if (!(await pathExists(skillDirectory))) {
       continue
     }
 
-    const entries = await readdir(skillsRoot, { withFileTypes: true })
+    const entries = (await readdir(skillDirectory, { withFileTypes: true })).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    )
 
     for (const entry of entries) {
       if (!entry.isDirectory()) {
         continue
       }
 
-      if (await pathExists(path.join(skillsRoot, entry.name, 'SKILL.md'))) {
-        installed.add(entry.name)
+      if (await pathExists(path.join(skillDirectory, entry.name, 'SKILL.md'))) {
+        if (!installed.has(entry.name)) {
+          installed.set(entry.name, {
+            id: entry.name,
+            skillsRoot,
+          })
+        }
       }
     }
   }
 
-  return [...installed].sort((left, right) => left.localeCompare(right))
+  return [...installed.values()].sort((left, right) => left.id.localeCompare(right.id))
+}
+
+export async function listInstalledProjectSkillEntries(targetRoot: string) {
+  return await resolveInstalledProjectSkills(targetRoot)
 }
 
 export async function hasInstalledProjectSkills(targetRoot: string) {
-  return (await resolveInstalledProjectSkillIds(targetRoot)).length > 0
+  return (await resolveInstalledProjectSkills(targetRoot)).length > 0
 }
 
 export async function listInstalledProjectSkills(targetRoot: string) {
-  return await resolveInstalledProjectSkillIds(targetRoot)
+  return (await resolveInstalledProjectSkills(targetRoot)).map((skill) => skill.id)
 }
 
 export function normalizeSelectedSkillIds(rawSkillIds: string[] | undefined) {
@@ -105,13 +121,22 @@ export function renderSkillsAddCommand(skillIds: string[]) {
   return baseArgs.join(' ')
 }
 
-export function renderInstalledSkillsSummary(skillIds: string[]) {
-  const normalizedSkillIds = [...new Set(skillIds)].sort((left, right) => left.localeCompare(right))
+export function renderInstalledSkillsSummary(
+  installedSkills: readonly (string | InstalledProjectSkill)[],
+) {
+  const normalizedSkills = [...installedSkills].sort((left, right) => {
+    const leftId = typeof left === 'string' ? left : left.id
+    const rightId = typeof right === 'string' ? right : right.id
+
+    return leftId.localeCompare(rightId)
+  })
 
   return [
     'project-local skills를 설치했어요.',
-    ...normalizedSkillIds.map(
-      (skillId) => `- ${skillId}: \`${createProjectSkillDirectoryPath(skillId)}\``,
+    ...normalizedSkills.map((skill) =>
+      typeof skill === 'string'
+        ? `- ${skill}`
+        : `- ${skill.id}: \`${createProjectSkillDirectoryPath(skill.id, skill.skillsRoot)}\``,
     ),
     `필요하면 \`${SKILLS_LIST_COMMAND}\`로 다시 확인해 주세요.`,
   ].join('\n')

@@ -241,7 +241,7 @@ test('skill auto-install captures raw copy logs and reports installed skill summ
   )
 
   assert.match(scaffoldSource, /runCommandWithOutput\(installCommand\)/)
-  assert.match(scaffoldSource, /listInstalledProjectSkills\(options\.targetRoot\)/)
+  assert.match(scaffoldSource, /listInstalledProjectSkillEntries\(options\.targetRoot\)/)
   assert.match(scaffoldSource, /renderInstalledSkillsSummary\(/)
   assert.doesNotMatch(scaffoldSource, /runCommand\(installCommand\)/)
   assert.doesNotMatch(scaffoldSource, /options\.selectedSkills\.join\('\\n- '\)/)

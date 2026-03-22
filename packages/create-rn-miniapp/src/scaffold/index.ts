@@ -20,7 +20,7 @@ import {
 import { applyDocsTemplates } from '../templates/docs.js'
 import {
   buildSkillsInstallCommand,
-  listInstalledProjectSkills,
+  listInstalledProjectSkillEntries,
   renderInstalledSkillsSummary,
   renderSkillsAddCommand,
 } from '../skills-install.js'
@@ -153,7 +153,7 @@ async function maybeInstallSelectedSkills(options: {
   try {
     log.step(installCommand.label)
     await runCommandWithOutput(installCommand)
-    const installedSkillIds = await listInstalledProjectSkills(options.targetRoot)
+    const installedSkills = await listInstalledProjectSkillEntries(options.targetRoot)
 
     return {
       didInstall: true,
@@ -161,7 +161,7 @@ async function maybeInstallSelectedSkills(options: {
         {
           title: 'Agent skills',
           body: renderInstalledSkillsSummary(
-            installedSkillIds.length > 0 ? installedSkillIds : options.selectedSkills,
+            installedSkills.length > 0 ? installedSkills : options.selectedSkills,
           ),
         },
       ] satisfies ProvisioningNote[],

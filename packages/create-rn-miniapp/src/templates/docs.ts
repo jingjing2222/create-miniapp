@@ -1,6 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { listInstalledProjectSkills, renderSkillsAddCommand } from '../skills-install.js'
+import {
+  listInstalledProjectSkillEntries,
+  renderSkillsAddCommand,
+  type InstalledProjectSkill,
+} from '../skills-install.js'
 import {
   SKILLS_CHECK_COMMAND,
   SKILLS_LIST_COMMAND,
@@ -218,13 +222,13 @@ const SKILLS_STRATEGY_README_LINES = [
 ]
 
 async function renderRootReadmeMarkdown(
-  targetRoot: string,
   tokens: TemplateTokens,
   options: GeneratedWorkspaceOptions,
+  installedSkills: readonly InstalledProjectSkill[],
 ) {
   const recommendedSkillDefinitions = resolveRecommendedSkillDefinitions(options)
   const recommendedSkillIds = recommendedSkillDefinitions.map((skill) => skill.id)
-  const installedSkillIds = await listInstalledProjectSkills(targetRoot)
+  const installedSkillIds = installedSkills.map((skill) => skill.id)
 
   return [
     `# ${tokens.displayName}`,
@@ -359,7 +363,7 @@ export async function applyDocsTemplates(
   const templatesRoot = resolveTemplatesPackageRoot()
   const baseTemplateDir = path.join(templatesRoot, 'base')
   const options = await resolveGeneratedWorkspaceOptions(targetRoot, hints)
-  const installedSkillIds = await listInstalledProjectSkills(targetRoot)
+  const installedSkills = await listInstalledProjectSkillEntries(targetRoot)
   const extraTokens = createRootTemplateExtraTokens(tokens.packageManager)
 
   await copyFileWithTokens(
@@ -389,9 +393,9 @@ export async function applyDocsTemplates(
       definition.relativePath === 'AGENTS.md'
         ? await renderAgentsMarkdown(targetRoot, tokens, options)
         : definition.relativePath === 'README.md'
-          ? await renderRootReadmeMarkdown(targetRoot, tokens, options)
+          ? await renderRootReadmeMarkdown(tokens, options, installedSkills)
           : definition.relativePath === 'docs/engineering/frontend-policy.md'
-            ? renderFrontendPolicyMarkdown(tokens.packageManager, installedSkillIds)
+            ? renderFrontendPolicyMarkdown(tokens.packageManager, installedSkills)
             : definition.render(tokens, options)
 
     await writeCodeOwnedMarkdown(targetRoot, definition.relativePath, renderedSource)

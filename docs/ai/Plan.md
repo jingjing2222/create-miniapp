@@ -1,3 +1,17 @@
+## 다음 작업: skills 경로 강결합 전수 감사
+
+### 목표
+- skill 경로, skill 이름, skill 존재 가정에 강결합된 코드/문서/테스트를 전수 조사한다.
+- 특히 경로 문자열을 직접 박아 넣어서 `skills` 설치 정책이나 README 계약이 바뀌면 정합성이 깨질 수 있는 P1 위험을 찾는다.
+- 이번 턴은 수정 전 감사와 우선순위 정리에 집중하고, 결과는 severity와 파일/라인 기준으로 정리한다.
+
+### 작업 순서
+1. 코드베이스 전체에서 `skills`, `.agents/skills`, `.claude/skills`, `SKILL.md`, 개별 skill id, install/update command 참조를 수집한다.
+2. 수집 결과를 source-of-truth 관점으로 분류한다.
+   - shared contract를 소비하는 파생 참조
+   - skill 경로/이름/설치 상태를 직접 소유하는 중복 참조
+3. P1 위험만 우선 추려서 파일/라인과 함께 보고하고, 후속 수정 방향을 제안한다.
+
 ## 다음 작업: README skills 전략 섹션 축약
 
 ### 목표

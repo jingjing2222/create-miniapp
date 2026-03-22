@@ -27,7 +27,7 @@
 - skill 이름과 추천 메타데이터는 `packages/create-rn-miniapp/src/templates/skill-catalog.ts`가 소유한다.
 - 실제 skill source는 root `skills/*`가 소유한다.
 - generated repo는 skill을 기본 포함하지 않고, `README.md`에 optional install guide만 렌더한다.
-- 생성 중 skill 설치가 실제로 성공했을 때만 generated `AGENTS.md`가 local skill 경로를 언급한다.
+- generated `AGENTS.md`는 skill-free router로 유지하고, skill onboarding과 lifecycle 안내는 generated `README.md`가 소유한다.
 
 ## Generator Principle
 1. Granite, Vite, Supabase scaffold는 공식 CLI로 생성한다.

@@ -65,25 +65,14 @@ pnpm verify
 
 - `create-rn-miniapp`는 skill을 직접 관리하지 않고, 추천 skill과 설치 예시만 제공합니다.
 - 실제 설치, 확인, 업데이트는 [`@vercel-labs/skills`](https://github.com/vercel-labs/skills) 표준 CLI를 그대로 사용합니다.
-- 이 저장소의 `skills/`에는 MiniApp 작업에 맞춘 curated skill source를 둡니다.
+- 이 저장소의 `skills/`에는 MiniApp 작업에 맞춘 curated skill source가 있고, 생성된 repo `README.md`가 추천 목록을 자동으로 보여줍니다.
 
-추천 시작점은 아래 정도예요.
-
-- `miniapp-capabilities`: MiniApp capability와 공식 API를 찾을 때 봐요.
-- `granite-routing`: route, page, navigation 패턴을 정할 때 봐요.
-- `tds-ui`: TDS UI와 form 패턴을 고를 때 봐요.
-- `backoffice-react`: `backoffice`를 같이 만들었을 때 같이 보면 좋아요.
-- `cloudflare-worker`, `supabase-project`, `firebase-functions`: 고른 `server` provider에 맞춰 골라요.
-- `trpc-boundary`: `cloudflare` 위에 `tRPC`를 올렸을 때 같이 봐요.
+사용할 skill id는 `skills/` 아래 디렉터리 이름을 보면 돼요.
 
 이 저장소를 clone한 상태라면 repo root에서 이렇게 바로 설치해볼 수 있어요.
 
 ```bash
-npx skills add . \
-  --skill miniapp-capabilities \
-  --skill granite-routing \
-  --skill tds-ui \
-  --copy
+npx skills add . --skill <skill-id> --copy
 ```
 
 생성된 repo의 `README.md`는 그 시점의 source repo 기준 설치 예시를 자동으로 다시 보여줘요.

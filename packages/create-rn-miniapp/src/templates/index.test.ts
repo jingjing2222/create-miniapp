@@ -402,11 +402,11 @@ test('skill taxonomy metadata is centralized in a shared catalog', async () => {
   assert.match(skillsInstallSource, /from '\.\/skills-contract\.js'/)
   assert.match(docsSource, /from '\.\.\/skills-contract\.js'/)
   assert.match(skillsContractSource, /PROJECT_SKILLS_CANONICAL_DIR/)
-  assert.match(catalogSource, /createProjectSkillDocPath\(id\)/)
-  assert.doesNotMatch(
-    catalogSource,
-    /createProjectSkillGeneratedPath\('tds-ui', 'generated\/catalog\.json'\)/,
-  )
+  assert.doesNotMatch(catalogSource, /from '\.\.\/skills-contract\.js'/)
+  assert.doesNotMatch(catalogSource, /docsPath:/)
+  assert.doesNotMatch(catalogSource, /referenceCatalogPath:/)
+  assert.doesNotMatch(catalogSource, /createProjectSkillDocPath\(/)
+  assert.doesNotMatch(catalogSource, /createProjectSkillGeneratedPath\(/)
   assert.match(sharedFeatureSource, /from '\.\/skill-catalog\.js'/)
   assert.doesNotMatch(sharedFeatureSource, /templateDir: 'backoffice-react'/)
   assert.doesNotMatch(sharedFeatureSource, /templateDir: 'cloudflare-worker'/)
@@ -457,14 +457,7 @@ test('frontend policy derives core skill references from the core skill catalog'
   assert.match(frontendPolicySource, /getCoreSkillDefinition\('granite-routing'/)
   assert.match(frontendPolicySource, /getCoreSkillDefinition\('tds-ui'/)
   assert.match(skillCatalogSource, /referenceCatalogRelativePath: 'generated\/catalog\.json'/)
-  assert.match(
-    skillCatalogSource,
-    /createProjectSkillGeneratedPath\(\s*id,\s*referenceCatalogRelativePath\)/,
-  )
-  assert.doesNotMatch(
-    skillCatalogSource,
-    /createProjectSkillGeneratedPath\('tds-ui', 'generated\/catalog\.json'\)/,
-  )
+  assert.doesNotMatch(skillCatalogSource, /createProjectSkillGeneratedPath\(/)
 })
 
 test('tds-ui canonical skill package is self-contained and decision-driven', async () => {
@@ -904,16 +897,14 @@ test('README treats generated skills as a first-class scaffold output and avoids
   )
   assert.match(
     readmeSource,
-    /이 저장소의 `skills\/`에는 MiniApp 작업에 맞춘 curated skill source를 둡니다\./,
+    /이 저장소의 `skills\/`에는 MiniApp 작업에 맞춘 curated skill source가 있고, 생성된 repo `README\.md`가 추천 목록을 자동으로 보여줍니다\./,
   )
-  assert.match(readmeSource, /npx skills add \./)
+  assert.match(readmeSource, /사용할 skill id는 `skills\/` 아래 디렉터리 이름을 보면 돼요\./)
+  assert.match(readmeSource, /npx skills add \. --skill <skill-id> --copy/)
   assert.doesNotMatch(readmeSource, /npx skills add jingjing2222\/create-rn-miniapp/)
-  assert.match(
-    readmeSource,
-    /- `miniapp-capabilities`: MiniApp capability와 공식 API를 찾을 때 봐요\./,
-  )
-  assert.match(readmeSource, /- `granite-routing`: route, page, navigation 패턴을 정할 때 봐요\./)
-  assert.match(readmeSource, /- `tds-ui`: TDS UI와 form 패턴을 고를 때 봐요\./)
+  assert.doesNotMatch(readmeSource, /- `miniapp-capabilities`:/)
+  assert.doesNotMatch(readmeSource, /- `granite-routing`:/)
+  assert.doesNotMatch(readmeSource, /- `tds-ui`:/)
   assert.match(readmeSource, /npx skills list/)
   assert.match(readmeSource, /npx skills check/)
   assert.match(readmeSource, /npx skills update/)
@@ -939,9 +930,11 @@ test('skill references do not hardcode the project-local skills root when siblin
 
   assert.doesNotMatch(featureMapSource, /\.agents\/skills\//)
   assert.doesNotMatch(routingPatternsSource, /\.agents\/skills\//)
-  assert.match(featureMapSource, /\.\.\/tds-ui\/generated\/catalog\.json/)
-  assert.match(routingPatternsSource, /\.\.\/miniapp-capabilities\/references\/feature-map\.md/)
-  assert.match(routingPatternsSource, /\.\.\/miniapp-capabilities\/references\/full-index\.md/)
+  assert.doesNotMatch(featureMapSource, /\.\.\/tds-ui\//)
+  assert.doesNotMatch(routingPatternsSource, /\.\.\/miniapp-capabilities\//)
+  assert.match(featureMapSource, /`tds-ui` skill의 generated catalog/)
+  assert.match(routingPatternsSource, /`miniapp-capabilities` skill의 feature map/)
+  assert.match(routingPatternsSource, /`miniapp-capabilities` skill의 full index/)
 })
 
 test('root AGENTS follows the code-owned generated AGENTS contract', async () => {
@@ -968,16 +961,12 @@ test('README lists scaffolded skills in user-facing groups without leaking maint
   assert.doesNotMatch(agentsSource, /^- optional:/m)
   assert.match(agentsSource, /skill-catalog\.ts/)
   assert.match(agentsSource, /Skill source: `skills`/)
-  assert.match(readmeSource, /추천 시작점은 아래 정도예요\./)
-  assert.match(
-    readmeSource,
-    /- `backoffice-react`: `backoffice`를 같이 만들었을 때 같이 보면 좋아요\./,
-  )
-  assert.match(
-    readmeSource,
-    /- `cloudflare-worker`, `supabase-project`, `firebase-functions`: 고른 `server` provider에 맞춰 골라요\./,
-  )
-  assert.match(readmeSource, /- `trpc-boundary`: `cloudflare` 위에 `tRPC`를 올렸을 때 같이 봐요\./)
+  assert.match(readmeSource, /생성된 repo `README\.md`가 추천 목록을 자동으로 보여줍니다\./)
+  assert.match(readmeSource, /사용할 skill id는 `skills\/` 아래 디렉터리 이름을 보면 돼요\./)
+  assert.match(readmeSource, /npx skills add \. --skill <skill-id> --copy/)
+  assert.doesNotMatch(readmeSource, /- `backoffice-react`:/)
+  assert.doesNotMatch(readmeSource, /- `cloudflare-worker`/)
+  assert.doesNotMatch(readmeSource, /- `trpc-boundary`:/)
   assert.doesNotMatch(readmeSource, /^- core:/m)
   assert.doesNotMatch(readmeSource, /^- optional:/m)
   assert.doesNotMatch(readmeSource, /skill-catalog\.ts/)
@@ -1121,15 +1110,29 @@ test('applyDocsTemplates keeps AGENTS skill-free and renders README onboarding w
   await applyDocsTemplates(targetRoot, tokens, createDocsHints())
 
   const agents = await readFile(path.join(targetRoot, 'AGENTS.md'), 'utf8')
+  const claude = await readFile(path.join(targetRoot, 'CLAUDE.md'), 'utf8')
   const readme = await readFile(path.join(targetRoot, 'README.md'), 'utf8')
   const frontendPolicy = await readFile(
     path.join(targetRoot, 'docs', 'engineering', 'frontend-policy.md'),
+    'utf8',
+  )
+  const repoContract = await readFile(
+    path.join(targetRoot, 'docs', 'engineering', 'repo-contract.md'),
     'utf8',
   )
 
   assert.doesNotMatch(agents, /\.agents\/skills/)
   assert.doesNotMatch(agents, /\.claude\/skills/)
   assert.doesNotMatch(agents, /skills add/)
+  assert.doesNotMatch(claude, /\.agents\/skills/)
+  assert.doesNotMatch(claude, /\.claude\/skills/)
+  assert.match(
+    repoContract,
+    /optional agent skill은 project-local로 설치되어 있을 때만 supplemental playbook으로 사용한다\./,
+  )
+  assert.match(repoContract, /README\.md/)
+  assert.doesNotMatch(repoContract, /\.agents\/skills/)
+  assert.doesNotMatch(repoContract, /\.claude\/skills/)
   assert.match(readme, /## skills 전략/)
   assert.match(readme, /npx skills add/)
   assert.match(readme, /npx skills list/)
@@ -1358,19 +1361,15 @@ test('applyRootTemplates switches biome guidance to skill-aware mode when local 
   const tokens = createTokens('pnpm')
 
   for (const skillId of ['miniapp-capabilities', 'granite-routing', 'tds-ui']) {
-    await mkdir(path.join(targetRoot, '.agents', 'skills', skillId), { recursive: true })
-    await writeFile(
-      path.join(targetRoot, '.agents', 'skills', skillId, 'SKILL.md'),
-      `# ${skillId}\n`,
-      'utf8',
-    )
+    await mkdir(path.join(targetRoot, 'skills', skillId), { recursive: true })
+    await writeFile(path.join(targetRoot, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8')
   }
 
   await applyRootTemplates(targetRoot, tokens, ['frontend'])
 
   const biomeJson = await readFile(path.join(targetRoot, 'biome.json'), 'utf8')
 
-  assert.match(biomeJson, /\.agents\/skills\/tds-ui\/generated\/catalog\.json/)
+  assert.match(biomeJson, /skills\/tds-ui\/generated\/catalog\.json/)
   assert.match(biomeJson, /TDS를 먼저 써 주세요/)
 })
 
@@ -1741,6 +1740,8 @@ test('applyDocsTemplates omits local skill routing and docs/skills for base-only
   assert.doesNotMatch(agents, /\.agents\/skills/)
   assert.doesNotMatch(agents, /\.claude\/skills/)
   assert.match(claude, /README\.md/)
+  assert.doesNotMatch(claude, /\.agents\/skills/)
+  assert.doesNotMatch(claude, /\.claude\/skills/)
   assert.match(copilot, /AGENTS\.md/)
   assert.match(readme, /## skills 전략/)
   assert.match(readme, /npx skills add/)
@@ -1842,12 +1843,8 @@ test('applyDocsTemplates keeps skill references in frontend policy when project-
   const tokens = createTokens('pnpm')
 
   for (const skillId of ['miniapp-capabilities', 'granite-routing', 'tds-ui']) {
-    await mkdir(path.join(targetRoot, '.agents', 'skills', skillId), { recursive: true })
-    await writeFile(
-      path.join(targetRoot, '.agents', 'skills', skillId, 'SKILL.md'),
-      `# ${skillId}\n`,
-      'utf8',
-    )
+    await mkdir(path.join(targetRoot, 'skills', skillId), { recursive: true })
+    await writeFile(path.join(targetRoot, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8')
   }
 
   await applyDocsTemplates(targetRoot, tokens, createDocsHints())
@@ -1857,9 +1854,9 @@ test('applyDocsTemplates keeps skill references in frontend policy when project-
     'utf8',
   )
 
-  assert.match(frontendPolicy, /\.agents\/skills\/miniapp-capabilities\/SKILL\.md/)
-  assert.match(frontendPolicy, /\.agents\/skills\/granite-routing\/SKILL\.md/)
-  assert.match(frontendPolicy, /\.agents\/skills\/tds-ui\/SKILL\.md/)
+  assert.match(frontendPolicy, /skills\/miniapp-capabilities\/SKILL\.md/)
+  assert.match(frontendPolicy, /skills\/granite-routing\/SKILL\.md/)
+  assert.match(frontendPolicy, /skills\/tds-ui\/SKILL\.md/)
 })
 
 test('applyDocsTemplates rerenders README recommendations when optional workspaces are added later', async (t) => {

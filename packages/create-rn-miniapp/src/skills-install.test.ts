@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   buildSkillsInstallCommand,
   hasInstalledProjectSkills,
+  listInstalledProjectSkillEntries,
   listInstalledProjectSkills,
   normalizeSelectedSkillIds,
   renderInstalledSkillsSummary,
@@ -45,13 +46,16 @@ test('renderSkillsAddCommand produces the standard npx skills command', () => {
   )
 })
 
-test('renderInstalledSkillsSummary renders a concise project-local skills note', () => {
+test('renderInstalledSkillsSummary renders discovered project-local skill paths', () => {
   assert.equal(
-    renderInstalledSkillsSummary(['tds-ui', 'miniapp-capabilities']),
+    renderInstalledSkillsSummary([
+      { id: 'tds-ui', skillsRoot: 'skills' },
+      { id: 'miniapp-capabilities', skillsRoot: '.agents/skills' },
+    ]),
     [
       'project-local skills를 설치했어요.',
       '- miniapp-capabilities: `.agents/skills/miniapp-capabilities`',
-      '- tds-ui: `.agents/skills/tds-ui`',
+      '- tds-ui: `skills/tds-ui`',
       '필요하면 `npx skills list`로 다시 확인해 주세요.',
     ].join('\n'),
   )
@@ -82,7 +86,7 @@ test('buildSkillsInstallCommand uses the package manager dlx adapter and local r
   ])
 })
 
-test('project-local skill detection ignores non-skill files and derives presence from actual skill directories', async (t) => {
+test('project-local skill detection derives installed skills from the standard project skill directories', async (t) => {
   const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skills-install-'))
 
   t.after(async () => {
@@ -91,9 +95,14 @@ test('project-local skill detection ignores non-skill files and derives presence
 
   await mkdir(path.join(targetRoot, '.agents', 'skills'), { recursive: true })
   await mkdir(path.join(targetRoot, '.claude', 'skills'), { recursive: true })
+  await mkdir(path.join(targetRoot, 'skills', 'tds-ui'), { recursive: true })
   await writeFile(path.join(targetRoot, '.agents', 'skills', 'README.md'), 'not a skill\n', 'utf8')
   await writeFile(path.join(targetRoot, '.claude', 'skills', 'notes.txt'), 'mirror note\n', 'utf8')
+  await writeFile(path.join(targetRoot, 'skills', 'tds-ui', 'SKILL.md'), '# TDS\n', 'utf8')
 
-  assert.equal(await hasInstalledProjectSkills(targetRoot), false)
-  assert.deepEqual(await listInstalledProjectSkills(targetRoot), [])
+  assert.equal(await hasInstalledProjectSkills(targetRoot), true)
+  assert.deepEqual(await listInstalledProjectSkills(targetRoot), ['tds-ui'])
+  assert.deepEqual(await listInstalledProjectSkillEntries(targetRoot), [
+    { id: 'tds-ui', skillsRoot: 'skills' },
+  ])
 })

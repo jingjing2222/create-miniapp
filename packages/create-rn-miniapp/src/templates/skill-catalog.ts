@@ -1,5 +1,3 @@
-import { createProjectSkillDocPath, createProjectSkillGeneratedPath } from '../skills-contract.js'
-
 type SkillReferenceMetadata = {
   agentsLabel: string
   topologyLabel: string
@@ -60,14 +58,13 @@ export type SkillId = CoreSkillId | OptionalSkillId
 
 export type SkillReferenceDefinition = SkillReferenceMetadata & {
   id: SkillId
-  docsPath: string
 }
 
 export type CoreSkillDefinition = SkillReferenceDefinition & {
   id: CoreSkillId
   kind: 'core'
   frontendPolicyReferenceLabel: string
-  referenceCatalogPath?: string
+  referenceCatalogRelativePath?: string
 }
 
 export type OptionalSkillDefinition = SkillReferenceDefinition & {
@@ -83,7 +80,6 @@ function createSkillReferenceDefinition<TId extends SkillId>(
 ) {
   return {
     id,
-    docsPath: createProjectSkillDocPath(id),
     agentsLabel: metadata.agentsLabel,
     topologyLabel: metadata.topologyLabel,
   }
@@ -98,11 +94,7 @@ function resolveCoreSkillDefinition(id: CoreSkillId): CoreSkillDefinition {
     ...createSkillReferenceDefinition(id, metadata),
     kind: 'core',
     frontendPolicyReferenceLabel: metadata.frontendPolicyReferenceLabel,
-    ...(referenceCatalogRelativePath
-      ? {
-          referenceCatalogPath: createProjectSkillGeneratedPath(id, referenceCatalogRelativePath),
-        }
-      : {}),
+    ...(referenceCatalogRelativePath ? { referenceCatalogRelativePath } : {}),
   }
 }
 

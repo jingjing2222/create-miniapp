@@ -6,19 +6,18 @@ import {
   resolveFrontendPolicyRuleSet,
   renderFrontendPolicyVerifierSource,
 } from './frontend-policy.js'
-import { listInstalledProjectSkills } from '../skills-install.js'
 import {
   copyFileWithTokens,
   resolveTemplatesPackageRoot,
   replaceTemplateTokens,
 } from './filesystem.js'
-import { createProjectSkillTemplateExtraTokens } from '../skills-contract.js'
 import {
   createRootHelperScriptExtraTokens,
   FRONTEND_POLICY_CHECK_SCRIPT_COMMAND,
   FRONTEND_POLICY_CHECK_SCRIPT_NAME,
   ROOT_VERIFY_STEP_SCRIPT_NAMES,
 } from './root-script-catalog.js'
+import { listInstalledProjectSkillEntries } from '../skills-install.js'
 import type { TemplateTokens, WorkspaceName } from './types.js'
 
 const NORMALIZED_PACKAGE_WORKSPACE = 'packages/*' as const
@@ -51,7 +50,6 @@ export function renderRootVerifyStepsMarkdown(packageManager: PackageManager) {
 export function createRootTemplateExtraTokens(packageManager: PackageManager) {
   return {
     [ROOT_VERIFY_STEPS_TOKEN]: renderRootVerifyStepsMarkdown(packageManager),
-    ...createProjectSkillTemplateExtraTokens(),
     ...createRootHelperScriptExtraTokens(packageManager),
   }
 }
@@ -73,9 +71,9 @@ function renderRootScripts(packageManager: PackageManager) {
 
 function renderRootBiomeSource(
   adapter: ReturnType<typeof getPackageManagerAdapter>,
-  installedSkillIds: readonly string[],
+  installedSkills: Parameters<typeof resolveFrontendPolicyRuleSet>[0],
 ) {
-  const policyRules = resolveFrontendPolicyRuleSet(installedSkillIds)
+  const policyRules = resolveFrontendPolicyRuleSet(installedSkills)
 
   return `${JSON.stringify(
     {
@@ -126,7 +124,7 @@ function renderRootBiomeSource(
 
 async function syncRootFrontendPolicyArtifacts(targetRoot: string, packageManager: PackageManager) {
   const packageManagerAdapter = getPackageManagerAdapter(packageManager)
-  const installedSkillIds = await listInstalledProjectSkills(targetRoot)
+  const installedSkills = await listInstalledProjectSkillEntries(targetRoot)
 
   await mkdir(path.join(targetRoot, 'scripts'), { recursive: true })
   await writeFile(
@@ -136,7 +134,7 @@ async function syncRootFrontendPolicyArtifacts(targetRoot: string, packageManage
   )
   await writeFile(
     path.join(targetRoot, 'biome.json'),
-    renderRootBiomeSource(packageManagerAdapter, installedSkillIds),
+    renderRootBiomeSource(packageManagerAdapter, installedSkills),
     'utf8',
   )
 }
