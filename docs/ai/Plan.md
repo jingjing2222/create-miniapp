@@ -1,3 +1,16 @@
+## 다음 작업: create/add flow-first 리팩터링 설계와 구현 계획 수립
+
+### 목표
+- `packages/create-rn-miniapp/src`를 create/add 흐름이 먼저 보이는 구조로 재정리한다.
+- 디렉토리만 나누는 데서 끝내지 않고, `src/index.ts -> src/create/index.ts | src/add/index.ts -> phase -> domain facade -> implementation` 흐름이 코드에서 직접 읽히게 만든다.
+- non-index re-export forwarding file 없이 경계를 정리하고, 설계 문서와 구현 계획을 먼저 확정한다.
+
+### 작업 순서
+1. worktree 브랜치에서 baseline `pnpm verify`를 확인하고 현재 구조를 다시 점검한다.
+2. flow-first 리팩터링 설계를 `docs/superpowers/specs` 문서로 기록한다.
+3. 설계 기준에 맞는 구현 계획을 `docs/superpowers/plans` 문서로 쪼개 작성한다.
+4. 사용자가 설계/계획을 확인한 뒤 구현에 들어간다.
+
 ## 다음 작업: README 사용 사례 bullet을 목적 중심 카피로 정리
 
 ### 목표
