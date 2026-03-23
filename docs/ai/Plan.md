@@ -1,3 +1,16 @@
+## 다음 작업: create/add flow-first 브랜치 changeset 추가와 한글 PR 생성
+
+### 목표
+- 이번 브랜치 변경을 `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 두 패키지의 patch changeset으로 기록한다.
+- changeset 설명, 커밋 메시지, PR 제목/본문을 모두 한국어로 정리한다.
+- fresh `pnpm verify` 결과를 근거로 원격 브랜치 업데이트와 PR 생성까지 마무리한다.
+
+### 작업 순서
+1. `docs/ai/Plan.md`를 먼저 갱신하고, publish 대상 패키지와 브랜치/인증 상태를 다시 확인한다.
+2. 두 패키지를 함께 올리는 patch changeset 파일을 한국어 설명으로 추가한다.
+3. `pnpm verify`를 다시 실행해 증거를 확보한 뒤 changeset만 별도 커밋으로 정리하고 push한다.
+4. GitHub PR을 한국어 제목/본문으로 생성하고 링크를 기록한다.
+
 ## 다음 작업: create/add flow-first 리팩터링 설계와 구현 계획 수립
 
 ### 목표
