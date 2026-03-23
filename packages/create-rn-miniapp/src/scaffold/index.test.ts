@@ -249,6 +249,15 @@ test('add scaffold flow does not re-derive manifest topology from filesystem pro
   )
 })
 
+test('create scaffold flow reuses the tokens resolved up front instead of recomputing them', async () => {
+  const scaffoldSource = await readFile(
+    fileURLToPath(new URL('../create/phases/scaffold.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.doesNotMatch(scaffoldSource, /createTemplateTokens\(/)
+})
+
 test('create and add finalize phases delegate remote initialization resolution to server project helper', async () => {
   const createFinalizeSource = await readFile(
     fileURLToPath(new URL('../create/phases/finalize.ts', import.meta.url)),
@@ -258,11 +267,30 @@ test('create and add finalize phases delegate remote initialization resolution t
     fileURLToPath(new URL('../add/phases/finalize.ts', import.meta.url)),
     'utf8',
   )
+  const serverProjectSource = await readFile(
+    fileURLToPath(new URL('../server/project.ts', import.meta.url)),
+    'utf8',
+  )
 
-  assert.match(createFinalizeSource, /resolveFinalRemoteInitializationState\(/)
-  assert.match(addFinalizeSource, /resolveFinalRemoteInitializationState\(/)
+  assert.match(serverProjectSource, /resolveFinalRemoteInitializationState\(/)
   assert.doesNotMatch(createFinalizeSource, /function resolveCreateRemoteInitialization/)
   assert.doesNotMatch(addFinalizeSource, /function resolveAddRemoteInitialization/)
+})
+
+test('create and add finalize phases delegate final scaffold state assembly to server project helper', async () => {
+  const createFinalizeSource = await readFile(
+    fileURLToPath(new URL('../create/phases/finalize.ts', import.meta.url)),
+    'utf8',
+  )
+  const addFinalizeSource = await readFile(
+    fileURLToPath(new URL('../add/phases/finalize.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(createFinalizeSource, /resolveFinalServerScaffoldState\(/)
+  assert.match(addFinalizeSource, /resolveFinalServerScaffoldState\(/)
+  assert.doesNotMatch(createFinalizeSource, /buildServerScaffoldState\(\{/)
+  assert.doesNotMatch(addFinalizeSource, /buildServerScaffoldState\(\{/)
 })
 
 test('skill auto-install captures raw copy logs and reports installed skill summary instead', async () => {
@@ -431,6 +459,23 @@ test('buildCreateLifecycleOrder composes phase lifecycle labels from create phas
   assert.match(ordersSource, /listCreateFinalizeLifecycleLabels/)
   assert.doesNotMatch(ordersSource, /labels\.push\('server 워크스페이스 준비하기'/)
   assert.doesNotMatch(ordersSource, /labels\.push\('루트 템플릿 적용하기'/)
+})
+
+test('command plan builders derive shared server and backoffice phases from common helpers', async () => {
+  const runtimeSource = await readFile(
+    fileURLToPath(new URL('../runtime/commands.ts', import.meta.url)),
+    'utf8',
+  )
+  const providersSource = await readFile(
+    fileURLToPath(new URL('../providers/index.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(runtimeSource, /buildServerCommands\(/)
+  assert.match(runtimeSource, /buildBackofficeCommands\(/)
+  assert.match(providersSource, /buildPlan\(/)
+  assert.doesNotMatch(providersSource, /buildCreatePlan\(/)
+  assert.doesNotMatch(providersSource, /buildAddPlan\(/)
 })
 
 test('buildCreateLifecycleOrder applies root templates and server patch before firebase provisioning', () => {

@@ -45,7 +45,14 @@ type SupabaseProvisioningSummary = {
 } | null
 
 type RemoteContentProvisioningSummary = {
+  mode?: ServerProjectMode
   didInitializeRemoteContent: boolean
+} | null
+
+type FinalServerProvisioningSummary = {
+  mode?: ServerProjectMode
+  didApplyRemoteDb: boolean
+  didDeployEdgeFunctions: boolean
 } | null
 
 export function resolveRequestedRemoteInitializationState(options: {
@@ -82,7 +89,7 @@ export function buildServerScaffoldState(options: {
 export function resolveFinalRemoteInitializationState(options: {
   serverProvider: ServerProvider | null
   initialServerState: ServerScaffoldState | null
-  provisionedSupabaseProject: SupabaseProvisioningSummary
+  provisionedSupabaseProject: SupabaseProvisioningSummary | FinalServerProvisioningSummary
   provisionedCloudflareWorker: RemoteContentProvisioningSummary
   provisionedFirebaseProject: RemoteContentProvisioningSummary
 }): ServerRemoteInitializationState {
@@ -114,4 +121,33 @@ export function resolveFinalRemoteInitializationState(options: {
   }
 
   return 'not-run'
+}
+
+export function resolveFinalServerScaffoldState(options: {
+  serverProvider: ServerProvider | null
+  initialServerState: ServerScaffoldState | null
+  fallbackServerProjectMode: ServerProjectMode | null
+  fallbackTrpc: boolean
+  fallbackBackoffice: boolean
+  provisionedSupabaseProject: FinalServerProvisioningSummary
+  provisionedCloudflareWorker: RemoteContentProvisioningSummary
+  provisionedFirebaseProject: RemoteContentProvisioningSummary
+}) {
+  return buildServerScaffoldState({
+    serverProvider: options.serverProvider,
+    serverProjectMode:
+      options.provisionedSupabaseProject?.mode ??
+      options.provisionedCloudflareWorker?.mode ??
+      options.provisionedFirebaseProject?.mode ??
+      options.fallbackServerProjectMode,
+    remoteInitialization: resolveFinalRemoteInitializationState({
+      serverProvider: options.serverProvider,
+      initialServerState: options.initialServerState,
+      provisionedSupabaseProject: options.provisionedSupabaseProject,
+      provisionedCloudflareWorker: options.provisionedCloudflareWorker,
+      provisionedFirebaseProject: options.provisionedFirebaseProject,
+    }),
+    trpc: options.initialServerState?.trpc ?? options.fallbackTrpc,
+    backoffice: options.initialServerState?.backoffice ?? options.fallbackBackoffice,
+  })
 }

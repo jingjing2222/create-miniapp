@@ -56,6 +56,36 @@ type AddPlanOptions = {
   withBackoffice: boolean
 }
 
+function buildServerCommands(options: {
+  targetRoot: string
+  packageManager: PackageManager
+  serverProvider: ServerProvider | null
+}) {
+  return options.serverProvider
+    ? getServerProviderAdapter(options.serverProvider).buildPlan(options)
+    : []
+}
+
+function buildBackofficeCommands(options: {
+  targetRoot: string
+  packageManager: PackageManager
+  withBackoffice: boolean
+}) {
+  if (!options.withBackoffice) {
+    return []
+  }
+
+  const packageManager = getPackageManagerAdapter(options.packageManager)
+
+  return [
+    {
+      cwd: options.targetRoot,
+      ...packageManager.createViteApp('backoffice'),
+      label: 'backoffice Vite 만들기',
+    },
+  ] satisfies CommandSpec[]
+}
+
 export function buildCreateCommandPhases(options: CreatePlanOptions) {
   const packageManager = getPackageManagerAdapter(options.packageManager)
   const frontendRoot = `${options.targetRoot}/frontend`
@@ -95,19 +125,8 @@ export function buildCreateCommandPhases(options: CreatePlanOptions) {
     },
   ]
 
-  const server = options.serverProvider
-    ? getServerProviderAdapter(options.serverProvider).buildCreatePlan(options)
-    : []
-
-  const backoffice = options.withBackoffice
-    ? [
-        {
-          cwd: options.targetRoot,
-          ...packageManager.createViteApp('backoffice'),
-          label: 'backoffice Vite 만들기',
-        },
-      ]
-    : []
+  const server = buildServerCommands(options)
+  const backoffice = buildBackofficeCommands(options)
 
   return {
     frontend,
@@ -123,20 +142,8 @@ export function buildCommandPlan(options: CreatePlanOptions) {
 }
 
 export function buildAddCommandPhases(options: AddPlanOptions) {
-  const packageManager = getPackageManagerAdapter(options.packageManager)
-  const server = options.serverProvider
-    ? getServerProviderAdapter(options.serverProvider).buildAddPlan(options)
-    : []
-
-  const backoffice = options.withBackoffice
-    ? [
-        {
-          cwd: options.targetRoot,
-          ...packageManager.createViteApp('backoffice'),
-          label: 'backoffice Vite 만들기',
-        },
-      ]
-    : []
+  const server = buildServerCommands(options)
+  const backoffice = buildBackofficeCommands(options)
 
   return {
     server,

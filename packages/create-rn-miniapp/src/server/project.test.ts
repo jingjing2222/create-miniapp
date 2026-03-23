@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildServerScaffoldState,
   resolveFinalRemoteInitializationState,
+  resolveFinalServerScaffoldState,
   resolveRequestedRemoteInitializationState,
 } from './project.js'
 
@@ -85,5 +86,56 @@ test('resolveFinalRemoteInitializationState keeps provider-specific finalize rul
       provisionedFirebaseProject: null,
     }),
     'skipped',
+  )
+})
+
+test('resolveFinalServerScaffoldState assembles final scaffold state in one helper', () => {
+  assert.deepEqual(
+    resolveFinalServerScaffoldState({
+      serverProvider: 'cloudflare',
+      initialServerState: buildServerScaffoldState({
+        serverProvider: 'cloudflare',
+        serverProjectMode: 'existing',
+        remoteInitialization: 'skipped',
+        trpc: true,
+        backoffice: false,
+      }),
+      fallbackServerProjectMode: 'create',
+      fallbackTrpc: true,
+      fallbackBackoffice: true,
+      provisionedSupabaseProject: null,
+      provisionedCloudflareWorker: {
+        didInitializeRemoteContent: true,
+        mode: 'create',
+      },
+      provisionedFirebaseProject: null,
+    }),
+    {
+      serverProvider: 'cloudflare',
+      serverProjectMode: 'create',
+      remoteInitialization: 'applied',
+      trpc: true,
+      backoffice: false,
+    },
+  )
+
+  assert.deepEqual(
+    resolveFinalServerScaffoldState({
+      serverProvider: 'firebase',
+      initialServerState: null,
+      fallbackServerProjectMode: 'existing',
+      fallbackTrpc: false,
+      fallbackBackoffice: true,
+      provisionedSupabaseProject: null,
+      provisionedCloudflareWorker: null,
+      provisionedFirebaseProject: null,
+    }),
+    {
+      serverProvider: 'firebase',
+      serverProjectMode: 'existing',
+      remoteInitialization: 'not-run',
+      trpc: false,
+      backoffice: true,
+    },
   )
 })

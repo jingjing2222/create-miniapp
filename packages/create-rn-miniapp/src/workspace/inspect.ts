@@ -3,46 +3,14 @@ import path from 'node:path'
 import npa from 'npm-package-arg'
 import { readGraniteConfigMetadata } from '../patching/ast/index.js'
 import { toDefaultDisplayName } from './layout.js'
-import { resolveWorkspaceOptionalState } from './optional-state.js'
 import { PACKAGE_MANAGERS, type PackageManager } from '../runtime/package-manager.js'
-import { detectServerProvider, type ServerProvider } from '../providers/index.js'
-import { readServerScaffoldState, type ServerScaffoldState } from '../server/project.js'
+import type { ServerProvider } from '../providers/index.js'
+import type { ServerScaffoldState } from '../server/project.js'
 import { pathExists } from '../templates/filesystem.js'
-import { hasTrpcWorkspace, inspectWorkspaceTopology } from './topology.js'
+import { inspectOptionalWorkspaceState } from './optional-state.js'
 
 type RootPackageJson = {
   packageManager?: string
-}
-
-function assertConsistentServerScaffoldState(options: {
-  state: ServerScaffoldState
-  detectedServerProvider: ServerProvider
-  hasBackoffice: boolean
-  hasTrpc: boolean
-}) {
-  const mismatches: string[] = []
-
-  if (options.state.serverProvider !== options.detectedServerProvider) {
-    mismatches.push(
-      `serverProvider(state=${options.state.serverProvider}, actual=${options.detectedServerProvider})`,
-    )
-  }
-
-  if (options.state.backoffice !== options.hasBackoffice) {
-    mismatches.push(
-      `backoffice(state=${options.state.backoffice}, actual=${options.hasBackoffice})`,
-    )
-  }
-
-  if (options.state.trpc !== options.hasTrpc) {
-    mismatches.push(`trpc(state=${options.state.trpc}, actual=${options.hasTrpc})`)
-  }
-
-  if (mismatches.length > 0) {
-    throw new Error(
-      `server/.create-rn-miniapp/state.json과 실제 workspace topology가 서로 다릅니다: ${mismatches.join(', ')}`,
-    )
-  }
 }
 
 export type WorkspaceInspection = {
@@ -92,36 +60,17 @@ export async function inspectWorkspace(rootDir: string): Promise<WorkspaceInspec
     throw new Error('frontend/granite.config.ts에서 appName을 읽지 못했어요.')
   }
 
-  const topology = await inspectWorkspaceTopology(resolvedRootDir)
-  const hasServer = topology.hasServer
-  const actualHasBackoffice = topology.hasBackoffice
-  const actualHasTrpc = hasTrpcWorkspace(topology)
-  const detectedServerProvider = hasServer ? await detectServerProvider(resolvedRootDir) : null
-  const serverScaffoldState = hasServer ? await readServerScaffoldState(resolvedRootDir) : null
-  const optionalState = resolveWorkspaceOptionalState({
-    topology,
-    detectedServerProvider,
-    serverScaffoldState,
-  })
-
-  if (serverScaffoldState && detectedServerProvider) {
-    assertConsistentServerScaffoldState({
-      state: serverScaffoldState,
-      detectedServerProvider,
-      hasBackoffice: actualHasBackoffice,
-      hasTrpc: actualHasTrpc,
-    })
-  }
+  const optionalState = await inspectOptionalWorkspaceState(resolvedRootDir)
 
   return {
     rootDir: resolvedRootDir,
     packageManager,
     appName: metadata.appName,
     displayName: metadata.displayName ?? toDefaultDisplayName(metadata.appName),
-    hasServer,
+    hasServer: optionalState.topology.hasServer,
     hasBackoffice: optionalState.hasBackoffice,
     hasTrpc: optionalState.hasTrpc,
     serverProvider: optionalState.serverProvider,
-    serverScaffoldState,
+    serverScaffoldState: optionalState.serverScaffoldState,
   }
 }

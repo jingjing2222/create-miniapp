@@ -7,10 +7,7 @@ import {
   maybeFinalizeFirebaseProvisioning,
   maybeFinalizeSupabaseProvisioning,
 } from '../../scaffold/provisioning.js'
-import {
-  buildServerScaffoldState,
-  resolveFinalRemoteInitializationState,
-} from '../../server/project.js'
+import { resolveFinalServerScaffoldState } from '../../server/project.js'
 import type { CreateContext } from '../context.js'
 
 export async function finalizeCreateWorkspace(ctx: CreateContext) {
@@ -38,22 +35,15 @@ export async function finalizeCreateWorkspace(ctx: CreateContext) {
   )
   ctx.notes.push(...ctx.installedSkillNotes)
 
-  const finalServerState = buildServerScaffoldState({
+  const finalServerState = resolveFinalServerScaffoldState({
     serverProvider: ctx.options.serverProvider,
-    serverProjectMode:
-      ctx.provisionedSupabaseProject?.mode ??
-      ctx.provisionedCloudflareWorker?.mode ??
-      ctx.provisionedFirebaseProject?.mode ??
-      ctx.options.serverProjectMode,
-    remoteInitialization: resolveFinalRemoteInitializationState({
-      serverProvider: ctx.options.serverProvider,
-      initialServerState: ctx.initialServerState,
-      provisionedSupabaseProject: ctx.provisionedSupabaseProject,
-      provisionedCloudflareWorker: ctx.provisionedCloudflareWorker,
-      provisionedFirebaseProject: ctx.provisionedFirebaseProject,
-    }),
-    trpc: ctx.initialServerState?.trpc ?? ctx.trpcEnabled,
-    backoffice: ctx.initialServerState?.backoffice ?? ctx.options.withBackoffice,
+    initialServerState: ctx.initialServerState,
+    fallbackServerProjectMode: ctx.options.serverProjectMode,
+    fallbackTrpc: ctx.trpcEnabled,
+    fallbackBackoffice: ctx.options.withBackoffice,
+    provisionedSupabaseProject: ctx.provisionedSupabaseProject,
+    provisionedCloudflareWorker: ctx.provisionedCloudflareWorker,
+    provisionedFirebaseProject: ctx.provisionedFirebaseProject,
   })
 
   if (finalServerState) {

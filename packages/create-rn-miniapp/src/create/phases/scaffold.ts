@@ -5,7 +5,6 @@ import type { CommandSpec } from '../../runtime/command-spec.js'
 import { buildCreateCommandPhases, runCommand } from '../../runtime/commands.js'
 import { getPackageManagerAdapter } from '../../runtime/package-manager.js'
 import {
-  createTemplateTokens,
   maybePatchServerWorkspace,
   maybePrepareServerWorkspace,
   maybePrepareTrpcWorkspace,
@@ -134,11 +133,6 @@ export async function scaffoldCreateWorkspace(ctx: CreateContext) {
 
   ctx = {
     ...ctx,
-    tokens: createTemplateTokens({
-      appName: ctx.options.appName,
-      displayName: ctx.options.displayName,
-      packageManager: ctx.options.packageManager,
-    }),
     commandPhases,
   }
 

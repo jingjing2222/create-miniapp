@@ -1,19 +1,14 @@
 import type { GeneratedWorkspaceOptions } from './types.js'
-import { detectServerProvider } from '../providers/index.js'
-import { readServerScaffoldState } from '../server/project.js'
-import { resolveWorkspaceOptionalState } from '../workspace/optional-state.js'
-import { inspectWorkspaceTopology } from '../workspace/topology.js'
+import { inspectOptionalWorkspaceState } from '../workspace/optional-state.js'
 
 export async function resolveGeneratedWorkspaceOptions(
   targetRoot: string,
 ): Promise<GeneratedWorkspaceOptions> {
-  const topology = await inspectWorkspaceTopology(targetRoot)
-  const detectedServerProvider = topology.hasServer ? await detectServerProvider(targetRoot) : null
-  const serverScaffoldState = topology.hasServer ? await readServerScaffoldState(targetRoot) : null
+  const optionalState = await inspectOptionalWorkspaceState(targetRoot)
 
-  return resolveWorkspaceOptionalState({
-    topology,
-    detectedServerProvider,
-    serverScaffoldState,
-  })
+  return {
+    hasBackoffice: optionalState.hasBackoffice,
+    serverProvider: optionalState.serverProvider,
+    hasTrpc: optionalState.hasTrpc,
+  }
 }

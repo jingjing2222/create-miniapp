@@ -549,13 +549,18 @@ test('generated docs and inspectors derive workspace topology from a shared help
     fileURLToPath(new URL('../workspace/inspect.ts', import.meta.url)),
     'utf8',
   )
+  const optionalStateSource = await readFile(
+    fileURLToPath(new URL('../workspace/optional-state.ts', import.meta.url)),
+    'utf8',
+  )
   const templateTypesSource = await readFile(
     fileURLToPath(new URL('./types.ts', import.meta.url)),
     'utf8',
   )
 
-  assert.match(generatedWorkspaceSource, /from '\.\.\/workspace\/topology\.js'/)
-  assert.match(workspaceInspectorSource, /from '\.\/topology\.js'/)
+  assert.match(generatedWorkspaceSource, /from '\.\.\/workspace\/optional-state\.js'/)
+  assert.match(workspaceInspectorSource, /from '\.\/optional-state\.js'/)
+  assert.match(optionalStateSource, /from '\.\/topology\.js'/)
   assert.match(
     templateTypesSource,
     /import type \{ ServerProvider \} from '\.\.\/providers\/index\.js'/,
@@ -1417,6 +1422,33 @@ test('resolveGeneratedWorkspaceOptions derives optional docs state from actual w
     serverProvider: 'cloudflare',
     hasTrpc: true,
   })
+})
+
+test('resolveGeneratedWorkspaceOptions rejects stale scaffold state that disagrees with workspace topology', async (t) => {
+  const targetRoot = await createTempTargetRoot(t)
+
+  await mkdir(path.join(targetRoot, 'server', '.create-rn-miniapp'), { recursive: true })
+  await writeFile(path.join(targetRoot, 'server', 'wrangler.jsonc'), '{}\n', 'utf8')
+  await writeFile(
+    path.join(targetRoot, 'server', '.create-rn-miniapp', 'state.json'),
+    JSON.stringify(
+      {
+        serverProvider: 'cloudflare',
+        serverProjectMode: 'existing',
+        remoteInitialization: 'skipped',
+        trpc: true,
+        backoffice: true,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+
+  await assert.rejects(
+    resolveGeneratedWorkspaceOptions(targetRoot),
+    /state\.json과 실제 workspace topology가 서로 다릅니다/,
+  )
 })
 
 test('applyRootTemplates keeps pnpm workspace manifest for pnpm', async (t) => {
