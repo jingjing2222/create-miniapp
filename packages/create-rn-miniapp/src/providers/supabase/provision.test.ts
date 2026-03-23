@@ -8,6 +8,7 @@ import { extractJsonPayload } from '../../cli/structured-output.js'
 import {
   buildCreateSupabaseProjectArgs,
   finalizeSupabaseProvisioning,
+  hasSupabaseLocalMigrations,
   isSupabaseAccessTokenRequiredError,
   formatSupabaseManualSetupNote,
   pollForNewSupabaseProject,
@@ -250,10 +251,11 @@ test('withSupabaseAccessTokenRequirement preserves unrelated failures', async ()
 })
 
 test('shouldAutoApplySupabaseRemoteDatabase only enables remote db push for new projects', () => {
-  assert.equal(shouldAutoApplySupabaseRemoteDatabase('create'), true)
-  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing'), false)
-  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', true), true)
-  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', false), false)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('create', false, true), true)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('create', false, false), false)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', false, true), false)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', true, true), true)
+  assert.equal(shouldAutoApplySupabaseRemoteDatabase('existing', true, false), false)
 })
 
 test('shouldAutoDeploySupabaseEdgeFunctions only enables auto deploy for new projects', () => {
@@ -261,6 +263,28 @@ test('shouldAutoDeploySupabaseEdgeFunctions only enables auto deploy for new pro
   assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing'), false)
   assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing', true), true)
   assert.equal(shouldAutoDeploySupabaseEdgeFunctions('existing', false), false)
+})
+
+test('hasSupabaseLocalMigrations only returns true when local sql migrations exist', async (t) => {
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-supabase-migrations-'))
+  const serverRoot = path.join(targetRoot, 'server')
+
+  t.after(async () => {
+    await rm(targetRoot, { recursive: true, force: true })
+  })
+
+  assert.equal(await hasSupabaseLocalMigrations(serverRoot), false)
+
+  await mkdir(path.join(serverRoot, 'supabase', 'migrations'), { recursive: true })
+  assert.equal(await hasSupabaseLocalMigrations(serverRoot), false)
+
+  await writeFile(
+    path.join(serverRoot, 'supabase', 'migrations', '202603230001_create_profiles.sql'),
+    'create table profiles(id uuid primary key);\n',
+    'utf8',
+  )
+
+  assert.equal(await hasSupabaseLocalMigrations(serverRoot), true)
 })
 
 test('pollForNewSupabaseProject waits 1, 2, 4, 5 seconds and stops when a new project appears', async () => {
@@ -462,7 +486,7 @@ test('finalizeSupabaseProvisioning writes env files for existing projects when p
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
     assert.match(
       notes[0]?.body ?? '',
-      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+      /로컬 supabase\/migrations 에 적용할 migration이 아직 없어서 원격 DB 반영은 자동으로 건너뛰었어요\./,
     )
     assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `db:apply`/)
     assert.match(
@@ -543,7 +567,7 @@ test('finalizeSupabaseProvisioning skips password guidance when server db passwo
     assert.doesNotMatch(notes[0]?.body ?? '', /SUPABASE_DB_PASSWORD 는 비어 있어요/)
     assert.match(
       notes[0]?.body ?? '',
-      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+      /로컬 supabase\/migrations 에 적용할 migration이 아직 없어서 원격 DB 반영은 자동으로 건너뛰었어요\./,
     )
     assert.match(
       notes[0]?.body ?? '',
@@ -585,7 +609,7 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     assert.match(notes[0]?.body ?? '', /dashboard\/project\/abc123\/database\/settings/)
     assert.match(
       notes[0]?.body ?? '',
-      /기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+      /로컬 supabase\/migrations 에 적용할 migration이 아직 없어서 원격 DB 반영은 자동으로 건너뛰었어요\./,
     )
     assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `db:apply`/)
     assert.match(
@@ -594,6 +618,35 @@ test('finalizeSupabaseProvisioning falls back to manual setup guidance when publ
     )
     assert.match(notes[0]?.body ?? '', /server\/package\.json 의 `functions:deploy`/)
     assert.match(serverEnv, /^SUPABASE_PROJECT_REF=abc123$/m)
+  } finally {
+    await rm(targetRoot, { recursive: true, force: true })
+  }
+})
+
+test('finalizeSupabaseProvisioning uses the same db skip guidance for create mode without local migrations', async () => {
+  const targetRoot = await mkdtemp(
+    path.join(os.tmpdir(), 'create-rn-miniapp-supabase-create-without-migrations-'),
+  )
+
+  try {
+    const notes = await finalizeSupabaseProvisioning({
+      targetRoot,
+      provisionedProject: {
+        projectRef: 'abc123',
+        publishableKey: 'sb_publishable_123',
+        dbPassword: 'generated-password',
+        accessToken: null,
+        didApplyRemoteDb: false,
+        didDeployEdgeFunctions: true,
+        mode: 'create',
+      },
+    })
+
+    assert.match(
+      notes[0]?.body ?? '',
+      /로컬 supabase\/migrations 에 적용할 migration이 아직 없어서 원격 DB 반영은 자동으로 건너뛰었어요\./,
+    )
+    assert.doesNotMatch(notes[0]?.body ?? '', /기존 Supabase 프로젝트를 골라서/)
   } finally {
     await rm(targetRoot, { recursive: true, force: true })
   }

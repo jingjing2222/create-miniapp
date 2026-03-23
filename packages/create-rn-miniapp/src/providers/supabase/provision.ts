@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { log } from '@clack/prompts'
 import type { CommandSpec } from '../../runtime/command-spec.js'
@@ -153,7 +153,7 @@ function formatSupabaseSecretGuidance(options: {
 
 function formatSupabaseRemoteDbSkipGuidance() {
   return [
-    '기존 Supabase 프로젝트를 골라서 원격 DB 반영은 자동으로 건너뛰었어요.',
+    '로컬 supabase/migrations 에 적용할 migration이 아직 없어서 원격 DB 반영은 자동으로 건너뛰었어요.',
     '필요하면 server/package.json 의 `db:apply`를 직접 실행해 주세요.',
   ]
 }
@@ -358,8 +358,9 @@ export function formatSupabaseManualSetupNote(options: {
 export function shouldAutoApplySupabaseRemoteDatabase(
   mode: ServerProjectMode,
   shouldInitializeExistingRemoteContent = false,
+  hasLocalMigrations = true,
 ) {
-  return mode === 'create' || shouldInitializeExistingRemoteContent
+  return hasLocalMigrations && (mode === 'create' || shouldInitializeExistingRemoteContent)
 }
 
 export function shouldAutoDeploySupabaseEdgeFunctions(
@@ -648,6 +649,18 @@ async function linkSupabaseProject(
   )
 }
 
+export async function hasSupabaseLocalMigrations(serverRoot: string) {
+  const migrationsRoot = path.join(serverRoot, 'supabase', 'migrations')
+
+  if (!(await pathExists(migrationsRoot))) {
+    return false
+  }
+
+  const entries = await readdir(migrationsRoot, { withFileTypes: true })
+
+  return entries.some((entry) => entry.isFile() && entry.name.endsWith('.sql'))
+}
+
 async function pushSupabaseDatabase(packageManager: PackageManager, serverRoot: string) {
   log.step('server DB 변경을 반영할게요')
   await runCommand(
@@ -763,9 +776,11 @@ export async function provisionSupabaseProject(
       )
 
       await linkSupabaseProject(options.packageManager, serverRoot, selectedProjectId)
+      const hasLocalMigrations = await hasSupabaseLocalMigrations(serverRoot)
       const didApplyRemoteDb = shouldAutoApplySupabaseRemoteDatabase(
         resolvedProjectMode,
         shouldInitializeExistingRemoteContent,
+        hasLocalMigrations,
       )
 
       if (didApplyRemoteDb) {
