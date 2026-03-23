@@ -1,5 +1,21 @@
 # @create-rn-miniapp/scaffold-templates
 
+## 0.1.5
+
+### Patch Changes
+
+- d3bda6b: Apps-in-Toss 공식 skill 연동을 기본 흐름으로 정리하고, 로컬 skill 구성을 중복 없이 단순화했습니다.
+
+  - 스캐폴딩 시 `docs-search`, `project-validator`를 항상 추천하고 source repo별로 함께 설치할 수 있게 정리했습니다.
+  - 로컬 capability mirror skill인 `miniapp-capabilities`를 제거하고, `tds-ui`를 문서 snapshot 대신 anomaly/rule overlay 중심으로 재구성했습니다.
+  - README와 generated onboarding 문서를 새 skill 설치 계약에 맞게 맞추고, 관련 renderer와 테스트의 source of truth를 정리했습니다.
+
+- d5c0787: generator 내부 구조를 `create`와 `add` 흐름 중심으로 다시 정리했습니다.
+
+  - CLI 진입점에서 `create`와 `add` coordinator로 바로 분기되도록 바꿨습니다.
+  - top-level에 흩어져 있던 runtime, workspace, server, skills 관련 모듈을 역할별 디렉토리로 재배치했습니다.
+  - 구조 회귀를 막기 위해 flow 가시성과 import surface를 검증하는 테스트를 강화했습니다.
+
 ## 0.1.4
 
 ### Patch Changes
