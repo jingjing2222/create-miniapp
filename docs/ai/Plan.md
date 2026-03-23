@@ -1,3 +1,16 @@
+## 다음 작업: CLI package publish manifest 경고 제거
+
+### 목표
+- `create-rn-miniapp` 패키지 publish 시 npm이 `bin`과 `repository.url`을 자동 보정하지 않게 manifest를 정규형으로 맞춘다.
+- release 테스트에 publish manifest 계약을 추가해 같은 경고가 다시 생기지 않게 고정한다.
+- `npm publish --dry-run --ignore-scripts`와 `pnpm verify`를 근거로 수정 결과를 확인한 뒤 단일 목적 커밋으로 정리한다.
+
+### 작업 순서
+1. release 테스트에 CLI publish manifest 계약을 먼저 추가해 red를 만든다.
+2. `packages/create-rn-miniapp/package.json`을 npm 정규형에 맞게 최소 수정한다.
+3. dry-run publish와 `pnpm verify`로 경고/회귀 여부를 확인한다.
+4. 변경을 단일 목적 커밋으로 정리하고 원격 브랜치에 push한다.
+
 ## 다음 작업: SSOT 기준 create/add 상태 계산과 docs 흐름 중복 제거
 
 ### 목표

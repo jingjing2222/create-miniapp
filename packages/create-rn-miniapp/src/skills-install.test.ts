@@ -70,9 +70,15 @@ test('skills source repo slug is derived from the published package repository',
 
   assert.equal(
     SKILLS_SOURCE_REPO,
-    packageJson.repository?.url?.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''),
+    packageJson.repository?.url
+      ?.replace(/^git\+/, '')
+      .replace(/^https:\/\/github\.com\//, '')
+      .replace(/\.git$/, ''),
   )
-  assert.equal(packageJson.repository?.url, 'https://github.com/jingjing2222/create-rn-miniapp.git')
+  assert.equal(
+    packageJson.repository?.url,
+    'git+https://github.com/jingjing2222/create-rn-miniapp.git',
+  )
   assert.doesNotMatch(
     skillsContractSource,
     new RegExp(escapeRegExp(`export const SKILLS_SOURCE_REPO = '${SKILLS_SOURCE_REPO}'`)),

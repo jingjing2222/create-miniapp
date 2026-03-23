@@ -65,6 +65,10 @@ test('published package names match the released npm packages', () => {
     fs.readFileSync(path.join(repoRoot, 'packages/create-rn-miniapp/package.json'), 'utf8'),
   ) as {
     name: string
+    bin?: Record<string, string>
+    repository?: {
+      url?: string
+    }
     dependencies?: Record<string, string>
   }
   const templatesPackageJson = JSON.parse(
@@ -77,6 +81,11 @@ test('published package names match the released npm packages', () => {
   assert.equal(
     cliPackageJson.dependencies?.['@create-rn-miniapp/scaffold-templates'],
     'workspace:*',
+  )
+  assert.equal(cliPackageJson.bin?.['create-miniapp'], 'dist/index.js')
+  assert.equal(
+    cliPackageJson.repository?.url,
+    'git+https://github.com/jingjing2222/create-rn-miniapp.git',
   )
   assert.equal(templatesPackageJson.name, '@create-rn-miniapp/scaffold-templates')
 })
