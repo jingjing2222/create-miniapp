@@ -1,5 +1,37 @@
 # create-rn-miniapp
 
+## 0.1.5
+
+### Patch Changes
+
+- d3bda6b: Apps-in-Toss 공식 skill 연동을 기본 흐름으로 정리하고, 로컬 skill 구성을 중복 없이 단순화했습니다.
+
+  - 스캐폴딩 시 `docs-search`, `project-validator`를 항상 추천하고 source repo별로 함께 설치할 수 있게 정리했습니다.
+  - 로컬 capability mirror skill인 `miniapp-capabilities`를 제거하고, `tds-ui`를 문서 snapshot 대신 anomaly/rule overlay 중심으로 재구성했습니다.
+  - README와 generated onboarding 문서를 새 skill 설치 계약에 맞게 맞추고, 관련 renderer와 테스트의 source of truth를 정리했습니다.
+
+- 4cdfcbc: Supabase 초기 scaffold에서는 remote DB push를 자동으로 하지 않도록 정리했습니다.
+
+  - Supabase provisioning은 프로젝트 연결/생성과 Edge Functions 배포까지만 자동으로 수행합니다.
+  - remote `db push`는 create/existing 여부와 관계없이 scaffold 중에는 자동 실행하지 않습니다.
+  - server README와 finalize 안내 문구도 `db:apply`를 수동 실행하는 흐름으로 맞췄습니다.
+
+- d5c0787: generator 내부 구조를 `create`와 `add` 흐름 중심으로 다시 정리했습니다.
+
+  - CLI 진입점에서 `create`와 `add` coordinator로 바로 분기되도록 바꿨습니다.
+  - top-level에 흩어져 있던 runtime, workspace, server, skills 관련 모듈을 역할별 디렉토리로 재배치했습니다.
+  - 구조 회귀를 막기 위해 flow 가시성과 import surface를 검증하는 테스트를 강화했습니다.
+
+- 463d234: create flow에서 모노레포 루트 skeleton을 먼저 생성하도록 정리했습니다.
+
+  - `frontend`와 `server` scaffold 전에 루트 `package.json`과 workspace manifest를 먼저 씁니다.
+  - create 옵션에서 예상 workspace 목록을 직접 계산해 초기 root manifest와 이후 sync 기준을 맞췄습니다.
+  - root template가 중간에 다시 적용되지 않도록 scaffold 순서를 단순화했습니다.
+
+- Updated dependencies [d3bda6b]
+- Updated dependencies [d5c0787]
+  - @create-rn-miniapp/scaffold-templates@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes
