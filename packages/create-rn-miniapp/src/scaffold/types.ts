@@ -1,15 +1,15 @@
 import type { CliPrompter } from '../cli.js'
+import type { InstallableSkillId } from '../installable-skill-catalog.js'
 import type { PackageManager } from '../package-manager.js'
 import type { ServerProjectMode, ServerScaffoldState } from '../server-project.js'
 import type { ServerProvider } from '../providers/index.js'
-import type { SkillId } from '../templates/skill-catalog.js'
 
 export type ScaffoldOptions = {
   prompt: CliPrompter
   packageManager: PackageManager
   appName: string
   displayName: string
-  selectedSkills: SkillId[]
+  selectedSkills: InstallableSkillId[]
   outputDir: string
   noGit: boolean
   serverProvider: ServerProvider | null

@@ -19,7 +19,7 @@ import {
 } from '../templates/root.js'
 import { applyDocsTemplates } from '../templates/docs.js'
 import {
-  buildSkillsInstallCommand,
+  buildSkillsInstallCommands,
   listInstalledProjectSkillEntries,
   renderInstalledSkillsSummary,
   renderSkillsAddCommand,
@@ -162,13 +162,13 @@ async function maybeInstallSelectedSkills(options: {
   packageManager: AddWorkspaceOptions['packageManager'] | ScaffoldOptions['packageManager']
   selectedSkills: ScaffoldOptions['selectedSkills']
 }) {
-  const installCommand = await buildSkillsInstallCommand({
+  const installCommands = await buildSkillsInstallCommands({
     packageManager: options.packageManager,
     targetRoot: options.targetRoot,
     skillIds: options.selectedSkills,
   })
 
-  if (!installCommand) {
+  if (installCommands.length === 0) {
     return {
       didInstall: false,
       notes: [] as ProvisioningNote[],
@@ -176,8 +176,10 @@ async function maybeInstallSelectedSkills(options: {
   }
 
   try {
-    log.step(installCommand.label)
-    await runCommandWithOutput(installCommand)
+    for (const installCommand of installCommands) {
+      log.step(installCommand.label)
+      await runCommandWithOutput(installCommand)
+    }
     const installedSkills = await listInstalledProjectSkillEntries(options.targetRoot)
 
     return {

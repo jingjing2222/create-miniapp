@@ -1,3 +1,16 @@
+## 다음 작업: README install example skill 집합의 SSoT 정리
+
+### 목표
+- root README install example이 사용하는 기본 skill 집합을 한 곳에서만 조합하게 만든다.
+- 공식 always-on skill과 local core overlay skill을 섞는 기본 예시 집합이 `root-readme.ts` 안 여러 군데에서 따로 조합되지 않게 한다.
+- helper를 source of truth로 올리고 README/template 테스트를 그 helper 기준으로 맞춘 뒤 `pnpm verify`로 확인한다.
+
+### 작업 순서
+1. failing test를 먼저 추가해 README install example 기본 skill ids가 dedicated helper에서만 파생돼야 한다는 red를 만든다.
+2. `root-readme.ts`가 fallback install example과 managed section example에서 같은 helper를 사용하도록 최소 수정한다.
+3. 관련 README/template 테스트를 helper 기준으로 정리한다.
+4. targeted test 후 `pnpm verify`를 실행한다.
+
 ## 다음 작업: README 사용 사례 bullet을 목적 중심 카피로 정리
 
 ### 목표
