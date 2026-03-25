@@ -1,3 +1,16 @@
+## 다음 작업: skill eval 자산을 JSON 표준 경로로 재정리
+
+### 목표
+- `skills/*/evals/trigger-cases.md`를 markdown 메모가 아니라 JSON 기반 eval 자산으로 바꾼다.
+- `references/`와 eval 역할이 겹치지 않게 정리하고, trigger eval은 `evals/` 아래에만 남긴다.
+- eval 파일 형식을 테스트로 고정하고, `pnpm verify` 후 현재 PR 브랜치에 push한다.
+
+### 작업 순서
+1. 현재 skill별 eval markdown 자산과 연결된 문구를 확인하고, 새 JSON shape을 정한다.
+2. 기존 should-trigger / should-not-trigger 케이스를 JSON으로 옮기고 markdown 파일은 제거한다.
+3. skill eval 자산이 parse 가능한 JSON 형식을 유지하는 테스트를 추가한다.
+4. `pnpm verify`로 회귀를 확인한 뒤 새 커밋으로 push한다.
+
 ## 다음 작업: README skills 설명 한국어 정리와 PR #97 CI 복구
 
 ### 목표

@@ -477,6 +477,63 @@ test('skill docs share a single frontend policy path reference', async () => {
   }
 })
 
+test('trigger eval assets live under evals/evals.json with a parseable JSON shape', async () => {
+  const skillRoot = fileURLToPath(new URL('../../../../skills', import.meta.url))
+  const triggerEvalSkillIds = [
+    'backoffice-react',
+    'cloudflare-worker',
+    'supabase-project',
+    'firebase-functions',
+  ] as const
+
+  for (const skillId of triggerEvalSkillIds) {
+    const legacyMarkdownPath = path.join(skillRoot, skillId, 'evals', 'trigger-cases.md')
+    const evalJsonPath = path.join(skillRoot, skillId, 'evals', 'evals.json')
+
+    assert.equal(await pathExists(legacyMarkdownPath), false)
+    assert.equal(await pathExists(evalJsonPath), true)
+
+    const evalSource = await readFile(evalJsonPath, 'utf8')
+    const parsed = JSON.parse(evalSource) as {
+      skill_name: string
+      evaluation_type: string
+      output_quality_bar: string[]
+      evals: Array<{
+        id: string
+        prompt: string
+        should_trigger: boolean
+      }>
+    }
+
+    assert.equal(parsed.skill_name, skillId)
+    assert.equal(parsed.evaluation_type, 'trigger')
+    assert.ok(
+      parsed.output_quality_bar.length > 0,
+      `${skillId} should define an output quality bar`,
+    )
+    assert.ok(parsed.evals.length >= 16, `${skillId} should keep enough trigger cases`)
+
+    const ids = new Set<string>()
+
+    for (const entry of parsed.evals) {
+      assert.ok(entry.id.length > 0, `${skillId} eval id should not be empty`)
+      assert.equal(ids.has(entry.id), false, `${skillId} eval ids must stay unique`)
+      ids.add(entry.id)
+      assert.ok(entry.prompt.length > 0, `${skillId} eval prompt should not be empty`)
+      assert.equal(typeof entry.should_trigger, 'boolean')
+    }
+
+    assert.ok(
+      parsed.evals.some((entry) => entry.should_trigger),
+      `${skillId} should include positives`,
+    )
+    assert.ok(
+      parsed.evals.some((entry) => !entry.should_trigger),
+      `${skillId} should include negatives`,
+    )
+  }
+})
+
 test('generated docs and inspectors derive workspace topology from a shared helper', async () => {
   const generatedWorkspaceSource = await readFile(
     fileURLToPath(new URL('./generated-workspace.ts', import.meta.url)),
