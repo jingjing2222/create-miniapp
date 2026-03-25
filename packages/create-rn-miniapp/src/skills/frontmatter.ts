@@ -9,6 +9,7 @@ const VERSION_METADATA_KEY = `${REPO_METADATA_PREFIX}version`
 export type SkillFrontmatter = {
   id: string
   description: string
+  compatibility?: string
   agentsLabel: string
   category: 'core' | 'optional'
   order: number
@@ -20,6 +21,24 @@ function readStringField(data: Record<string, unknown>, fieldName: string, expec
 
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`frontmatter field를 찾지 못했어요: ${fieldName} (skill: ${expectedId})`)
+  }
+
+  return value.trim()
+}
+
+function readOptionalStringField(
+  data: Record<string, unknown>,
+  fieldName: string,
+  expectedId: string,
+) {
+  const value = data[fieldName]
+
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`frontmatter field 형식이 잘못됐어요: ${fieldName} (skill: ${expectedId})`)
   }
 
   return value.trim()
@@ -84,6 +103,7 @@ export function parseSkillFrontmatter(source: string, expectedId: string): Skill
 
   const id = readStringField(data, 'name', expectedId)
   const description = readStringField(data, 'description', expectedId)
+  const compatibility = readOptionalStringField(data, 'compatibility', expectedId)
   const metadata = readMetadataObject(data, expectedId)
   const agentsLabel = readMetadataStringField(metadata, AGENTS_LABEL_METADATA_KEY, expectedId)
   const category = readMetadataStringField(metadata, CATEGORY_METADATA_KEY, expectedId)
@@ -110,6 +130,7 @@ export function parseSkillFrontmatter(source: string, expectedId: string): Skill
   return {
     id,
     description,
+    compatibility,
     agentsLabel,
     category,
     order,

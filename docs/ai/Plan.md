@@ -1,3 +1,16 @@
+## 다음 작업: Skill 표준 재검수와 잔여 비표준 찾기
+
+### 목표
+- 현재 skill source가 Agent Skills 문서와 `@vercel-labs` 계열 구현 기준에서 여전히 어긋나는 지점을 다시 찾는다.
+- 이미 고친 항목을 제외하고, 남아 있는 비표준 요소만 findings로 분리한다.
+- 즉시 수정이 필요한 구조 문제와 단순 관례 차이를 구분해 보고한다.
+
+### 작업 순서
+1. Agent Skills specification, description/eval 가이드, `@vercel-labs` 구현 기준을 다시 확인한다.
+2. 현재 브랜치의 `skills/*`와 관련 tooling을 훑어 표준에서 벗어난 패턴을 찾는다.
+3. 발견한 항목을 severity와 영향 범위 기준으로 정리한다.
+4. 수정이 필요한 항목과 관찰만 필요한 항목을 분리해 보고한다.
+
 ## 다음 작업: Agent Skills 표준 재대조와 PR 변경 축 재분류
 
 ### 목표

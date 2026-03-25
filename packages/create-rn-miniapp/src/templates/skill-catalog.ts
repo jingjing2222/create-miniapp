@@ -23,22 +23,22 @@ const OPTIONAL_SKILL_METADATA_BY_ID = {
   'backoffice-react': {
     agentsLabel: 'backoffice React 작업',
     description:
-      'Decide how to structure an optional backoffice React screen: pick list, detail, form, dashboard, or bulk-action archetypes; place query, component, and form state; split search, table, confirm, and export boundaries; and validate loading, error, empty, disabled, and permission states. Do not use for MiniApp route design, provider runtime drift, or tRPC contract changes.',
+      'Decide how to structure an optional backoffice React screen: pick list, detail, form, dashboard, or bulk-action archetypes; place query, component, and form state; split search, table, confirm, and export boundaries; and validate loading, error, empty, disabled, and permission states. Do not use for MiniApp route design, server-provider diagnosis, or shared contract changes.',
   },
   'cloudflare-worker': {
     agentsLabel: 'Cloudflare Worker 작업',
     description:
-      'Diagnose a Cloudflare Worker-backed server workspace: classify runtime, binding, env, local dev, and client-linkage drift; check D1/R2 and base URL alignment; and decide when the issue belongs to `trpc-boundary` or `server/README.md` Remote Ops. Do not use for deploy-only repair or generic UI work.',
+      'Diagnose a Cloudflare Worker-backed server workspace: classify runtime, binding, env, local dev, and client-linkage drift; check D1/R2 and base URL alignment; and separate local diagnosis from remote-state or shared-boundary work. Do not use for deploy-only repair or generic UI work.',
   },
   'supabase-project': {
     agentsLabel: 'Supabase project 작업',
     description:
-      'Diagnose a Supabase-backed server workspace: separate DB, RLS, Edge Function, env, and project-ref drift; check frontend and backoffice alignment; and decide when the issue is remote state versus local linkage. Do not use for remote db apply/deploy or generic route/UI work.',
+      'Diagnose a Supabase-backed server workspace: separate DB, RLS, Edge Function, env, and project-ref drift; check frontend and backoffice alignment; and distinguish local linkage from remote project state or shared-boundary work. Do not use for remote db apply/deploy or generic route/UI work.',
   },
   'firebase-functions': {
     agentsLabel: 'Firebase Functions 작업',
     description:
-      'Diagnose a Firebase-backed server workspace: choose callable, HTTP, or trigger surfaces; check project, region, emulator, and client-linkage drift; and separate local linkage issues from remote Firestore or IAM readiness. Do not use for deploy, seed, or repair procedures.',
+      'Diagnose a Firebase-backed server workspace: choose callable, HTTP, or trigger surfaces; check project, region, emulator, and client-linkage drift; and distinguish local linkage from remote readiness or shared-boundary work. Do not use for deploy, seed, or repair procedures.',
   },
   'trpc-boundary': {
     agentsLabel: 'tRPC boundary 변경',

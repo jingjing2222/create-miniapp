@@ -457,6 +457,18 @@ test('skill catalog is generated from skill source frontmatter metadata', async 
   }
 })
 
+test('repo-bound local skills declare compatibility requirements', async () => {
+  const skillRoot = fileURLToPath(new URL('../../../../skills', import.meta.url))
+
+  for (const skill of SKILL_CATALOG) {
+    const skillSource = await readFile(path.join(skillRoot, skill.id, 'SKILL.md'), 'utf8')
+    const frontmatter = parseSkillFrontmatter(skillSource, skill.id)
+
+    assert.ok(frontmatter.compatibility, `${skill.id} should declare compatibility`)
+    assert.match(frontmatter.compatibility, /create-rn-miniapp/)
+  }
+})
+
 test('skill docs keep bundled references inside each skill directory', async () => {
   const checkedFiles = [
     '../../../../skills/granite-routing/SKILL.md',
@@ -606,8 +618,9 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   assert.match(skillSource, /metadata\.json/)
   assert.match(skillSource, /generated\/anomalies\.json/)
   assert.match(skillSource, /docs-search/)
+  assert.match(skillSource, /AGENTS\.md/)
   assert.match(skillSource, /references\/decision-matrix\.md/)
-  assert.match(skillSource, /rules\/\*\.md/)
+  assert.doesNotMatch(skillSource, /rules\/\*\.md/)
   assert.match(skillSource, /추천 컴포넌트/)
   assert.match(skillSource, /anomaly note/i)
   assert.match(skillSource, /incomplete answer/)

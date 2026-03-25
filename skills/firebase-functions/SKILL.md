@@ -3,8 +3,12 @@ name: firebase-functions
 description: >-
   Diagnose a Firebase-backed server workspace: choose callable, HTTP, or
   trigger surfaces; check project, region, emulator, and client-linkage drift;
-  and separate local linkage issues from remote Firestore or IAM readiness. Do
-  not use for deploy, seed, or repair procedures.
+  and distinguish local linkage from remote readiness or shared-boundary work.
+  Do not use for deploy, seed, or repair procedures.
+compatibility: >-
+  Intended for create-rn-miniapp repositories using the Firebase server
+  provider. Assumes the generated frontend/backoffice/server topology and the
+  repo-owned server/README.md workflow.
 metadata:
   create-rn-miniapp.agentsLabel: "Firebase Functions 작업"
   create-rn-miniapp.category: "optional"

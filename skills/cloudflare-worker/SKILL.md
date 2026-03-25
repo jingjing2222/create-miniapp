@@ -3,9 +3,12 @@ name: cloudflare-worker
 description: >-
   Diagnose a Cloudflare Worker-backed server workspace: classify runtime,
   binding, env, local dev, and client-linkage drift; check D1/R2 and base URL
-  alignment; and decide when the issue belongs to `trpc-boundary` or
-  `server/README.md` Remote Ops. Do not use for deploy-only repair or generic
-  UI work.
+  alignment; and separate local diagnosis from remote-state or shared-boundary
+  work. Do not use for deploy-only repair or generic UI work.
+compatibility: >-
+  Intended for create-rn-miniapp repositories using the Cloudflare server
+  provider. Assumes the generated frontend/backoffice/server topology and the
+  repo-owned server/README.md workflow.
 metadata:
   create-rn-miniapp.agentsLabel: "Cloudflare Worker 작업"
   create-rn-miniapp.category: "optional"

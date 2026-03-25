@@ -1,6 +1,7 @@
 ---
 name: granite-routing
 description: Use when you are changing Granite route paths, page entries, params, or navigation flow in the MiniApp frontend. Do not use for capability lookup, provider runtime work, or TDS component selection.
+compatibility: Intended for create-rn-miniapp repositories. Assumes the generated frontend workspace, Granite router conventions, and docs under docs/engineering/*.
 metadata:
   create-rn-miniapp.agentsLabel: "route / page / navigation 패턴"
   create-rn-miniapp.category: "core"

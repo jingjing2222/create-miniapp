@@ -11,6 +11,7 @@ test('parseSkillFrontmatter reads namespaced metadata fields and description', (
     '---',
     'name: fancy-skill',
     'description: "Use when you need a quoted: description."',
+    'compatibility: "Designed for create-rn-miniapp generated repositories."',
     'metadata:',
     '  create-rn-miniapp.agentsLabel: "TDS UI: form pattern guide"',
     '  create-rn-miniapp.category: optional',
@@ -22,10 +23,29 @@ test('parseSkillFrontmatter reads namespaced metadata fields and description', (
   assert.deepEqual(parseSkillFrontmatter(source, 'fancy-skill'), {
     id: 'fancy-skill',
     description: 'Use when you need a quoted: description.',
+    compatibility: 'Designed for create-rn-miniapp generated repositories.',
     agentsLabel: 'TDS UI: form pattern guide',
     category: 'optional',
     order: 42,
     version: '2.0.0',
+  })
+})
+
+test('parseSkillFrontmatter rejects empty compatibility', () => {
+  const source = createSkillSource([
+    '---',
+    'name: fancy-skill',
+    'description: Skill description',
+    'compatibility: "   "',
+    'metadata:',
+    '  create-rn-miniapp.agentsLabel: Fancy skill',
+    '  create-rn-miniapp.category: optional',
+    '  create-rn-miniapp.order: "42"',
+    '---',
+  ])
+
+  assert.throws(() => parseSkillFrontmatter(source, 'fancy-skill'), {
+    message: 'frontmatter field 형식이 잘못됐어요: compatibility (skill: fancy-skill)',
   })
 })
 

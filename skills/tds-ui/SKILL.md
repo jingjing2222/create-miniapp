@@ -1,6 +1,7 @@
 ---
 name: tds-ui
 description: Decision skill for choosing TDS React Native components and UI boundaries in MiniApp screens. Use when translating product requirements into TDS components, reconciling public docs with actual exports, or deciding controlled/uncontrolled state patterns. Do not use for route design, capability lookup, provider/runtime work, or non-TDS native module decisions.
+compatibility: Intended for create-rn-miniapp repositories. Assumes the generated MiniApp workspace layout plus bundled TDS metadata.json and generated/anomalies.json assets.
 metadata:
   create-rn-miniapp.agentsLabel: "TDS UI 선택과 form 패턴"
   create-rn-miniapp.category: "core"
@@ -33,11 +34,13 @@ metadata:
 1. `metadata.json`
 2. `generated/anomalies.json`
 3. `docs-search` 또는 TDS React Native 공식 문서
-4. `references/decision-matrix.md`
-5. `references/form-patterns.md`
-6. `references/layout-and-navigation.md`
-7. `references/feedback-and-loading.md`
-8. `rules/*.md`
+4. `AGENTS.md`
+5. `references/decision-matrix.md`
+6. `references/form-patterns.md`
+7. `references/layout-and-navigation.md`
+8. `references/feedback-and-loading.md`
+
+개별 근거가 더 필요할 때만 `AGENTS.md`에서 필요한 rule 파일명을 고른 뒤 그 파일 하나만 추가로 읽는다.
 
 ## Decision algorithm
 

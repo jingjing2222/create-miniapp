@@ -5,7 +5,12 @@ description: >-
   detail, form, dashboard, or bulk-action archetypes; place query, component,
   and form state; split search, table, confirm, and export boundaries; and
   validate loading, error, empty, disabled, and permission states. Do not use
-  for MiniApp route design, provider runtime drift, or tRPC contract changes.
+  for MiniApp route design, server-provider diagnosis, or shared contract
+  changes.
+compatibility: >-
+  Intended for create-rn-miniapp repositories with the optional backoffice
+  workspace. Assumes the generated frontend/backoffice topology and repo docs
+  under docs/engineering/*.
 metadata:
   create-rn-miniapp.agentsLabel: "backoffice React 작업"
   create-rn-miniapp.category: "optional"

@@ -3,8 +3,13 @@ name: supabase-project
 description: >-
   Diagnose a Supabase-backed server workspace: separate DB, RLS, Edge
   Function, env, and project-ref drift; check frontend and backoffice
-  alignment; and decide when the issue is remote state versus local linkage.
-  Do not use for remote db apply/deploy or generic route/UI work.
+  alignment; and distinguish local linkage from remote project state or
+  shared-boundary work. Do not use for remote db apply/deploy or generic
+  route/UI work.
+compatibility: >-
+  Intended for create-rn-miniapp repositories using the Supabase server
+  provider. Assumes the generated frontend/backoffice/server topology and the
+  repo-owned server/README.md workflow.
 metadata:
   create-rn-miniapp.agentsLabel: "Supabase project 작업"
   create-rn-miniapp.category: "optional"
