@@ -85,7 +85,18 @@ function renderSkillMetadataEntries(skills: SkillMetadata[]) {
   return skills
     .map(
       (skill) =>
-        `  ${JSON.stringify(skill.id)}: {\n    agentsLabel: ${JSON.stringify(skill.agentsLabel)},\n    description: ${JSON.stringify(skill.description)},\n  },`,
+        `  ${renderTypeScriptStringLiteral(skill.id)}: {\n    agentsLabel: ${renderTypeScriptStringLiteral(skill.agentsLabel)},\n    description:\n      ${renderTypeScriptStringLiteral(skill.description)},\n  },`,
     )
     .join('\n')
+}
+
+function renderTypeScriptStringLiteral(value: string) {
+  const escaped = value
+    .replaceAll('\\', '\\\\')
+    .replaceAll("'", "\\'")
+    .replaceAll('\r', '\\r')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\t', '\\t')
+
+  return `'${escaped}'`
 }

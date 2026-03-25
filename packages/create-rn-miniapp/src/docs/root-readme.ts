@@ -34,8 +34,12 @@ export const GENERATED_REPO_SKILLS_STRATEGY_README_LINES = [
   '- 추천 목록은 현재 workspace topology를 기준으로 자동으로 정해져요.',
 ]
 
-function formatSkillCatalogLine(skill: { id: string; agentsLabel: string; description: string }) {
-  return `- \`${skill.id}\`: ${skill.agentsLabel}. ${skill.description}`
+function formatSkillCatalogLine(skill: {
+  id: string
+  agentsLabel: string
+  readmeDescription: string
+}) {
+  return `- \`${skill.id}\`: ${skill.agentsLabel}. ${skill.readmeDescription}`
 }
 
 export function resolveRootReadmeInstallExampleSkillIds() {

@@ -907,6 +907,16 @@ test('README treats generated skills as a first-class scaffold output and avoids
   assert.match(readmeSource, /바로 설치할 수 있는 skill id와 용도는 이래요\./)
   assert.match(readmeSource, /`docs-search`: Apps-in-Toss \/ TDS 공식 문서 검색/)
   assert.match(readmeSource, /`project-validator`: AppInToss 프로젝트 구조 검증/)
+  assert.match(
+    readmeSource,
+    /`granite-routing`: route \/ page \/ navigation 패턴\. Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/,
+  )
+  assert.match(
+    readmeSource,
+    /`backoffice-react`: backoffice React 작업\. backoffice 화면을 list, detail, form, dashboard, bulk action 구조로 나눌지 정할 때/,
+  )
+  assert.doesNotMatch(readmeSource, /Use when you are changing Granite route paths/)
+  assert.doesNotMatch(readmeSource, /Decide how to structure an optional backoffice React screen/)
   assert.doesNotMatch(readmeSource, /miniapp-capabilities/)
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCommandSummary)))
@@ -1826,6 +1836,8 @@ test('applyDocsTemplates omits local skill routing and docs/skills for base-only
   assert.match(readme, /project-validator/)
   assert.match(readme, /granite-routing/)
   assert.match(readme, /tds-ui/)
+  assert.match(readme, /Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/)
+  assert.doesNotMatch(readme, /Use when you are changing Granite route paths/)
   assert.match(docsIndex, /repo-contract\.md/)
   assert.match(docsIndex, /frontend-policy\.md/)
   assert.match(docsIndex, /workspace-topology\.md/)
@@ -1857,6 +1869,11 @@ test('applyDocsTemplates keeps backoffice-only workspaces free of server-only to
   assert.match(readme, /docs-search/)
   assert.match(readme, /project-validator/)
   assert.match(readme, /backoffice-react/)
+  assert.match(
+    readme,
+    /backoffice 화면을 list, detail, form, dashboard, bulk action 구조로 나눌지 정할 때/,
+  )
+  assert.doesNotMatch(readme, /Decide how to structure an optional backoffice React screen/)
   assert.doesNotMatch(readme, /cloudflare-worker/)
 })
 
@@ -1914,6 +1931,8 @@ test('applyDocsTemplates replaces install CTA with installed skill summary when 
   assert.match(readme, /### Installed/)
   assert.match(readme, /granite-routing/)
   assert.match(readme, /tds-ui/)
+  assert.match(readme, /Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/)
+  assert.doesNotMatch(readme, /Use when you are changing Granite route paths/)
   assert.doesNotMatch(readme, /추천 skill:/)
   assert.doesNotMatch(readme, /설치 예시:/)
   assert.doesNotMatch(readme, /npx skills add/)

@@ -210,7 +210,7 @@ function renderInstalledSkillReadmeLines(installedSkillIds: string[]) {
   return installedSkillIds.map((skillId) => {
     try {
       const definition = getInstallableSkillDefinition(skillId)
-      return `- \`${definition.id}\`: ${definition.agentsLabel}. ${definition.description}`
+      return `- \`${definition.id}\`: ${definition.agentsLabel}. ${definition.readmeDescription}`
     } catch {
       return `- \`${skillId}\``
     }

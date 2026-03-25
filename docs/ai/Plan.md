@@ -1,3 +1,17 @@
+## 다음 작업: README skills 설명 한국어 정리와 PR #97 CI 복구
+
+### 목표
+- 루트 README와 generated README 경로에 새로 노출된 skill 설명을 한국어 기준의 사용자 문장으로 다시 정리한다.
+- PR #97의 GitHub Actions `verify` 실패 원인을 로그로 확인하고, 같은 브랜치에서 바로 수정한다.
+- 관련 테스트와 `pnpm verify`를 다시 통과시킨 뒤 브랜치를 재푸시한다.
+
+### 작업 순서
+1. README 렌더링 경로와 현재 노출 문구를 확인해 영어가 어디서 들어오는지 source of truth를 특정한다.
+2. `gh`로 PR #97의 failing `verify` 로그를 확인하고 재현 가능한 원인을 로컬에서 좁힌다.
+3. README 문구와 필요한 구현을 최소 수정으로 고치고, 로직 변경이면 테스트를 먼저 보강한다.
+4. sync/verify를 다시 실행해 회귀와 CI 원인을 함께 확인한다.
+5. 변경을 새 커밋으로 정리해 `feat/skill-system-overhaul`에 push한다.
+
 ## 다음 작업: skills 체계 단일 PR 정비
 
 ### 목표

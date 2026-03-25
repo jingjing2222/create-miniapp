@@ -13,6 +13,8 @@ test('renderSkillCatalogSource escapes labels with JSON-safe string serializatio
     },
   ])
 
-  assert.match(source, /"한 줄\\n둘째 줄 'quoted'"/)
-  assert.match(source, /"설명 첫 줄\\n둘째 줄 'quoted'"/)
+  assert.match(source, /'test-skill': \{/)
+  assert.match(source, /agentsLabel: '한 줄\\n둘째 줄 \\'quoted\\''/)
+  assert.match(source, /description:\n\s+'설명 첫 줄\\n둘째 줄 \\'quoted\\'',/)
+  assert.doesNotMatch(source, /"test-skill"/)
 })
