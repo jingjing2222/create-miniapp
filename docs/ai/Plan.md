@@ -1,3 +1,86 @@
+## 다음 작업: skills 체계 PR의 두 publish 패키지 patch changeset 정리
+
+### 목표
+- 현재 skill 체계 정비 PR에 연결된 Changeset이 `create-rn-miniapp` 하나만 올리도록 되어 있는 상태를 바로잡는다.
+- publish 패키지인 `create-rn-miniapp`, `@create-rn-miniapp/scaffold-templates` 두 개를 모두 patch 대상으로 맞춘다.
+- 변경은 Plan과 existing changeset에만 국한하고, `pnpm verify` 후 현재 브랜치에 push한다.
+
+### 작업 순서
+1. 현재 changeset과 publish 패키지 구성을 다시 확인해 이번 수정 범위를 두 패키지 patch 반영으로 한정한다.
+2. 기존 changeset frontmatter를 두 패키지 patch로 갱신하고, 설명이 실제 PR diff와 어긋나지 않는지 점검한다.
+3. `pnpm verify`로 회귀가 없는지 확인한 뒤 단일 목적 커밋으로 정리해 원격 브랜치에 push한다.
+
+## 다음 작업: Skill 표준 재검수와 잔여 비표준 찾기
+
+### 목표
+- 현재 skill source가 Agent Skills 문서와 `@vercel-labs` 계열 구현 기준에서 여전히 어긋나는 지점을 다시 찾는다.
+- 이미 고친 항목을 제외하고, 남아 있는 비표준 요소만 findings로 분리한다.
+- 즉시 수정이 필요한 구조 문제와 단순 관례 차이를 구분해 보고한다.
+
+### 작업 순서
+1. Agent Skills specification, description/eval 가이드, `@vercel-labs` 구현 기준을 다시 확인한다.
+2. 현재 브랜치의 `skills/*`와 관련 tooling을 훑어 표준에서 벗어난 패턴을 찾는다.
+3. 발견한 항목을 severity와 영향 범위 기준으로 정리한다.
+4. 수정이 필요한 항목과 관찰만 필요한 항목을 분리해 보고한다.
+
+## 다음 작업: Agent Skills 표준 재대조와 PR 변경 축 재분류
+
+### 목표
+- 현재 PR에 남아 있는 Agent Skills 비표준 요소를 공식 문서 기준으로 다시 점검한다.
+- skill source 변경과 parser/catalog/README consumer 변경을 축별로 나눠 왜 파일 수가 늘었는지 설명 가능한 상태로 정리한다.
+- low-risk로 바로 고칠 수 있는 비표준 요소가 있으면 후속 수정까지 이어간다.
+
+### 작업 순서
+1. Agent Skills 공식 specification, best practices, eval 가이드를 다시 확인해 구조적으로 의미가 있는 디렉토리와 관례를 정리한다.
+2. 현재 브랜치 diff에서 skill 관련 변경 파일을 축별로 분류한다.
+3. 남아 있는 비표준 요소를 findings로 정리하고, 즉시 수정 가능한 항목은 로컬에서 고친다.
+4. 결과와 변경 이유를 리뷰어/사용자 관점으로 요약한다.
+
+## 다음 작업: skill eval 자산을 JSON 표준 경로로 재정리
+
+### 목표
+- `skills/*/evals/trigger-cases.md`를 markdown 메모가 아니라 JSON 기반 eval 자산으로 바꾼다.
+- `references/`와 eval 역할이 겹치지 않게 정리하고, trigger eval은 `evals/` 아래에만 남긴다.
+- eval 파일 형식을 테스트로 고정하고, `pnpm verify` 후 현재 PR 브랜치에 push한다.
+
+### 작업 순서
+1. 현재 skill별 eval markdown 자산과 연결된 문구를 확인하고, 새 JSON shape을 정한다.
+2. 기존 should-trigger / should-not-trigger 케이스를 JSON으로 옮기고 markdown 파일은 제거한다.
+3. skill eval 자산이 parse 가능한 JSON 형식을 유지하는 테스트를 추가한다.
+4. `pnpm verify`로 회귀를 확인한 뒤 새 커밋으로 push한다.
+
+## 다음 작업: README skills 설명 한국어 정리와 PR #97 CI 복구
+
+### 목표
+- 루트 README와 generated README 경로에 새로 노출된 skill 설명을 한국어 기준의 사용자 문장으로 다시 정리한다.
+- PR #97의 GitHub Actions `verify` 실패 원인을 로그로 확인하고, 같은 브랜치에서 바로 수정한다.
+- 관련 테스트와 `pnpm verify`를 다시 통과시킨 뒤 브랜치를 재푸시한다.
+
+### 작업 순서
+1. README 렌더링 경로와 현재 노출 문구를 확인해 영어가 어디서 들어오는지 source of truth를 특정한다.
+2. `gh`로 PR #97의 failing `verify` 로그를 확인하고 재현 가능한 원인을 로컬에서 좁힌다.
+3. README 문구와 필요한 구현을 최소 수정으로 고치고, 로직 변경이면 테스트를 먼저 보강한다.
+4. sync/verify를 다시 실행해 회귀와 CI 원인을 함께 확인한다.
+5. 변경을 새 커밋으로 정리해 `feat/skill-system-overhaul`에 push한다.
+
+## 다음 작업: skills 체계 단일 PR 정비
+
+### 목표
+- root `skills/*/SKILL.md` frontmatter를 Agent Skills spec 친화 구조로 정리하고, repo 전용 값은 `metadata.create-rn-miniapp.*`로 이동한다.
+- parser, sync script, generated catalog, 관련 consumer가 새 metadata 구조를 읽도록 맞추고 generated artifact를 재생성한다.
+- `cloudflare-worker`, `supabase-project`, `firebase-functions`를 shared server-common reference + provider overlay 구조로 재편한다.
+- `backoffice-react`를 운영 화면 decision skill로 재작성하고, trigger 친화 description과 경량 eval 자산까지 한 PR에서 마무리한다.
+
+### 작업 순서
+1. `docs/ai/Plan.md`를 이번 PR 기준으로 갱신하고, git branch / current consumer surface / skill source를 다시 확인한다.
+2. frontmatter parser 변경은 failing test부터 추가하고, `skills/frontmatter`, catalog generator, sync pipeline, template tests를 새 metadata 구조에 맞게 고친다.
+3. 모든 root skill frontmatter를 `metadata.create-rn-miniapp.agentsLabel|category|order|version` 구조로 정리하고 generated catalog를 재생성한다.
+4. `skills/shared/references/server-common.md`를 추가하고, server provider skill 3종을 공통 규칙 + provider-specific overlay 구조로 재작성한다.
+5. `backoffice-react`를 decision skill로 재작성하고, `references/`를 archetype / data-boundary / bulk-action-and-forms / verification / gotchas 중심으로 분리한다.
+6. 약한 skill들의 description을 trigger 중심으로 고치고, catalog/README consumer에서 실제로 쓰는 정보만 low-risk 범위로 노출한다.
+7. skill별 should-trigger / should-not-trigger 경량 eval 자산을 추가하고, 경계와 expected output 품질을 같이 기록한다.
+8. 관련 테스트, `pnpm sync:skill-catalog`, `pnpm verify`를 실행해 회귀를 확인하고, 남는 리스크만 별도로 기록한다.
+
 ## 다음 작업: Granite runtime preset import 회귀 fix changeset 추가와 한글 PR 생성
 
 ### 목표

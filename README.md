@@ -70,15 +70,15 @@ pnpm verify
 
 바로 설치할 수 있는 skill id와 용도는 이래요.
 
-- `docs-search`: Apps-in-Toss / TDS 공식 문서 검색
-- `project-validator`: AppInToss 프로젝트 구조 검증
-- `granite-routing`: route / page / navigation 패턴
-- `tds-ui`: TDS UI 선택과 form 패턴
-- `backoffice-react`: backoffice React 작업
-- `cloudflare-worker`: Cloudflare Worker 작업
-- `supabase-project`: Supabase project 작업
-- `firebase-functions`: Firebase Functions 작업
-- `trpc-boundary`: tRPC boundary 변경
+- `docs-search`: Apps-in-Toss / TDS 공식 문서 검색. 공식 Apps-in-Toss와 TDS 문서에서 capability, component, API 존재 여부를 확인할 때
+- `project-validator`: AppInToss 프로젝트 구조 검증. 생성된 AppInToss workspace 구조, 필수 파일, import 경계 drift를 점검할 때
+- `granite-routing`: route / page / navigation 패턴. Granite route 경로, page entry, param, navigation 흐름을 바꿀 때
+- `tds-ui`: TDS UI 선택과 form 패턴. TDS 컴포넌트 선택, form 패턴, UI boundary를 정할 때
+- `backoffice-react`: backoffice React 작업. backoffice 화면을 list, detail, form, dashboard, bulk action 구조로 나눌지 정할 때
+- `cloudflare-worker`: Cloudflare Worker 작업. Cloudflare Worker 서버에서 runtime, binding, env, client 연결 drift를 진단할 때
+- `supabase-project`: Supabase project 작업. Supabase 서버에서 DB, RLS, Edge Function, env, project ref drift를 분류할 때
+- `firebase-functions`: Firebase Functions 작업. Firebase 서버에서 callable, HTTP, trigger 선택과 project, region, emulator drift를 진단할 때
+- `trpc-boundary`: tRPC boundary 변경. tRPC contract, app router shape, client/server import boundary를 바꿀 때
 
 예를 들어 필요한 skill 하나를 바로 넣고 싶다면 이렇게 하면 돼요.
 

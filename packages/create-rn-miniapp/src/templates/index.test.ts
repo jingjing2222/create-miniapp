@@ -27,6 +27,7 @@ import {
   SKILLS_LIST_COMMAND,
   SKILLS_UPDATE_COMMAND,
 } from '../skills/contract.js'
+import { parseSkillFrontmatter } from '../skills/frontmatter.js'
 import { CORE_SKILL_DEFINITIONS, SKILL_CATALOG } from './skill-catalog.js'
 import { getTestPackageManagerField } from '../test-support/package-manager.js'
 import * as templateModule from './index.js'
@@ -44,7 +45,6 @@ import {
   syncRootWorkspaceManifest,
   type TemplateTokens,
 } from './index.js'
-import { renderSharedFrontendPolicyReferenceMarkdown } from './frontend-policy.js'
 
 async function materializeDocsWorkspaceState(
   targetRoot: string,
@@ -442,42 +442,88 @@ test('skill catalog is generated from skill source frontmatter metadata', async 
 
   for (const directory of installableSkillDirectories) {
     const skillSource = await readFile(path.join(skillRoot, directory, 'SKILL.md'), 'utf8')
-    const frontmatter = /^---\n([\s\S]*?)\n---/m.exec(skillSource)?.[1] ?? ''
-    const nameMatch = /^name:\s*(.+)$/m.exec(frontmatter)
-    const labelMatch = /^label:\s*(.+)$/m.exec(frontmatter)
-    const categoryMatch = /^category:\s*(core|optional)$/m.exec(frontmatter)
+    const frontmatter = parseSkillFrontmatter(skillSource, directory)
+    const catalogEntry = SKILL_CATALOG.find((skill) => skill.id === directory)
 
-    assert.equal(nameMatch?.[1] ?? '', directory)
-    assert.notEqual(labelMatch?.[1] ?? '', '', `${directory} must declare a label in frontmatter`)
-    assert.notEqual(
-      categoryMatch?.[1] ?? '',
-      '',
-      `${directory} must declare a category in frontmatter`,
+    assert.equal(frontmatter.id, directory)
+    assert.ok(
+      frontmatter.description.length <= 1024,
+      `${directory} description must stay within the Agent Skills frontmatter limit`,
     )
-    assert.match(skillCatalogSource, new RegExp(`'${escapeRegExp(directory)}': \\{`))
-    assert.match(
-      skillCatalogSource,
-      new RegExp(`agentsLabel: '${escapeRegExp(labelMatch?.[1] ?? '')}'`),
-    )
+    assert.ok(catalogEntry, `${directory} must exist in generated skill catalog`)
+    assert.match(skillCatalogSource, new RegExp(`["']${escapeRegExp(directory)}["']:\\s*\\{`))
+    assert.equal(catalogEntry.agentsLabel, frontmatter.agentsLabel)
+    assert.equal(catalogEntry.description, frontmatter.description)
   }
 })
 
-test('skill docs share a single frontend policy path reference', async () => {
-  const sharedReferencePath = fileURLToPath(
-    new URL('../../../../skills/shared/references/frontend-policy.md', import.meta.url),
-  )
-  const sharedReferenceSource = await readFile(sharedReferencePath, 'utf8')
-  const skillDocs = [
+test('repo-bound local skills declare compatibility requirements', async () => {
+  const skillRoot = fileURLToPath(new URL('../../../../skills', import.meta.url))
+
+  for (const skill of SKILL_CATALOG) {
+    const skillSource = await readFile(path.join(skillRoot, skill.id, 'SKILL.md'), 'utf8')
+    const frontmatter = parseSkillFrontmatter(skillSource, skill.id)
+
+    assert.ok(frontmatter.compatibility, `${skill.id} should declare compatibility`)
+    assert.match(frontmatter.compatibility, /create-rn-miniapp/)
+  }
+})
+
+test('skill docs keep bundled references inside each skill directory', async () => {
+  const checkedFiles = [
     '../../../../skills/granite-routing/SKILL.md',
     '../../../../skills/granite-routing/references/patterns.md',
+    '../../../../skills/cloudflare-worker/SKILL.md',
+    '../../../../skills/firebase-functions/SKILL.md',
+    '../../../../skills/supabase-project/SKILL.md',
   ]
 
-  assert.match(sharedReferenceSource, /docs\/engineering\/frontend-policy\.md/)
-
-  for (const relativePath of skillDocs) {
+  for (const relativePath of checkedFiles) {
     const source = await readFile(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
-    assert.doesNotMatch(source, /docs\/engineering\/frontend-policy\.md/)
-    assert.match(source, /shared\/references\/frontend-policy\.md/)
+
+    assert.doesNotMatch(source, /\.\.\/shared\/references\//)
+  }
+})
+
+test('trigger eval assets use the standard eval_queries.json shape', async () => {
+  const skillRoot = fileURLToPath(new URL('../../../../skills', import.meta.url))
+  const triggerEvalSkillIds = [
+    'backoffice-react',
+    'cloudflare-worker',
+    'supabase-project',
+    'firebase-functions',
+  ] as const
+
+  for (const skillId of triggerEvalSkillIds) {
+    const legacyMarkdownPath = path.join(skillRoot, skillId, 'evals', 'trigger-cases.md')
+    const legacyEvalDirPath = path.join(skillRoot, skillId, 'evals')
+    const evalQueriesPath = path.join(skillRoot, skillId, 'eval_queries.json')
+
+    assert.equal(await pathExists(legacyMarkdownPath), false)
+    assert.equal(await pathExists(legacyEvalDirPath), false)
+    assert.equal(await pathExists(evalQueriesPath), true)
+
+    const evalSource = await readFile(evalQueriesPath, 'utf8')
+    const parsed = JSON.parse(evalSource) as Array<{
+      query: string
+      should_trigger: boolean
+    }>
+
+    assert.ok(parsed.length >= 16, `${skillId} should keep enough trigger cases`)
+
+    for (const entry of parsed) {
+      assert.ok(entry.query.length > 0, `${skillId} eval query should not be empty`)
+      assert.equal(typeof entry.should_trigger, 'boolean')
+    }
+
+    assert.ok(
+      parsed.some((entry) => entry.should_trigger),
+      `${skillId} should include positives`,
+    )
+    assert.ok(
+      parsed.some((entry) => !entry.should_trigger),
+      `${skillId} should include negatives`,
+    )
   }
 })
 
@@ -572,8 +618,9 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   assert.match(skillSource, /metadata\.json/)
   assert.match(skillSource, /generated\/anomalies\.json/)
   assert.match(skillSource, /docs-search/)
+  assert.match(skillSource, /AGENTS\.md/)
   assert.match(skillSource, /references\/decision-matrix\.md/)
-  assert.match(skillSource, /rules\/\*\.md/)
+  assert.doesNotMatch(skillSource, /rules\/\*\.md/)
   assert.match(skillSource, /추천 컴포넌트/)
   assert.match(skillSource, /anomaly note/i)
   assert.match(skillSource, /incomplete answer/)
@@ -911,6 +958,16 @@ test('README treats generated skills as a first-class scaffold output and avoids
   assert.match(readmeSource, /바로 설치할 수 있는 skill id와 용도는 이래요\./)
   assert.match(readmeSource, /`docs-search`: Apps-in-Toss \/ TDS 공식 문서 검색/)
   assert.match(readmeSource, /`project-validator`: AppInToss 프로젝트 구조 검증/)
+  assert.match(
+    readmeSource,
+    /`granite-routing`: route \/ page \/ navigation 패턴\. Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/,
+  )
+  assert.match(
+    readmeSource,
+    /`backoffice-react`: backoffice React 작업\. backoffice 화면을 list, detail, form, dashboard, bulk action 구조로 나눌지 정할 때/,
+  )
+  assert.doesNotMatch(readmeSource, /Use when you are changing Granite route paths/)
+  assert.doesNotMatch(readmeSource, /Decide how to structure an optional backoffice React screen/)
   assert.doesNotMatch(readmeSource, /miniapp-capabilities/)
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCoreInstallCommand)))
   assert.match(readmeSource, new RegExp(escapeRegExp(expectedCommandSummary)))
@@ -968,17 +1025,6 @@ test('granite routing references official docs-search instead of removed local c
   assert.doesNotMatch(routingPatternsSource, /\.agents\/skills\//)
   assert.doesNotMatch(routingPatternsSource, /miniapp-capabilities/)
   assert.match(routingPatternsSource, /docs-search/)
-})
-
-test('shared frontend policy reference stays synced with the frontend policy renderer', async () => {
-  const sharedReferenceSource = await readFile(
-    fileURLToPath(
-      new URL('../../../../skills/shared/references/frontend-policy.md', import.meta.url),
-    ),
-    'utf8',
-  )
-
-  assert.equal(sharedReferenceSource, renderSharedFrontendPolicyReferenceMarkdown())
 })
 
 test('root AGENTS follows the code-owned generated AGENTS contract', async () => {
@@ -1830,6 +1876,8 @@ test('applyDocsTemplates omits local skill routing and docs/skills for base-only
   assert.match(readme, /project-validator/)
   assert.match(readme, /granite-routing/)
   assert.match(readme, /tds-ui/)
+  assert.match(readme, /Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/)
+  assert.doesNotMatch(readme, /Use when you are changing Granite route paths/)
   assert.match(docsIndex, /repo-contract\.md/)
   assert.match(docsIndex, /frontend-policy\.md/)
   assert.match(docsIndex, /workspace-topology\.md/)
@@ -1861,6 +1909,11 @@ test('applyDocsTemplates keeps backoffice-only workspaces free of server-only to
   assert.match(readme, /docs-search/)
   assert.match(readme, /project-validator/)
   assert.match(readme, /backoffice-react/)
+  assert.match(
+    readme,
+    /backoffice 화면을 list, detail, form, dashboard, bulk action 구조로 나눌지 정할 때/,
+  )
+  assert.doesNotMatch(readme, /Decide how to structure an optional backoffice React screen/)
   assert.doesNotMatch(readme, /cloudflare-worker/)
 })
 
@@ -1918,6 +1971,8 @@ test('applyDocsTemplates replaces install CTA with installed skill summary when 
   assert.match(readme, /### Installed/)
   assert.match(readme, /granite-routing/)
   assert.match(readme, /tds-ui/)
+  assert.match(readme, /Granite route 경로, page entry, param, navigation 흐름을 바꿀 때/)
+  assert.doesNotMatch(readme, /Use when you are changing Granite route paths/)
   assert.doesNotMatch(readme, /추천 skill:/)
   assert.doesNotMatch(readme, /설치 예시:/)
   assert.doesNotMatch(readme, /npx skills add/)
