@@ -223,7 +223,7 @@ function renderRootReadmeSkillSection(options: {
 }) {
   if (options.installedSkillIds.length > 0) {
     return dedent`
-      현재 project-local skills가 설치되어 있어요.
+      현재 설치된 skills가 있어요.
 
       ### Installed
       ${renderInstalledSkillReadmeLines(options.installedSkillIds).join('\n')}
@@ -231,11 +231,11 @@ function renderRootReadmeSkillSection(options: {
   }
 
   if (options.recommendedSkillIds.length === 0) {
-    return '필요할 때 project-local skills로 설치해서 팀과 같이 쓸 수 있어요.'
+    return '필요할 때 skills를 설치해서 쓰면 돼요.'
   }
 
   return dedent`
-    필요할 때 project-local skills로 설치해서 팀과 같이 쓸 수 있어요.
+    필요할 때 skills를 설치해서 쓰면 돼요.
 
     추천 skill:
     ${renderSkillRecommendationLines(options.recommendedSkillIds).join('\n')}

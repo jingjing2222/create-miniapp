@@ -103,7 +103,7 @@ test('renderInstalledSkillsSummary renders discovered project-local skill paths'
       { id: 'granite-routing', skillsRoot: '.agents/skills' },
     ]),
     [
-      'project-local skills를 설치했어요.',
+      'skills를 설치했어요.',
       '- granite-routing: `.agents/skills/granite-routing`',
       '- tds-ui: `skills/tds-ui`',
       `필요하면 \`${SKILLS_LIST_COMMAND}\`로 다시 확인해 주세요.`,

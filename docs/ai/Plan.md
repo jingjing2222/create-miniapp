@@ -1,3 +1,16 @@
+## 다음 작업: skills 업데이트 안내 용어 단순화
+
+### 목표
+- 사용자 문서와 PR에서 `project-local`, `team-shared`, `홈 lock` 같은 내부 용어를 걷어낸다.
+- README와 생성 README가 설치/업데이트 흐름만 짧게 설명하도록 문구를 단순화한다.
+- 관련 테스트, changeset, PR 제목/본문까지 같은 톤으로 정리한다.
+
+### 작업 순서
+1. 사용자에게 보이는 README/생성 README/skill metadata/PR 본문에서 과한 용어가 남은 위치를 다시 찾는다.
+2. 테스트 기대값을 먼저 더 짧은 사용자 문장 기준으로 바꾼다.
+3. 렌더러와 metadata, changeset 문구를 같은 톤으로 정리한다.
+4. `pnpm verify` 후 커밋, 푸시, PR 제목/본문 업데이트까지 마무리한다.
+
 ## 다음 작업: project-local skills 동기화 경로를 experimental_install 기준으로 전환
 
 ### 목표

@@ -945,7 +945,7 @@ test('README treats generated skills as a first-class scaffold output and avoids
   )
   assert.match(
     readmeSource,
-    /실제 설치는 \[`@vercel-labs\/skills`\]\(https:\/\/github\.com\/vercel-labs\/skills\) 표준 CLI로 하고, project-local\/team-shared skill 재동기화는 `npx skills experimental_install`을 써요\./,
+    /실제 설치는 \[`@vercel-labs\/skills`\]\(https:\/\/github\.com\/vercel-labs\/skills\) 표준 CLI로 하고, 업데이트할 때는 `npx skills experimental_install`을 써요\./,
   )
   assert.match(
     readmeSource,
@@ -953,7 +953,7 @@ test('README treats generated skills as a first-class scaffold output and avoids
   )
   assert.match(
     readmeSource,
-    /`npx skills check`, `npx skills update`는 홈 lock만 봐서 project-local skill 업데이트에는 맞지 않아요\./,
+    /`npx skills check`, `npx skills update`는 여기서 쓰는 skill을 업데이트할 때는 맞지 않아요\./,
   )
   assert.match(
     readmeSource,
@@ -1242,7 +1242,7 @@ test('applyDocsTemplates keeps AGENTS skill-free and renders README onboarding w
   }
   assert.match(
     readme,
-    /`npx skills check`, `npx skills update`는 홈 lock만 봐서 project-local skill 업데이트에는 맞지 않아요\./,
+    /`npx skills check`, `npx skills update`는 여기서 쓰는 skill을 업데이트할 때는 맞지 않아요\./,
   )
   assert.doesNotMatch(frontendPolicy, /\.agents\/skills\//)
   assert.match(frontendPolicy, /UI는 TDS를 사용한다\./)
@@ -1979,7 +1979,7 @@ test('applyDocsTemplates replaces install CTA with installed skill summary when 
   const readme = await readFile(path.join(targetRoot, 'README.md'), 'utf8')
 
   assert.match(readme, /## skills 전략/)
-  assert.match(readme, /현재 project-local skills가 설치되어 있어요\./)
+  assert.match(readme, /현재 설치된 skills가 있어요\./)
   assert.match(readme, /### Installed/)
   assert.match(readme, /granite-routing/)
   assert.match(readme, /tds-ui/)

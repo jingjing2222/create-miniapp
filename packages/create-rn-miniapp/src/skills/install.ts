@@ -150,7 +150,7 @@ export function renderInstalledSkillsSummary(
   })
 
   return dedent`
-    project-local skills를 설치했어요.
+    skills를 설치했어요.
     ${(
       normalizedSkills.map((skill) =>
         typeof skill === 'string'
