@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { CommandSpec } from '../runtime/command-spec.js'
 import { SKILLS_CLI } from '../runtime/external-tooling.js'
@@ -33,6 +33,15 @@ type SkillRecommendationContext = {
 export type InstalledProjectSkill = {
   id: string
   skillsRoot: (typeof PROJECT_SKILLS_DIR_CANDIDATES)[number]
+}
+
+type SkillMirrorMetadata = {
+  upstreamSources: string[]
+  installMirrors: Record<string, string>
+}
+
+type SyncInstalledSkillArtifactsOptions = {
+  fetchImpl?: typeof fetch
 }
 
 async function pathExists(targetPath: string) {
@@ -77,6 +86,97 @@ async function resolveInstalledProjectSkills(targetRoot: string) {
   return [...installed.values()].sort((left, right) => left.id.localeCompare(right.id))
 }
 
+function readMetadataStringArray(
+  metadata: Record<string, unknown>,
+  fieldName: string,
+  skillId: string,
+) {
+  const value = metadata[fieldName]
+
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+  ) {
+    throw new Error(`${skillId} metadata.${fieldName} 형식이 잘못됐어요.`)
+  }
+
+  return value as string[]
+}
+
+function readMetadataStringRecord(
+  metadata: Record<string, unknown>,
+  fieldName: string,
+  skillId: string,
+) {
+  const value = metadata[fieldName]
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${skillId} metadata.${fieldName} 형식이 잘못됐어요.`)
+  }
+
+  const entries = Object.entries(value)
+
+  if (
+    entries.some(
+      ([key, entry]) => key.length === 0 || typeof entry !== 'string' || entry.length === 0,
+    )
+  ) {
+    throw new Error(`${skillId} metadata.${fieldName} 형식이 잘못됐어요.`)
+  }
+
+  return Object.fromEntries(entries) as Record<string, string>
+}
+
+async function readSkillMirrorMetadata(
+  skillDirectory: string,
+  skillId: string,
+): Promise<SkillMirrorMetadata> {
+  const metadata = JSON.parse(
+    await readFile(path.join(skillDirectory, 'metadata.json'), 'utf8'),
+  ) as Record<string, unknown> | null
+
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    throw new Error(`${skillId} metadata.json 형식이 잘못됐어요.`)
+  }
+
+  return {
+    upstreamSources: readMetadataStringArray(metadata, 'upstreamSources', skillId),
+    installMirrors: readMetadataStringRecord(metadata, 'installMirrors', skillId),
+  }
+}
+
+async function syncTdsUiMirrorArtifacts(skillDirectory: string, fetchImpl: typeof fetch) {
+  const metadata = await readSkillMirrorMetadata(skillDirectory, 'tds-ui')
+  const downloads: Array<{ relativePath: string; contents: string }> = []
+
+  for (const sourceUrl of metadata.upstreamSources) {
+    const relativePath = metadata.installMirrors[sourceUrl]
+
+    if (!relativePath) {
+      throw new Error(`tds-ui metadata.installMirrors에 누락된 URL이 있어요: ${sourceUrl}`)
+    }
+
+    const response = await fetchImpl(sourceUrl)
+
+    if (!response.ok) {
+      throw new Error(
+        `tds-ui llms mirror를 다운로드하지 못했어요: ${sourceUrl} (${response.status})`,
+      )
+    }
+
+    downloads.push({
+      relativePath,
+      contents: await response.text(),
+    })
+  }
+
+  for (const download of downloads) {
+    const targetPath = path.join(skillDirectory, download.relativePath)
+    await mkdir(path.dirname(targetPath), { recursive: true })
+    await writeFile(targetPath, download.contents, 'utf8')
+  }
+}
+
 export async function listInstalledProjectSkillEntries(targetRoot: string) {
   return await resolveInstalledProjectSkills(targetRoot)
 }
@@ -87,6 +187,25 @@ export async function hasInstalledProjectSkills(targetRoot: string) {
 
 export async function listInstalledProjectSkills(targetRoot: string) {
   return (await resolveInstalledProjectSkills(targetRoot)).map((skill) => skill.id)
+}
+
+export async function syncInstalledSkillArtifacts(
+  targetRoot: string,
+  options: SyncInstalledSkillArtifactsOptions = {},
+) {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch
+
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('skill mirror를 다운로드할 fetch 구현을 찾지 못했어요.')
+  }
+
+  for (const skill of await resolveInstalledProjectSkills(targetRoot)) {
+    if (skill.id !== 'tds-ui') {
+      continue
+    }
+
+    await syncTdsUiMirrorArtifacts(path.join(targetRoot, skill.skillsRoot, skill.id), fetchImpl)
+  }
 }
 
 export function normalizeSelectedSkillIds(rawSkillIds: string[] | undefined) {

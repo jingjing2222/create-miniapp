@@ -319,6 +319,16 @@ test('skill auto-install re-syncs root frontend policy files after installation 
   )
 })
 
+test('skill auto-install downloads tds-ui llms mirrors after installation succeeds', async () => {
+  const patchSource = await readFile(
+    fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(patchSource, /syncInstalledSkillArtifacts/)
+  assert.match(patchSource, /await syncInstalledSkillArtifacts\(ctx\.targetRoot\)/)
+})
+
 test('create skill auto-install defers summary notes until finalize appends provisioning notes first', async () => {
   const patchSource = await readFile(
     fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),

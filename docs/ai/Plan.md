@@ -1,3 +1,16 @@
+## 다음 작업: tds-ui llms 벤더링 제거와 install-time fetch 전환
+
+### 목표
+- source repo에는 `skills/tds-ui/generated/llms.txt`, `llms-full.txt`를 커밋하지 않는다.
+- 대신 create scaffold가 `tds-ui` 설치 직후 공식 URL에서 llms snapshot을 내려받아 target workspace의 skill 디렉터리에 채워 넣는다.
+- source skill 문서는 remote truth source와 install-time mirror 경로를 함께 설명하되, repo 자체는 대용량 snapshot을 들고 있지 않게 정리한다.
+
+### 작업 순서
+1. 템플릿/skills install 테스트를 먼저 바꿔 vendored llms 파일이 repo에 없어야 하고, install-time download hook이 있어야 한다는 계약을 고정한다.
+2. `skills/tds-ui` source 문구와 metadata를 remote-first + optional local mirror 구조로 되돌린다.
+3. create skill auto-install 흐름에 `tds-ui` llms mirror download helper를 추가한다.
+4. `pnpm verify`로 최종 검증한 뒤 기존 PR 브랜치에 후속 커밋으로 반영한다.
+
 ## 다음 작업: TDS UI llms snapshot 변경의 changeset/PR 마감
 
 ### 목표

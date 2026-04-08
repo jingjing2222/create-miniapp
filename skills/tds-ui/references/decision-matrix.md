@@ -1,14 +1,15 @@
 # tds-ui Decision Matrix
 
-이 문서는 bundled `generated/llms.txt` / `generated/llms-full.txt`로 진입하기 위한 routing overlay다.
-컴포넌트 설명의 canonical source는 local `llms` snapshot이며, 이 파일은 "어느 section을 찾아야 하는지"와 "어떤 비교를 해야 하는지"만 빠르게 상기시키는 용도다.
+이 문서는 official llms docs와 installed workspace mirror로 진입하기 위한 routing overlay다.
+컴포넌트 설명의 canonical source는 `metadata.json`에 적힌 official llms docs이고, create scaffold가 설치한 workspace에서는 같은 문서를 `generated/llms.txt` / `generated/llms-full.txt`로 내려받아 local mirror로 쓴다. 이 파일은 "어느 section을 찾아야 하는지"와 "어떤 비교를 해야 하는지"만 빠르게 상기시키는 용도다.
 
 ## Canonical entry
 
-- bundled index: `generated/llms.txt`
-- bundled full dump: `generated/llms-full.txt`
-- upstream refresh source는 `metadata.json`의 `upstreamSources`를 본다.
-- `generated/llms-full.txt`에서 heading search로 section을 찾는다.
+- upstream contract: `metadata.json`
+- installed workspace index mirror: `generated/llms.txt`
+- installed workspace full dump mirror: `generated/llms-full.txt`
+- source repo에서는 `metadata.json`의 `upstreamSources` URL을 직접 읽는다.
+- installed workspace에서는 `generated/llms-full.txt`에서 heading search로 section을 찾는다.
 - canonical section heading pattern:
   - component: `# <Name> (/tds-react-native/components/<slug>/)`
   - foundation: `# Colors (/tds-react-native/foundation/colors/)`, `# Typography (/tds-react-native/foundation/typography/)`

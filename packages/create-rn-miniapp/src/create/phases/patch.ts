@@ -9,6 +9,7 @@ import {
   listInstalledProjectSkillEntries,
   renderInstalledSkillsSummary,
   renderSkillsAddCommand,
+  syncInstalledSkillArtifacts,
 } from '../../skills/install.js'
 import { maybeWriteNpmWorkspaceConfig, resolveRootWorkspaces } from '../../scaffold/helpers.js'
 import { pathExists } from '../../templates/filesystem.js'
@@ -66,6 +67,7 @@ async function maybeInstallSelectedSkills(ctx: CreateContext) {
       log.step(installCommand.label)
       await runCommandWithOutput(installCommand)
     }
+    await syncInstalledSkillArtifacts(ctx.targetRoot)
     const installedSkills = await listInstalledProjectSkillEntries(ctx.targetRoot)
 
     return {

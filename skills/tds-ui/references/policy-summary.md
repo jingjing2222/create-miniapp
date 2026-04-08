@@ -1,7 +1,8 @@
 # Policy Summary
 
-- truth source는 `generated/llms.txt`, `generated/llms-full.txt`, `generated/anomalies.json`이다.
-- 선택 순서는 `generated/llms.txt`로 후보 찾기 -> `generated/llms-full.txt`에서 section semantics 확인 -> decision overlay 적용 -> anomaly note 순서다.
+- truth source는 official `https://tossmini-docs.toss.im/tds-react-native/llms.txt`, `llms-full.txt`, `generated/anomalies.json`이다.
+- 설치된 workspace에서는 `generated/llms.txt`, `generated/llms-full.txt` mirror가 있으면 그 로컬 파일을 우선 읽는다.
+- 선택 순서는 `metadata.json` 확인 -> llms index로 후보 찾기 -> llms full에서 section semantics 확인 -> decision overlay 적용 -> anomaly note 순서다.
 - RN primitive를 직접 추천하지 않는다.
 - export-only 추천 시에는 반드시 doc-backed fallback을 같이 쓴다.
 - `paragraph`는 blocked-by-default다.
