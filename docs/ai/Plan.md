@@ -1,3 +1,15 @@
+## 다음 작업: tds-ui install mirror write scope escape 차단
+
+### 목표
+- `installMirrors` 경로가 `tds-ui` skill root 바깥으로 빠져나가지 못하게 막는다.
+- 절대경로와 `..` traversal이 있으면 fetch 전에 즉시 실패하게 만들어 write scope escape를 제거한다.
+- 관련 회귀 테스트를 추가하고 `pnpm verify`까지 다시 통과시킨다.
+
+### 작업 순서
+1. `syncInstalledSkillArtifacts` 테스트에 traversal/absolute path 거부 케이스를 먼저 추가한다.
+2. mirror 상대경로를 정규화하고 skill root 내부 경로만 허용하는 validator를 `skills/install.ts`에 넣는다.
+3. `pnpm verify`로 전체 회귀를 확인하고 PR 브랜치에 반영한다.
+
 ## 다음 작업: tds-ui llms 벤더링 제거와 install-time fetch 전환
 
 ### 목표

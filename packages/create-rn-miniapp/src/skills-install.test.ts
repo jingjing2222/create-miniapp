@@ -273,3 +273,95 @@ test('syncInstalledSkillArtifacts fails when a tds-ui llms mirror download does 
     /tds-ui llms mirror를 다운로드하지 못했어요/,
   )
 })
+
+test('syncInstalledSkillArtifacts rejects mirror paths that escape the skill root with parent traversal', async (t) => {
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skill-mirror-'))
+
+  t.after(async () => {
+    await rm(targetRoot, { recursive: true, force: true })
+  })
+
+  const skillRoot = path.join(targetRoot, 'skills', 'tds-ui')
+  const llmsIndexUrl = 'https://tossmini-docs.toss.im/tds-react-native/llms.txt'
+  const requestedUrls: string[] = []
+
+  await mkdir(skillRoot, { recursive: true })
+  await writeFile(path.join(skillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
+  await writeFile(
+    path.join(skillRoot, 'metadata.json'),
+    `${JSON.stringify(
+      {
+        upstreamSources: [llmsIndexUrl],
+        installMirrors: {
+          [llmsIndexUrl]: '../../package.json',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+
+  await assert.rejects(
+    syncInstalledSkillArtifacts(targetRoot, {
+      fetchImpl: async (url) => {
+        requestedUrls.push(url.toString())
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => 'should-not-download',
+        } as Response
+      },
+    }),
+    /tds-ui metadata\.installMirrors 경로가 skill root 밖을 가리켜요/,
+  )
+
+  assert.deepEqual(requestedUrls, [])
+})
+
+test('syncInstalledSkillArtifacts rejects mirror paths that use absolute targets', async (t) => {
+  const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skill-mirror-'))
+
+  t.after(async () => {
+    await rm(targetRoot, { recursive: true, force: true })
+  })
+
+  const skillRoot = path.join(targetRoot, 'skills', 'tds-ui')
+  const llmsIndexUrl = 'https://tossmini-docs.toss.im/tds-react-native/llms.txt'
+  const requestedUrls: string[] = []
+
+  await mkdir(skillRoot, { recursive: true })
+  await writeFile(path.join(skillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
+  await writeFile(
+    path.join(skillRoot, 'metadata.json'),
+    `${JSON.stringify(
+      {
+        upstreamSources: [llmsIndexUrl],
+        installMirrors: {
+          [llmsIndexUrl]: '/tmp/tds-ui-escape.txt',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+
+  await assert.rejects(
+    syncInstalledSkillArtifacts(targetRoot, {
+      fetchImpl: async (url) => {
+        requestedUrls.push(url.toString())
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => 'should-not-download',
+        } as Response
+      },
+    }),
+    /tds-ui metadata\.installMirrors 경로가 skill root 밖을 가리켜요/,
+  )
+
+  assert.deepEqual(requestedUrls, [])
+})

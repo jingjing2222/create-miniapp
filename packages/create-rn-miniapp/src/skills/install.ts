@@ -127,6 +127,36 @@ function readMetadataStringRecord(
   return Object.fromEntries(entries) as Record<string, string>
 }
 
+function resolveMirrorTargetPath(skillDirectory: string, relativePath: string) {
+  const normalizedRelativePath = path.posix.normalize(relativePath.replaceAll('\\', '/'))
+
+  if (
+    normalizedRelativePath.length === 0 ||
+    normalizedRelativePath === '.' ||
+    path.posix.isAbsolute(normalizedRelativePath)
+  ) {
+    throw new Error(
+      `tds-ui metadata.installMirrors 경로가 skill root 밖을 가리켜요: ${relativePath}`,
+    )
+  }
+
+  const targetPath = path.resolve(skillDirectory, ...normalizedRelativePath.split('/'))
+  const relativeToSkillRoot = path.relative(skillDirectory, targetPath)
+
+  if (
+    relativeToSkillRoot.length === 0 ||
+    relativeToSkillRoot === '..' ||
+    relativeToSkillRoot.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeToSkillRoot)
+  ) {
+    throw new Error(
+      `tds-ui metadata.installMirrors 경로가 skill root 밖을 가리켜요: ${relativePath}`,
+    )
+  }
+
+  return targetPath
+}
+
 async function readSkillMirrorMetadata(
   skillDirectory: string,
   skillId: string,
@@ -147,7 +177,7 @@ async function readSkillMirrorMetadata(
 
 async function syncTdsUiMirrorArtifacts(skillDirectory: string, fetchImpl: typeof fetch) {
   const metadata = await readSkillMirrorMetadata(skillDirectory, 'tds-ui')
-  const downloads: Array<{ relativePath: string; contents: string }> = []
+  const downloads: Array<{ targetPath: string; contents: string }> = []
 
   for (const sourceUrl of metadata.upstreamSources) {
     const relativePath = metadata.installMirrors[sourceUrl]
@@ -155,6 +185,8 @@ async function syncTdsUiMirrorArtifacts(skillDirectory: string, fetchImpl: typeo
     if (!relativePath) {
       throw new Error(`tds-ui metadata.installMirrors에 누락된 URL이 있어요: ${sourceUrl}`)
     }
+
+    const targetPath = resolveMirrorTargetPath(skillDirectory, relativePath)
 
     const response = await fetchImpl(sourceUrl)
 
@@ -165,15 +197,14 @@ async function syncTdsUiMirrorArtifacts(skillDirectory: string, fetchImpl: typeo
     }
 
     downloads.push({
-      relativePath,
+      targetPath,
       contents: await response.text(),
     })
   }
 
   for (const download of downloads) {
-    const targetPath = path.join(skillDirectory, download.relativePath)
-    await mkdir(path.dirname(targetPath), { recursive: true })
-    await writeFile(targetPath, download.contents, 'utf8')
+    await mkdir(path.dirname(download.targetPath), { recursive: true })
+    await writeFile(download.targetPath, download.contents, 'utf8')
   }
 }
 
