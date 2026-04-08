@@ -319,6 +319,38 @@ test('skill auto-install re-syncs root frontend policy files after installation 
   )
 })
 
+test('skill auto-install downloads tds-ui llms mirrors after installation succeeds', async () => {
+  const patchSource = await readFile(
+    fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(patchSource, /syncInstalledSkillArtifacts/)
+  assert.match(patchSource, /await syncInstalledSkillArtifacts\(ctx\.targetRoot, \{/)
+})
+
+test('skill auto-install tolerates tds-ui mirror download failures only for locally sourced skills', async () => {
+  const patchSource = await readFile(
+    fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(patchSource, /resolveLocalSourceSkillIds\(ctx\.options\.selectedSkills\)/)
+  assert.match(patchSource, /allowDownloadFailureSkillIds: localSourceSkillIds/)
+})
+
+test('skill auto-install does not silently continue when installation or mirror sync fails', async () => {
+  const patchSource = await readFile(
+    fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.doesNotMatch(patchSource, /추천 agent skills 자동 설치는 건너뛰었어요\./)
+  assert.doesNotMatch(patchSource, /필요하면 나중에 직접 실행해 주세요:/)
+  assert.doesNotMatch(patchSource, /renderSkillsAddCommand\(/)
+  assert.doesNotMatch(patchSource, /catch \(error\)/)
+})
+
 test('create skill auto-install defers summary notes until finalize appends provisioning notes first', async () => {
   const patchSource = await readFile(
     fileURLToPath(new URL('../create/phases/patch.ts', import.meta.url)),

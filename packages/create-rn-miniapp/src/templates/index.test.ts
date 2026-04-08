@@ -187,16 +187,20 @@ function renderTdsUiAgentsMarkdown() {
   return [
     '# tds-ui AGENTS (Generated)',
     '',
-    '이 파일은 `metadata.json`, `generated/anomalies.json`, 공식 TDS 문서 조회 규칙에서 파생된 generated output이다.',
+    '이 파일은 `metadata.json`, 공식 TDS React Native llms 문서, `generated/anomalies.json`에서 파생된 generated output이다.',
     '수정은 truth source를 바꾼 뒤 재생성된 결과만 반영한다.',
     '',
     '## Truth Sources',
     ...[
       'metadata.json',
+      'https://tossmini-docs.toss.im/tds-react-native/llms.txt',
+      'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt',
       'generated/anomalies.json',
-      'docs-search',
-      'TDS React Native 공식 문서',
     ].map((filePath) => `- \`${filePath}\``),
+    '',
+    '## Installed Workspace Mirrors',
+    '- `generated/llms.txt`',
+    '- `generated/llms-full.txt`',
     '',
     '## Human References',
     ...TDS_UI_REFERENCE_FILES.map((filePath) => `- \`${filePath}\``),
@@ -579,7 +583,7 @@ test('frontend policy keeps TDS and Granite guidance as a shared contract', asyn
   assert.doesNotMatch(frontendPolicySource, /TDS `Txt`/)
 })
 
-test('tds-ui canonical skill package is self-contained and decision-driven', async () => {
+test('tds-ui canonical skill package is llms-anchored and overlay-driven', async () => {
   const tdsUiRoot = fileURLToPath(new URL('../../../../skills/tds-ui', import.meta.url))
   const expectedFiles = [
     'AGENTS.md',
@@ -617,7 +621,10 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   )
   assert.match(skillSource, /metadata\.json/)
   assert.match(skillSource, /generated\/anomalies\.json/)
-  assert.match(skillSource, /docs-search/)
+  assert.match(skillSource, /https:\/\/tossmini-docs\.toss\.im\/tds-react-native\/llms\.txt/)
+  assert.match(skillSource, /https:\/\/tossmini-docs\.toss\.im\/tds-react-native\/llms-full\.txt/)
+  assert.match(skillSource, /generated\/llms\.txt/)
+  assert.match(skillSource, /generated\/llms-full\.txt/)
   assert.match(skillSource, /AGENTS\.md/)
   assert.match(skillSource, /references\/decision-matrix\.md/)
   assert.doesNotMatch(skillSource, /rules\/\*\.md/)
@@ -633,16 +640,33 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
     package: { name: string; version: string }
     lastVerifiedAt: string
     truthSources: string[]
+    upstreamSources: string[]
+    installMirrors: Record<string, string>
   }
   assert.equal(metadata.package.name, '@toss/tds-react-native')
   assert.equal(metadata.package.version, '2.0.2')
-  assert.equal(metadata.lastVerifiedAt, '2026-03-21')
-  assert.deepEqual(metadata.truthSources, ['generated/anomalies.json', 'docs-search'])
+  assert.equal(metadata.lastVerifiedAt, '2026-04-08')
+  assert.deepEqual(metadata.truthSources, [
+    'https://tossmini-docs.toss.im/tds-react-native/llms.txt',
+    'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt',
+    'generated/anomalies.json',
+  ])
+  assert.deepEqual(metadata.upstreamSources, [
+    'https://tossmini-docs.toss.im/tds-react-native/llms.txt',
+    'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt',
+  ])
+  assert.deepEqual(metadata.installMirrors, {
+    'https://tossmini-docs.toss.im/tds-react-native/llms.txt': 'generated/llms.txt',
+    'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt': 'generated/llms-full.txt',
+  })
 
   assert.match(decisionMatrixSource, /SearchField/)
   assert.match(decisionMatrixSource, /stepper-row/)
-  assert.match(decisionMatrixSource, /navbar/)
+  assert.match(decisionMatrixSource, /Navbar/)
   assert.match(decisionMatrixSource, /BarChart/)
+  assert.match(decisionMatrixSource, /metadata\.json/)
+  assert.match(decisionMatrixSource, /generated\/llms\.txt/)
+  assert.match(decisionMatrixSource, /generated\/llms-full\.txt/)
   assert.doesNotMatch(decisionMatrixSource, /generated\/catalog\.json/)
 
   const anomalies = JSON.parse(
@@ -689,7 +713,12 @@ test('tds-ui canonical skill package is self-contained and decision-driven', asy
   }
 
   assert.match(policySummarySource, /generated\/anomalies\.json/)
-  assert.match(policySummarySource, /docs-search/)
+  assert.match(
+    policySummarySource,
+    /https:\/\/tossmini-docs\.toss\.im\/tds-react-native\/llms\.txt/,
+  )
+  assert.match(policySummarySource, /generated\/llms\.txt/)
+  assert.match(policySummarySource, /generated\/llms-full\.txt/)
   assert.doesNotMatch(policySummarySource, /generated\/catalog\.json/)
 
   for (const contractEnforcementLine of TDS_UI_OUTPUT_CONTRACT_ENFORCEMENT_LINES) {

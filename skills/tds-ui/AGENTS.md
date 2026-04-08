@@ -1,13 +1,17 @@
 # tds-ui AGENTS (Generated)
 
-이 파일은 `metadata.json`, `generated/anomalies.json`, 공식 TDS 문서 조회 규칙에서 파생된 generated output이다.
+이 파일은 `metadata.json`, 공식 TDS React Native llms 문서, `generated/anomalies.json`에서 파생된 generated output이다.
 수정은 truth source를 바꾼 뒤 재생성된 결과만 반영한다.
 
 ## Truth Sources
 - `metadata.json`
+- `https://tossmini-docs.toss.im/tds-react-native/llms.txt`
+- `https://tossmini-docs.toss.im/tds-react-native/llms-full.txt`
 - `generated/anomalies.json`
-- `docs-search`
-- `TDS React Native 공식 문서`
+
+## Installed Workspace Mirrors
+- `generated/llms.txt`
+- `generated/llms-full.txt`
 
 ## Human References
 - `references/decision-matrix.md`

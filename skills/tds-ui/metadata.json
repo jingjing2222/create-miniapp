@@ -1,15 +1,30 @@
 {
   "name": "tds-ui",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "package": {
     "name": "@toss/tds-react-native",
     "version": "2.0.2"
   },
-  "lastVerifiedAt": "2026-03-21",
-  "truthSources": ["generated/anomalies.json", "docs-search"],
+  "lastVerifiedAt": "2026-04-08",
+  "truthSources": [
+    "https://tossmini-docs.toss.im/tds-react-native/llms.txt",
+    "https://tossmini-docs.toss.im/tds-react-native/llms-full.txt",
+    "generated/anomalies.json"
+  ],
+  "upstreamSources": [
+    "https://tossmini-docs.toss.im/tds-react-native/llms.txt",
+    "https://tossmini-docs.toss.im/tds-react-native/llms-full.txt"
+  ],
+  "installMirrors": {
+    "https://tossmini-docs.toss.im/tds-react-native/llms.txt": "generated/llms.txt",
+    "https://tossmini-docs.toss.im/tds-react-native/llms-full.txt": "generated/llms-full.txt"
+  },
   "notes": [
-    "Use docs-search or official TDS docs for public component lookup.",
-    "Use anomalies.json as the local overlay for slug aliases, export gaps, and docs-missing gates.",
+    "Use upstreamSources as the canonical TDS docs in the source repository.",
+    "When this skill is scaffolded into a workspace, create-rn-miniapp downloads installMirrors so the installed skill can read local llms snapshots.",
+    "Use anomalies.json only as the local overlay for slug aliases, export gaps, and docs-missing gates.",
+    "When generated llms mirrors exist in the installed workspace, prefer them over remote fetches for section lookup.",
+    "When official docs and local references disagree on semantics, prefer the official docs and keep local files limited to routing and guardrails.",
     "Update this skill through the repository source and standard `npx skills update` flow."
   ]
 }

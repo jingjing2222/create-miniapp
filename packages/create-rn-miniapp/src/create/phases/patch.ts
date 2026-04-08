@@ -3,12 +3,12 @@ import { log } from '@clack/prompts'
 import { patchBackofficeWorkspace } from '../../patching/backoffice.js'
 import { patchFrontendWorkspace } from '../../patching/frontend.js'
 import { runCommand, runCommandWithOutput } from '../../runtime/commands.js'
-import dedent from '../../runtime/dedent.js'
 import {
   buildSkillsInstallCommands,
   listInstalledProjectSkillEntries,
+  resolveLocalSourceSkillIds,
   renderInstalledSkillsSummary,
-  renderSkillsAddCommand,
+  syncInstalledSkillArtifacts,
 } from '../../skills/install.js'
 import { maybeWriteNpmWorkspaceConfig, resolveRootWorkspaces } from '../../scaffold/helpers.js'
 import { pathExists } from '../../templates/filesystem.js'
@@ -48,6 +48,7 @@ async function syncCreateManifestAfterOptionalWorkspaces(ctx: CreateContext) {
 }
 
 async function maybeInstallSelectedSkills(ctx: CreateContext) {
+  const localSourceSkillIds = await resolveLocalSourceSkillIds(ctx.options.selectedSkills)
   const installCommands = await buildSkillsInstallCommands({
     packageManager: ctx.options.packageManager,
     targetRoot: ctx.targetRoot,
@@ -61,43 +62,26 @@ async function maybeInstallSelectedSkills(ctx: CreateContext) {
     }
   }
 
-  try {
-    for (const installCommand of installCommands) {
-      log.step(installCommand.label)
-      await runCommandWithOutput(installCommand)
-    }
-    const installedSkills = await listInstalledProjectSkillEntries(ctx.targetRoot)
+  for (const installCommand of installCommands) {
+    log.step(installCommand.label)
+    await runCommandWithOutput(installCommand)
+  }
 
-    return {
-      didInstall: true,
-      notes: [
-        {
-          title: 'Agent skills',
-          body: renderInstalledSkillsSummary(
-            installedSkills.length > 0 ? installedSkills : ctx.options.selectedSkills,
-          ),
-        },
-      ] satisfies ProvisioningNote[],
-    }
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : '추천 agent skills 설치 중 알 수 없는 오류가 있었어요.'
+  await syncInstalledSkillArtifacts(ctx.targetRoot, {
+    allowDownloadFailureSkillIds: localSourceSkillIds,
+  })
+  const installedSkills = await listInstalledProjectSkillEntries(ctx.targetRoot)
 
-    return {
-      didInstall: false,
-      notes: [
-        {
-          title: 'Agent skills',
-          body: dedent`
-            추천 agent skills 자동 설치는 건너뛰었어요.
-            ${message}
-            필요하면 나중에 직접 실행해 주세요: \`${renderSkillsAddCommand(ctx.options.selectedSkills)}\`
-          `,
-        },
-      ] satisfies ProvisioningNote[],
-    }
+  return {
+    didInstall: true,
+    notes: [
+      {
+        title: 'Agent skills',
+        body: renderInstalledSkillsSummary(
+          installedSkills.length > 0 ? installedSkills : ctx.options.selectedSkills,
+        ),
+      },
+    ] satisfies ProvisioningNote[],
   }
 }
 

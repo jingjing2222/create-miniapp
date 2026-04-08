@@ -1,3 +1,81 @@
+## 다음 작업: tds-ui install mirror 리뷰 코멘트 2건 수정
+
+### 목표
+- 로컬 repo source에서 `tds-ui`를 설치할 때 네트워크가 없어도 scaffold가 hard-fail 하지 않게 되돌린다.
+- `.agents/skills`와 `.claude/skills`에 동시에 설치된 `tds-ui`가 있으면 llms mirror 파일을 양쪽 모두에 동기화한다.
+- 두 회귀를 실패 테스트로 먼저 고정하고, `pnpm verify` 통과까지 다시 확인한 뒤 현재 브랜치에 커밋/푸시한다.
+
+### 작업 순서
+1. `skills-install.test.ts`에 오프라인 로컬 설치 fallback과 multi-root mirror sync 케이스를 먼저 추가해 실패를 재현한다.
+2. `skills/install.ts`에서 설치 source가 로컬 repo인지 구분할 수 있는 신호를 유지하고, network fetch 실패를 local source install에서는 non-fatal로 처리한다.
+3. installed skill 탐색이 duplicate skill id를 하나로 접지 않도록 별도 enumerator를 두고, `tds-ui` mirror sync가 모든 installed root를 순회하게 수정한다.
+4. 관련 테스트와 `pnpm verify`를 실행한 뒤 현재 브랜치에 단일 목적 커밋으로 정리해 push한다.
+
+## 다음 작업: tds-ui install mirror write scope escape 차단
+
+### 목표
+- `installMirrors` 경로가 `tds-ui` skill root 바깥으로 빠져나가지 못하게 막는다.
+- 절대경로와 `..` traversal이 있으면 fetch 전에 즉시 실패하게 만들어 write scope escape를 제거한다.
+- 관련 회귀 테스트를 추가하고 `pnpm verify`까지 다시 통과시킨다.
+
+### 작업 순서
+1. `syncInstalledSkillArtifacts` 테스트에 traversal/absolute path 거부 케이스를 먼저 추가한다.
+2. mirror 상대경로를 정규화하고 skill root 내부 경로만 허용하는 validator를 `skills/install.ts`에 넣는다.
+3. `pnpm verify`로 전체 회귀를 확인하고 PR 브랜치에 반영한다.
+
+## 다음 작업: tds-ui llms 벤더링 제거와 install-time fetch 전환
+
+### 목표
+- source repo에는 `skills/tds-ui/generated/llms.txt`, `llms-full.txt`를 커밋하지 않는다.
+- 대신 create scaffold가 `tds-ui` 설치 직후 공식 URL에서 llms snapshot을 내려받아 target workspace의 skill 디렉터리에 채워 넣는다.
+- source skill 문서는 remote truth source와 install-time mirror 경로를 함께 설명하되, repo 자체는 대용량 snapshot을 들고 있지 않게 정리한다.
+
+### 작업 순서
+1. 템플릿/skills install 테스트를 먼저 바꿔 vendored llms 파일이 repo에 없어야 하고, install-time download hook이 있어야 한다는 계약을 고정한다.
+2. `skills/tds-ui` source 문구와 metadata를 remote-first + optional local mirror 구조로 되돌린다.
+3. create skill auto-install 흐름에 `tds-ui` llms mirror download helper를 추가한다.
+4. `pnpm verify`로 최종 검증한 뒤 기존 PR 브랜치에 후속 커밋으로 반영한다.
+
+## 다음 작업: TDS UI llms snapshot 변경의 changeset/PR 마감
+
+### 목표
+- `tds-ui` skill이 공식 TDS React Native `llms.txt`, `llms-full.txt` snapshot을 source repo에 동봉한 상태로 머지 준비를 마친다.
+- release note는 실제 사용자 변화인 "스캐폴딩 시 project-local skill이 bundled llms snapshot을 함께 복사한다"는 점을 한국어 changeset으로 남긴다.
+- 브랜치를 분리하고 `pnpm verify` 통과 상태에서 한국어 PR을 생성한다.
+
+### 작업 순서
+1. 이번 diff가 어떤 publish package 설명으로 귀결되는지 다시 확인하고, 최소 범위 changeset frontmatter를 정한다.
+2. `.changeset/*.md`에 한국어 patch changeset을 추가한다.
+3. `pnpm verify`를 다시 돌려 최종 상태를 확인한다.
+4. 작업 브랜치를 만들고 단일 목적 커밋을 만든 뒤 원격에 push한다.
+5. 한국어 제목과 섹션형 본문으로 PR을 연다.
+
+## 다음 작업: TDS UI skill의 llms snapshot 동봉과 scaffold install 동기화
+
+### 목표
+- `tds-ui`가 공식 `llms.txt` / `llms-full.txt` URL만 참조하는 데서 끝나지 않고, source repo 안에 snapshot 파일을 같이 들고 있게 만든다.
+- create scaffold의 project-local skill 설치가 `--copy` 기반이므로, 설치 시 target workspace에도 같은 snapshot 파일이 함께 들어가게 한다.
+- `generated/anomalies.json`은 로컬 overlay로 유지하되, installed skill은 네트워크 없이도 local snapshot을 SSoT로 읽을 수 있게 정리한다.
+
+### 작업 순서
+1. `tds-ui` 관련 테스트를 먼저 바꿔 local generated snapshot 파일(`generated/llms.txt`, `generated/llms-full.txt`)이 포함되어야 한다는 계약을 실패로 고정한다.
+2. 공식 URL에서 `llms.txt`, `llms-full.txt`를 내려받아 `skills/tds-ui/generated/` 아래에 저장한다.
+3. `SKILL.md`, `metadata.json`, `AGENTS.md`, references가 원격 URL 대신 local snapshot 경로를 우선 truth source로 읽고, upstream refresh source만 note로 남기게 수정한다.
+4. `pnpm verify`로 scaffold/install 계약이 깨지지 않는지 확인한다.
+
+## 다음 작업: TDS UI skill의 llms.txt 기반 SSoT 재정렬
+
+### 목표
+- `skills/tds-ui`가 로컬 curated reference를 사실상 원본처럼 설명하는 구조에서 벗어나, Toss TDS React Native의 `llms.txt`와 `llms-full.txt`를 source of truth로 따르게 만든다.
+- 현재 skill이 외부 문서와 어긋나는 부분을 coverage, 탐색 순서, 규칙 강도, anomaly overlay 관점에서 비교 정리한다.
+- 수정 시 로컬 skill에는 decision router, export anomaly, repo-specific guardrail만 남기고 문서 본문 중복은 줄이는 방향으로 설계를 확정한다.
+
+### 작업 순서
+1. `skills/tds-ui`의 SKILL, metadata, references, rules가 현재 무엇을 직접 서술하고 무엇을 외부 문서에 위임하는지 분해한다.
+2. `https://tossmini-docs.toss.im/tds-react-native/llms.txt`와 `llms-full.txt`를 읽고, 현재 skill과의 차이를 index coverage / component semantics / foundation 포함 여부 / 문서 탐색 방식 기준으로 비교한다.
+3. `generated/anomalies.json`과 repo-specific rule이 외부 SSoT 위에 얹혀야 하는 최소 overlay인지 검토한다.
+4. 최종적으로 `tds-ui`를 `llms.txt`/`llms-full.txt` 우선 참조 구조로 바꾸는 개편안을 정리하고, 필요한 파일 수정 범위를 확정한다.
+
 ## 다음 작업: skills 체계 PR의 두 publish 패키지 patch changeset 정리
 
 ### 목표

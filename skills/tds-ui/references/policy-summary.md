@@ -1,10 +1,14 @@
 # Policy Summary
 
-- truth source는 `generated/anomalies.json`과 `docs-search`/공식 TDS 문서다.
-- 선택 순서는 docs-search 또는 공식 문서로 doc-backed 후보 확인 -> decision matrix 적용 -> anomaly note 순서다.
+- truth source는 official `https://tossmini-docs.toss.im/tds-react-native/llms.txt`, `llms-full.txt`, `generated/anomalies.json`이다.
+- 설치된 workspace에서는 `generated/llms.txt`, `generated/llms-full.txt` mirror가 있으면 그 로컬 파일을 우선 읽는다.
+- 선택 순서는 `metadata.json` 확인 -> llms index로 후보 찾기 -> llms full에서 section semantics 확인 -> decision overlay 적용 -> anomaly note 순서다.
 - RN primitive를 직접 추천하지 않는다.
 - export-only 추천 시에는 반드시 doc-backed fallback을 같이 쓴다.
 - `paragraph`는 blocked-by-default다.
+- foundation token 질문은 `colors`, `typography` leaf를 먼저 읽는다.
+- 설치/마이그레이션 질문은 `start`, `migration` 문서가 canonical이지만, 이 Skill의 기본 역할은 UI 선택이다.
+- upstream refresh source는 `metadata.json`의 `upstreamSources`를 본다.
 
 ## Output Contract
 
