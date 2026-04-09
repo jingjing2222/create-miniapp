@@ -1,3 +1,15 @@
+## 다음 작업: Cloudflare+tRPC shared workspace package export 회귀 수정
+
+### 목표
+- Cloudflare+tRPC scaffold가 생성하는 `packages/contracts`, `packages/app-router`가 AIT dependency version 수집 단계에서도 안정적으로 해석되게 만든다.
+- `packages/app-router` root import 구조는 유지하되, generated shared package의 `package.json` export와 dev dependency contract를 테스트로 먼저 고정한다.
+- 관련 템플릿 테스트와 실제 scaffold 재현, `pnpm verify`로 회귀가 없는지 확인한다.
+
+### 작업 순서
+1. tRPC workspace template 테스트에 shared package `exports["./package.json"]`와 `typescript` devDependency 기대값을 먼저 추가한다.
+2. `packages/create-rn-miniapp/src/templates/trpc.ts`에서 `contracts`, `app-router` package template이 같은 export/devDependency contract를 렌더하도록 수정한다.
+3. fresh scaffold 재현으로 `frontend build`를 다시 확인하고, `pnpm verify`까지 돌려 최종 상태를 검증한다.
+
 ## 다음 작업: Cloudflare scaffold client env placeholder 누락 수정
 
 ### 목표

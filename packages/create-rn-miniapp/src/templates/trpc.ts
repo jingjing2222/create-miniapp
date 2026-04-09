@@ -15,6 +15,7 @@ export const TRPC_CLIENT_VERSION = '^11.13.4'
 export const TRPC_SERVER_VERSION = '^11.13.4'
 export const ZOD_VERSION = '^4.3.6'
 export const TSDOWN_VERSION = '^0.21.4'
+export const SHARED_WORKSPACE_TYPESCRIPT_VERSION = '^5.9.3'
 const NX_PROJECT_SCHEMA_URL =
   'https://raw.githubusercontent.com/nrwl/nx/master/packages/nx/schemas/project-schema.json'
 
@@ -115,6 +116,7 @@ function renderContractsPackageJson(packageManager: PackageManager) {
         require: './dist/index.cjs',
         default: './dist/index.mjs',
       },
+      './package.json': './package.json',
     },
     main: './dist/index.cjs',
     types: './dist/index.d.mts',
@@ -128,6 +130,7 @@ function renderContractsPackageJson(packageManager: PackageManager) {
     },
     devDependencies: {
       tsdown: TSDOWN_VERSION,
+      typescript: SHARED_WORKSPACE_TYPESCRIPT_VERSION,
     },
   }
 }
@@ -151,6 +154,7 @@ function renderAppRouterPackageJson(packageManager: PackageManager) {
         require: './dist/index.cjs',
         default: './dist/index.mjs',
       },
+      './package.json': './package.json',
     },
     main: './dist/index.cjs',
     types: './dist/index.d.mts',
@@ -165,6 +169,7 @@ function renderAppRouterPackageJson(packageManager: PackageManager) {
     },
     devDependencies: {
       tsdown: TSDOWN_VERSION,
+      typescript: SHARED_WORKSPACE_TYPESCRIPT_VERSION,
     },
   }
 }
