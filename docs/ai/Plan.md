@@ -1,3 +1,27 @@
+## 다음 작업: Cloudflare+tRPC shared workspace package export 회귀 수정
+
+### 목표
+- Cloudflare+tRPC scaffold가 생성하는 `packages/contracts`, `packages/app-router`가 AIT dependency version 수집 단계에서도 안정적으로 해석되게 만든다.
+- `packages/app-router` root import 구조는 유지하되, generated shared package의 `package.json` export와 dev dependency contract를 테스트로 먼저 고정한다.
+- 관련 템플릿 테스트와 실제 scaffold 재현, `pnpm verify`로 회귀가 없는지 확인한다.
+
+### 작업 순서
+1. tRPC workspace template 테스트에 shared package `exports["./package.json"]`와 `typescript` devDependency 기대값을 먼저 추가한다.
+2. `packages/create-rn-miniapp/src/templates/trpc.ts`에서 `contracts`, `app-router` package template이 같은 export/devDependency contract를 렌더하도록 수정한다.
+3. fresh scaffold 재현으로 `frontend build`를 다시 확인하고, `pnpm verify`까지 돌려 최종 상태를 검증한다.
+
+## 다음 작업: Cloudflare scaffold client env placeholder 누락 수정
+
+### 목표
+- Cloudflare server provider를 붙인 scaffold가 원격 프로비저닝을 건너뛰더라도 `frontend/.env.local`, `backoffice/.env.local` placeholder를 남기게 만든다.
+- provider bootstrap이 요구하는 env contract와 실제 generated 파일 상태를 테스트로 먼저 고정한다.
+- 관련 테스트와 `pnpm verify`로 회귀가 없는지 확인한다.
+
+### 작업 순서
+1. `patchFrontendWorkspace`, `patchBackofficeWorkspace` 테스트에 Cloudflare placeholder `.env.local` 생성 기대값을 먼저 추가한다.
+2. provider bootstrap 단계에서 기존 env 파일은 보존하면서 누락된 `.env.local`만 provider별 blank key로 채우는 helper를 넣는다.
+3. 타깃 테스트 후 `pnpm verify`를 실행해 scaffold/provider 회귀가 없는지 확인한다.
+
 ## 다음 작업: 추천 agent skills 설치 시 tds-ui metadata ENOENT 회귀 수정
 
 ### 목표

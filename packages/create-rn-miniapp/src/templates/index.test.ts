@@ -1600,7 +1600,7 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     files?: string[]
     exports?: Record<
       string,
-      { types?: string; import?: string; require?: string; default?: string }
+      string | { types?: string; import?: string; require?: string; default?: string }
     >
     types?: string
     main?: string
@@ -1615,7 +1615,7 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
     files?: string[]
     exports?: Record<
       string,
-      { types?: string; import?: string; require?: string; default?: string }
+      string | { types?: string; import?: string; require?: string; default?: string }
     >
     types?: string
     main?: string
@@ -1639,6 +1639,12 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
   ) as {
     targets?: Record<string, { command?: string }>
   }
+  const contractsRootExport = contractsPackageJson.exports?.['.'] as
+    | { types?: string; import?: string; require?: string; default?: string }
+    | undefined
+  const appRouterRootExport = appRouterPackageJson.exports?.['.'] as
+    | { types?: string; import?: string; require?: string; default?: string }
+    | undefined
   const contractsReadme = await readFile(
     path.join(targetRoot, 'packages', 'contracts', 'README.md'),
     'utf8',
@@ -1665,25 +1671,29 @@ test('applyTrpcWorkspaceTemplate creates shared contracts and app-router workspa
   )
   assert.equal(contractsPackageJson.name, '@workspace/contracts')
   assert.deepEqual(contractsPackageJson.files, ['dist'])
-  assert.equal(contractsPackageJson.exports?.['.']?.types, './dist/index.d.mts')
-  assert.equal(contractsPackageJson.exports?.['.']?.import, './dist/index.mjs')
-  assert.equal(contractsPackageJson.exports?.['.']?.require, './dist/index.cjs')
-  assert.equal(contractsPackageJson.exports?.['.']?.default, './dist/index.mjs')
+  assert.equal(contractsRootExport?.types, './dist/index.d.mts')
+  assert.equal(contractsRootExport?.import, './dist/index.mjs')
+  assert.equal(contractsRootExport?.require, './dist/index.cjs')
+  assert.equal(contractsRootExport?.default, './dist/index.mjs')
+  assert.equal(contractsPackageJson.exports?.['./package.json'], './package.json')
   assert.equal(contractsPackageJson.types, './dist/index.d.mts')
   assert.equal(contractsPackageJson.main, './dist/index.cjs')
   assert.equal(contractsPackageJson.dependencies?.zod, '^4.3.6')
   assert.equal(contractsPackageJson.devDependencies?.tsdown, '^0.21.4')
+  assert.equal(contractsPackageJson.devDependencies?.typescript, '^5.9.3')
   assert.equal(appRouterPackageJson.name, '@workspace/app-router')
   assert.deepEqual(appRouterPackageJson.files, ['dist'])
-  assert.equal(appRouterPackageJson.exports?.['.']?.types, './dist/index.d.mts')
-  assert.equal(appRouterPackageJson.exports?.['.']?.import, './dist/index.mjs')
-  assert.equal(appRouterPackageJson.exports?.['.']?.require, './dist/index.cjs')
-  assert.equal(appRouterPackageJson.exports?.['.']?.default, './dist/index.mjs')
+  assert.equal(appRouterRootExport?.types, './dist/index.d.mts')
+  assert.equal(appRouterRootExport?.import, './dist/index.mjs')
+  assert.equal(appRouterRootExport?.require, './dist/index.cjs')
+  assert.equal(appRouterRootExport?.default, './dist/index.mjs')
+  assert.equal(appRouterPackageJson.exports?.['./package.json'], './package.json')
   assert.equal(appRouterPackageJson.types, './dist/index.d.mts')
   assert.equal(appRouterPackageJson.main, './dist/index.cjs')
   assert.equal(appRouterPackageJson.dependencies?.['@trpc/server'], '^11.13.4')
   assert.equal(appRouterPackageJson.dependencies?.['@workspace/contracts'], 'workspace:*')
   assert.equal(appRouterPackageJson.devDependencies?.tsdown, '^0.21.4')
+  assert.equal(appRouterPackageJson.devDependencies?.typescript, '^5.9.3')
   assert.equal(
     contractsPackageJson.scripts?.build,
     'tsdown src/index.ts --format esm,cjs --dts --clean --out-dir dist',
