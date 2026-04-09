@@ -8,8 +8,9 @@
 - upstream contract: `metadata.json`
 - installed workspace index mirror: `generated/llms.txt`
 - installed workspace full dump mirror: `generated/llms-full.txt`
-- source repo에서는 `metadata.json`의 `upstreamSources` URL을 직접 읽는다.
-- installed workspace에서는 `generated/llms-full.txt`에서 heading search로 section을 찾는다.
+- source repo에서는 `metadata.json`의 `upstreamSources` URL을 직접 읽되, `llms.txt` index를 먼저 보고 필요할 때만 `llms-full.txt`를 연다.
+- installed workspace에서는 `generated/llms.txt`에서 canonical docs path와 heading alias를 먼저 찾는다.
+- `generated/llms-full.txt`는 후보가 정해진 뒤 examples와 interface를 읽을 때만 연다.
 - canonical section heading pattern:
   - component: `# <Name> (/tds-react-native/components/<slug>/)`
   - foundation: `# Colors (/tds-react-native/foundation/colors/)`, `# Typography (/tds-react-native/foundation/typography/)`
@@ -17,25 +18,25 @@
 
 ## Input choice
 
-- `TextField`, `SearchField`, `Checkbox`, `Radio`, `SegmentedControl`, `Switch`, `Tab`, `Dropdown`, `NumericSpinner`, `NumberKeypad`, `Slider`, `Rating` section heading을 먼저 찾는다.
+- `generated/llms.txt`에서 `TextField`, `SearchField`, `Checkbox`, `Radio`, `SegmentedControl`, `Switch`, `Tab`, `Dropdown`, `NumericSpinner`, `NumberKeypad`, `Slider`, `Rating` leaf를 shortlist한다.
 - 후보가 둘 이상이면 `generated/llms-full.txt`에서 examples + interface를 같이 읽고 비교한다.
 - foundation token 질문이 붙으면 Colors / Typography leaf를 같이 읽는다.
 
 ## Actions and feedback
 
-- `Button`, `TextButton`, `IconButton`, `Dialog`, `Toast`, `Loader`, `Skeleton`, `ProgressBar`, `Result`, `ErrorPage` section heading을 먼저 찾는다.
+- `generated/llms.txt`에서 `Button`, `TextButton`, `IconButton`, `Dialog`, `Toast`, `Loader`, `Skeleton`, `ProgressBar`, `Result`, `ErrorPage` leaf를 shortlist한다.
 - blocking / non-blocking / page-level result 구분은 official docs examples를 기준으로 한다.
 - loading surface는 `Loader`와 `Skeleton` 중 무엇이 실제 레이아웃 placeholder인지 구분해서 읽는다.
 
 ## List, layout, and navigation
 
-- `List`, `ListRow`, `ListHeader`, `ListFooter`, `TableRow`, `GridList`, `BoardRow`, `Stepper`, `Navbar`, `AmountTop`, `BottomInfo`, `Post` section heading을 먼저 찾는다.
+- `generated/llms.txt`에서 `List`, `ListRow`, `ListHeader`, `ListFooter`, `TableRow`, `GridList`, `BoardRow`, `Stepper`, `Navbar`, `AmountTop`, `BottomInfo`, `Post` leaf를 shortlist한다.
 - `Stepper`는 skill id가 `stepper-row`여도 canonical docs leaf는 `stepper`다.
 - `Navbar`는 docs leaf는 canonical이지만 import path는 anomaly overlay를 추가로 읽는다.
 
 ## Content and display
 
-- `Asset`, `Badge`, `Carousel`, `BarChart`, `Highlight`, `Border`, `Gradient`, `Shadow` section heading을 먼저 찾는다.
+- `generated/llms.txt`에서 `Asset`, `Badge`, `Carousel`, `BarChart`, `Highlight`, `Border`, `Gradient`, `Shadow` leaf를 shortlist한다.
 - `BarChart`는 skill id가 `chart`여도 canonical docs leaf는 `Chart/bar-chart`다.
 - visual utility를 고를 때 색상/타이포 토큰이 섞이면 foundation leaf를 같이 읽는다.
 

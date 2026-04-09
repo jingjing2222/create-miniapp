@@ -2,18 +2,23 @@
 
 이 파일은 action / feedback 계열 canonical leaf를 고르는 routing note다.
 
+## Canonical lookup order
+
+- `generated/llms.txt`에서 action / feedback leaf slug와 canonical heading 후보를 먼저 찾는다.
+- 후보가 정해지면 `generated/llms-full.txt`에서 해당 heading의 examples / interface section만 읽는다.
+
 ## Canonical leaf docs
 
-- `button`: `generated/llms-full.txt`에서 `# Button` section
-- `text-button`: `generated/llms-full.txt`에서 `# Text Button` section
-- `icon-button`: `generated/llms-full.txt`에서 `# Icon Button` section
-- `dialog`: `generated/llms-full.txt`에서 `# Dialog` section
-- `toast`: `generated/llms-full.txt`에서 `# Toast` section
-- `loader`: `generated/llms-full.txt`에서 `# Loader` section
-- `skeleton`: `generated/llms-full.txt`에서 `# Skeleton` section
-- `progress-bar`: `generated/llms-full.txt`에서 `# ProgressBar` section
-- `result`: `generated/llms-full.txt`에서 `# Result` section
-- `error-page`: `generated/llms-full.txt`에서 `# ErrorPage` section
+- `button`: `generated/llms.txt`의 `Button` leaf, details는 `generated/llms-full.txt`의 `# Button` section
+- `text-button`: `generated/llms.txt`의 `Text Button` leaf, details는 `generated/llms-full.txt`의 `# Text Button` section
+- `icon-button`: `generated/llms.txt`의 `Icon Button` leaf, details는 `generated/llms-full.txt`의 `# Icon Button` section
+- `dialog`: `generated/llms.txt`의 `Dialog` leaf, details는 `generated/llms-full.txt`의 `# Dialog` section
+- `toast`: `generated/llms.txt`의 `Toast` leaf, details는 `generated/llms-full.txt`의 `# Toast` section
+- `loader`: `generated/llms.txt`의 `Loader` leaf, details는 `generated/llms-full.txt`의 `# Loader` section
+- `skeleton`: `generated/llms.txt`의 `Skeleton` leaf, details는 `generated/llms-full.txt`의 `# Skeleton` section
+- `progress-bar`: `generated/llms.txt`의 `ProgressBar` leaf, details는 `generated/llms-full.txt`의 `# ProgressBar` section
+- `result`: `generated/llms.txt`의 `Result` leaf, details는 `generated/llms-full.txt`의 `# Result` section
+- `error-page`: `generated/llms.txt`의 `ErrorPage` leaf, details는 `generated/llms-full.txt`의 `# ErrorPage` section
 
 ## Comparison prompts
 

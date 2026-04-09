@@ -2,20 +2,25 @@
 
 이 파일은 list / layout / boundary 계열 canonical leaf를 고르는 routing note다.
 
+## Canonical lookup order
+
+- `generated/llms.txt`에서 list / layout / boundary leaf slug와 canonical heading 후보를 먼저 찾는다.
+- 후보가 정해지면 `generated/llms-full.txt`에서 해당 heading의 examples / interface section만 읽는다.
+
 ## Canonical leaf docs
 
-- `list`: `generated/llms-full.txt`에서 `# List` section
-- `list-row`: `generated/llms-full.txt`에서 `# ListRow` section
-- `list-header`: `generated/llms-full.txt`에서 `# ListHeader` section
-- `list-footer`: `generated/llms-full.txt`에서 `# ListFooter` section
-- `table-row`: `generated/llms-full.txt`에서 `# TableRow` section
-- `grid-list`: `generated/llms-full.txt`에서 `# GridList` section
-- `board-row`: `generated/llms-full.txt`에서 `# Board Row` section
-- `stepper-row`: canonical docs section은 `generated/llms-full.txt`의 `# Stepper`
-- `navbar`: docs section은 `generated/llms-full.txt`의 `# Navbar`, import path gap은 anomaly overlay를 추가로 읽는다.
-- `amount-top`: `generated/llms-full.txt`에서 `# AmountTop` section
-- `bottom-info`: `generated/llms-full.txt`에서 `# Bottom Info` section
-- `post`: `generated/llms-full.txt`에서 `# Post` section
+- `list`: `generated/llms.txt`의 `List` leaf, details는 `generated/llms-full.txt`의 `# List` section
+- `list-row`: `generated/llms.txt`의 `ListRow` leaf, details는 `generated/llms-full.txt`의 `# ListRow` section
+- `list-header`: `generated/llms.txt`의 `ListHeader` leaf, details는 `generated/llms-full.txt`의 `# ListHeader` section
+- `list-footer`: `generated/llms.txt`의 `ListFooter` leaf, details는 `generated/llms-full.txt`의 `# ListFooter` section
+- `table-row`: `generated/llms.txt`의 `TableRow` leaf, details는 `generated/llms-full.txt`의 `# TableRow` section
+- `grid-list`: `generated/llms.txt`의 `GridList` leaf, details는 `generated/llms-full.txt`의 `# GridList` section
+- `board-row`: `generated/llms.txt`의 `Board Row` leaf, details는 `generated/llms-full.txt`의 `# Board Row` section
+- `stepper-row`: `generated/llms.txt`의 `Stepper` leaf, canonical docs section은 `generated/llms-full.txt`의 `# Stepper`
+- `navbar`: `generated/llms.txt`의 `Navbar` leaf, docs section은 `generated/llms-full.txt`의 `# Navbar`, import path gap은 anomaly overlay를 추가로 읽는다.
+- `amount-top`: `generated/llms.txt`의 `AmountTop` leaf, details는 `generated/llms-full.txt`의 `# AmountTop` section
+- `bottom-info`: `generated/llms.txt`의 `Bottom Info` leaf, details는 `generated/llms-full.txt`의 `# Bottom Info` section
+- `post`: `generated/llms.txt`의 `Post` leaf, details는 `generated/llms-full.txt`의 `# Post` section
 
 ## accordion, grid, steps
 

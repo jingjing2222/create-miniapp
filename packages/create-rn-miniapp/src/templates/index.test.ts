@@ -202,6 +202,11 @@ function renderTdsUiAgentsMarkdown() {
     '- `generated/llms.txt`',
     '- `generated/llms-full.txt`',
     '',
+    '## Mirror Lookup Order',
+    '1. `generated/llms.txt` 또는 공식 `llms.txt`에서 docs path와 canonical heading 후보를 먼저 좁힌다.',
+    '2. `generated/llms-full.txt` 또는 공식 `llms-full.txt`는 shortlist가 정해진 뒤 examples / interface 확인 시에만 연다.',
+    '3. `generated/anomalies.json`으로 export gap과 docs-missing gate를 덧입힌다.',
+    '',
     '## Human References',
     ...TDS_UI_REFERENCE_FILES.map((filePath) => `- \`${filePath}\``),
     '',
@@ -619,6 +624,22 @@ test('tds-ui canonical skill package is llms-anchored and overlay-driven', async
     path.join(tdsUiRoot, 'references', 'policy-summary.md'),
     'utf8',
   )
+  const formPatternsSource = await readFile(
+    path.join(tdsUiRoot, 'references', 'form-patterns.md'),
+    'utf8',
+  )
+  const layoutAndNavigationSource = await readFile(
+    path.join(tdsUiRoot, 'references', 'layout-and-navigation.md'),
+    'utf8',
+  )
+  const feedbackAndLoadingSource = await readFile(
+    path.join(tdsUiRoot, 'references', 'feedback-and-loading.md'),
+    'utf8',
+  )
+  const displayPatternsSource = await readFile(
+    path.join(tdsUiRoot, 'references', 'display-patterns.md'),
+    'utf8',
+  )
   assert.match(skillSource, /metadata\.json/)
   assert.match(skillSource, /generated\/anomalies\.json/)
   assert.match(skillSource, /https:\/\/tossmini-docs\.toss\.im\/tds-react-native\/llms\.txt/)
@@ -667,7 +688,29 @@ test('tds-ui canonical skill package is llms-anchored and overlay-driven', async
   assert.match(decisionMatrixSource, /metadata\.json/)
   assert.match(decisionMatrixSource, /generated\/llms\.txt/)
   assert.match(decisionMatrixSource, /generated\/llms-full\.txt/)
+  assert.match(
+    decisionMatrixSource,
+    /generated\/llms\.txt`에서 canonical docs path와 heading alias를 먼저 찾는다\./,
+  )
+  assert.match(
+    decisionMatrixSource,
+    /generated\/llms-full\.txt`는 후보가 정해진 뒤 examples와 interface를 읽을 때만 연다\./,
+  )
   assert.doesNotMatch(decisionMatrixSource, /generated\/catalog\.json/)
+  assert.match(
+    policySummarySource,
+    /llms index로 후보와 docs path를 먼저 찾기 -> llms full에서 section semantics 확인/,
+  )
+
+  for (const referenceSource of [
+    formPatternsSource,
+    layoutAndNavigationSource,
+    feedbackAndLoadingSource,
+    displayPatternsSource,
+  ]) {
+    assert.match(referenceSource, /generated\/llms\.txt/)
+    assert.match(referenceSource, /generated\/llms-full\.txt/)
+  }
 
   const anomalies = JSON.parse(
     await readFile(path.join(tdsUiRoot, 'generated', 'anomalies.json'), 'utf8'),

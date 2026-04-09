@@ -2,20 +2,25 @@
 
 이 파일은 입력/선택 계열 canonical leaf를 고르는 routing note다.
 
+## Canonical lookup order
+
+- `generated/llms.txt`에서 입력/선택 leaf slug와 canonical heading 후보를 먼저 찾는다.
+- 후보가 정해지면 `generated/llms-full.txt`에서 해당 heading의 examples / interface section만 읽는다.
+
 ## Canonical leaf docs
 
-- `text-field`: `generated/llms-full.txt`에서 `# TextField` section
-- `search-field`: `generated/llms-full.txt`에서 `# SearchField` section
-- `checkbox`: `generated/llms-full.txt`에서 `# Checkbox` section
-- `radio`: `generated/llms-full.txt`에서 `# Radio` section
-- `segmented-control`: `generated/llms-full.txt`에서 `# SegmentedControl` section
-- `switch`: `generated/llms-full.txt`에서 `# Switch` section
-- `tab`: `generated/llms-full.txt`에서 `# Tab` section
-- `dropdown`: `generated/llms-full.txt`에서 `# Dropdown` section
-- `numeric-spinner`: `generated/llms-full.txt`에서 `# Numeric Spinner` section
-- `keypad`: `generated/llms-full.txt`에서 `# NumberKeypad` section
-- `slider`: `generated/llms-full.txt`에서 `# Slider` section
-- `rating`: `generated/llms-full.txt`에서 `# Rating` section
+- `text-field`: `generated/llms.txt`의 `TextField` leaf, details는 `generated/llms-full.txt`의 `# TextField` section
+- `search-field`: `generated/llms.txt`의 `SearchField` leaf, details는 `generated/llms-full.txt`의 `# SearchField` section
+- `checkbox`: `generated/llms.txt`의 `Checkbox` leaf, details는 `generated/llms-full.txt`의 `# Checkbox` section
+- `radio`: `generated/llms.txt`의 `Radio` leaf, details는 `generated/llms-full.txt`의 `# Radio` section
+- `segmented-control`: `generated/llms.txt`의 `SegmentedControl` leaf, details는 `generated/llms-full.txt`의 `# SegmentedControl` section
+- `switch`: `generated/llms.txt`의 `Switch` leaf, details는 `generated/llms-full.txt`의 `# Switch` section
+- `tab`: `generated/llms.txt`의 `Tab` leaf, details는 `generated/llms-full.txt`의 `# Tab` section
+- `dropdown`: `generated/llms.txt`의 `Dropdown` leaf, details는 `generated/llms-full.txt`의 `# Dropdown` section
+- `numeric-spinner`: `generated/llms.txt`의 `Numeric Spinner` leaf, details는 `generated/llms-full.txt`의 `# Numeric Spinner` section
+- `keypad`: `generated/llms.txt`의 `NumberKeypad` leaf, details는 `generated/llms-full.txt`의 `# NumberKeypad` section
+- `slider`: `generated/llms.txt`의 `Slider` leaf, details는 `generated/llms-full.txt`의 `# Slider` section
+- `rating`: `generated/llms.txt`의 `Rating` leaf, details는 `generated/llms-full.txt`의 `# Rating` section
 
 ## text-field vs search-field
 
