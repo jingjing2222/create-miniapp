@@ -1,15 +1,15 @@
-## 다음 작업: tds-ui install mirror 리뷰 코멘트 2건 수정
+## 다음 작업: tds-ui llms index-first 정리 changeset/브랜치/PR 마감
 
 ### 목표
-- 로컬 repo source에서 `tds-ui`를 설치할 때 네트워크가 없어도 scaffold가 hard-fail 하지 않게 되돌린다.
-- `.agents/skills`와 `.claude/skills`에 동시에 설치된 `tds-ui`가 있으면 llms mirror 파일을 양쪽 모두에 동기화한다.
-- 두 회귀를 실패 테스트로 먼저 고정하고, `pnpm verify` 통과까지 다시 확인한 뒤 현재 브랜치에 커밋/푸시한다.
+- `tds-ui` skill의 `llms.txt` 우선 탐색 계약 변경을 한국어 changeset으로 기록한다.
+- 현재 `main` 작업분을 전용 브랜치로 옮겨 커밋하고 원격에 push한다.
+- 한국어 `feat:` 제목과 섹션형 본문으로 PR 생성까지 마무리한다.
 
 ### 작업 순서
-1. `skills-install.test.ts`에 오프라인 로컬 설치 fallback과 multi-root mirror sync 케이스를 먼저 추가해 실패를 재현한다.
-2. `skills/install.ts`에서 설치 source가 로컬 repo인지 구분할 수 있는 신호를 유지하고, network fetch 실패를 local source install에서는 non-fatal로 처리한다.
-3. installed skill 탐색이 duplicate skill id를 하나로 접지 않도록 별도 enumerator를 두고, `tds-ui` mirror sync가 모든 installed root를 순회하게 수정한다.
-4. 관련 테스트와 `pnpm verify`를 실행한 뒤 현재 브랜치에 단일 목적 커밋으로 정리해 push한다.
+1. publish 영향 범위를 확인해 changeset 대상 패키지를 정하고, 한국어 patch changeset을 추가한다.
+2. `pnpm verify` 최종 통과 상태를 유지한 채 전용 브랜치를 만든다.
+3. 변경 파일만 stage해서 단일 목적 커밋으로 정리한다.
+4. 원격에 브랜치를 push하고 한국어 `feat:` PR을 생성한다.
 
 ## 다음 작업: tds-ui install mirror write scope escape 차단
 

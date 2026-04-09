@@ -12,7 +12,7 @@ metadata:
 # TDS UI Decision Skill
 
 이 Skill은 MiniApp 화면 요구사항을 TDS React Native 컴포넌트로 정확히 매핑할 때 사용한다.
-이 Skill은 TDS를 다시 설명하는 문서가 아니다. source repo에서는 `metadata.json`의 공식 `llms.txt` / `llms-full.txt` URL을 canonical source로 삼고, create scaffold가 설치한 workspace에서는 같은 문서를 `generated/llms.txt` / `generated/llms-full.txt`로 mirror해 local lookup을 빠르게 만든다. 이 Skill은 그 공식 문서로 라우팅하고 repo-specific anomaly와 답변 계약만 덧입히는 overlay다.
+이 Skill은 TDS를 다시 설명하는 문서가 아니다. source repo에서는 `metadata.json`의 공식 `llms.txt` / `llms-full.txt` URL을 canonical source로 삼고, create scaffold가 설치한 workspace에서는 같은 문서를 `generated/llms.txt` / `generated/llms-full.txt`로 mirror해 local lookup을 빠르게 만든다. 기본 탐색은 항상 index-first다. 먼저 `llms.txt`에서 docs path와 canonical heading 후보를 좁히고, 필요한 section만 `llms-full.txt`로 확인한다. 이 Skill은 그 공식 문서로 라우팅하고 repo-specific anomaly와 답변 계약만 덧입히는 overlay다.
 
 ## Use when
 
@@ -44,17 +44,18 @@ official docs와 로컬 overlay가 충돌하면, 컴포넌트 의미와 prop con
    - `upstreamSources`에서 공식 llms URL을 찾고, 설치된 workspace라면 `installMirrors` 경로를 같이 확인한다.
 2. `generated/llms.txt` 또는 공식 `llms.txt`
    - 설치된 workspace에서 mirror가 있으면 local file을 우선 사용한다.
-   - index 역할이다. 어떤 component/foundation/start/migration 문서가 있는지 먼저 확인한다.
+   - index entrypoint다. 어떤 component/foundation/start/migration 문서가 있는지, docs path와 canonical heading alias가 무엇인지 먼저 확인한다.
 3. `generated/llms-full.txt` 또는 공식 `llms-full.txt`
    - 설치된 workspace에서 mirror가 있으면 local file을 우선 사용한다.
-   - 후보 section heading을 검색해서 examples, interface, foundation 내용을 확인한다.
+   - `llms.txt`에서 shortlist가 정해진 뒤에만 연다.
+   - 후보 section heading을 검색해서 examples, interface, foundation semantics를 확인한다.
 4. `generated/anomalies.json`
    - docs slug alias, root import gap, export-only / docs-missing gate를 로컬 overlay로 적용한다.
 5. `AGENTS.md`
    - output contract와 review rule index를 확인한다.
 6. `references/*.md`
    - 공식 문서를 대체하지 않는다.
-   - 필요한 category의 docs path와 repo-specific comparison 질문만 빠르게 확인한다.
+   - 필요한 category의 index shortlist 이름과 repo-specific comparison 질문만 빠르게 확인한다.
 
 ## Decision algorithm
 
@@ -65,11 +66,11 @@ official docs와 로컬 overlay가 충돌하면, 컴포넌트 의미와 prop con
    - primary-action / text-action / icon-action / dialog / toast / loading / result / error-page
    - top-nav / bottom-action / sheet
 2. `metadata.json`에서 official llms URL과 install mirror 경로를 확인한다.
-3. 설치된 workspace면 `generated/llms.txt`, 아니면 공식 `llms.txt`에서 canonical section 이름과 docs path를 먼저 찾는다.
+3. 설치된 workspace면 `generated/llms.txt`, 아니면 공식 `llms.txt`에서 canonical section 이름, docs path, heading alias를 먼저 찾는다.
    - component 선택이면 component section을 찾는다.
    - color / typography / visual token 질문이면 foundation section을 먼저 찾는다.
    - 설치/마이그레이션 질문이면 `start` / `migration` section을 찾되, 이 Skill의 본업은 UI 선택이라는 점을 명시한다.
-4. 설치된 workspace면 `generated/llms-full.txt`, 아니면 공식 `llms-full.txt`에서 해당 section heading을 검색해 docs-backed 후보를 고른다.
+4. shortlist가 정해진 뒤에만 설치된 workspace면 `generated/llms-full.txt`, 아니면 공식 `llms-full.txt`를 열어 해당 section heading의 examples, interface, foundation semantics를 읽는다.
 5. docs slug mismatch는 anomaly alias를 따른다.
    - `chart` -> docs `Chart/bar-chart`
    - `stepper-row` -> docs `stepper`

@@ -13,6 +13,11 @@
 - `generated/llms.txt`
 - `generated/llms-full.txt`
 
+## Mirror Lookup Order
+1. `generated/llms.txt` 또는 공식 `llms.txt`에서 docs path와 canonical heading 후보를 먼저 좁힌다.
+2. `generated/llms-full.txt` 또는 공식 `llms-full.txt`는 shortlist가 정해진 뒤 examples / interface 확인 시에만 연다.
+3. `generated/anomalies.json`으로 export gap과 docs-missing gate를 덧입힌다.
+
 ## Human References
 - `references/decision-matrix.md`
 - `references/form-patterns.md`
