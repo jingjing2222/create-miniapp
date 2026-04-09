@@ -26,6 +26,13 @@ function escapeRegExp(source: string) {
   return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+async function readSourceTdsUiMetadataContents() {
+  return await readFile(
+    fileURLToPath(new URL('../../../skills/tds-ui/metadata.json', import.meta.url)),
+    'utf8',
+  )
+}
+
 test('normalizeSelectedSkillIds keeps known ids and removes duplicates', () => {
   assert.deepEqual(normalizeSelectedSkillIds(['tds-ui', 'cloudflare-worker', 'tds-ui']), [
     'tds-ui',
@@ -253,31 +260,12 @@ test('syncInstalledSkillArtifacts tolerates download failures for locally source
     await rm(targetRoot, { recursive: true, force: true })
   })
 
-  const skillRoot = path.join(targetRoot, 'skills', 'tds-ui')
-  const llmsIndexUrl = 'https://tossmini-docs.toss.im/tds-react-native/llms.txt'
+  for (const skillsRoot of ['skills', '.agents/skills', '.claude/skills']) {
+    const skillRoot = path.join(targetRoot, skillsRoot, 'tds-ui')
 
-  await mkdir(skillRoot, { recursive: true })
-  await writeFile(path.join(skillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
-  for (const skillsRoot of ['.agents/skills', '.claude/skills']) {
-    const mirrorSkillRoot = path.join(targetRoot, skillsRoot, 'tds-ui')
-
-    await mkdir(mirrorSkillRoot, { recursive: true })
-    await writeFile(path.join(mirrorSkillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
+    await mkdir(skillRoot, { recursive: true })
+    await writeFile(path.join(skillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
   }
-  await writeFile(
-    path.join(skillRoot, 'metadata.json'),
-    `${JSON.stringify(
-      {
-        upstreamSources: [llmsIndexUrl],
-        installMirrors: {
-          [llmsIndexUrl]: 'generated/llms.txt',
-        },
-      },
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  )
 
   await assert.doesNotReject(
     syncInstalledSkillArtifacts(targetRoot, {
@@ -288,7 +276,7 @@ test('syncInstalledSkillArtifacts tolerates download failures for locally source
     }),
   )
 
-  const expectedMetadataContents = await readFile(path.join(skillRoot, 'metadata.json'), 'utf8')
+  const expectedMetadataContents = await readSourceTdsUiMetadataContents()
 
   for (const skillsRoot of ['skills', '.agents/skills', '.claude/skills']) {
     assert.equal(
@@ -296,20 +284,28 @@ test('syncInstalledSkillArtifacts tolerates download failures for locally source
       expectedMetadataContents,
     )
   }
-  await assert.rejects(readFile(path.join(skillRoot, 'generated', 'llms.txt'), 'utf8'), {
-    code: 'ENOENT',
-  })
+  for (const skillsRoot of ['skills', '.agents/skills', '.claude/skills']) {
+    await assert.rejects(
+      readFile(path.join(targetRoot, skillsRoot, 'tds-ui', 'generated', 'llms.txt'), 'utf8'),
+      {
+        code: 'ENOENT',
+      },
+    )
+  }
 })
 
-test('syncInstalledSkillArtifacts reuses canonical tds-ui metadata and fills agent mirrors that were installed without it', async (t) => {
+test('syncInstalledSkillArtifacts falls back to bundled tds-ui metadata when installed copies omit metadata in every root', async (t) => {
   const targetRoot = await mkdtemp(path.join(os.tmpdir(), 'create-rn-miniapp-skill-mirror-'))
 
   t.after(async () => {
     await rm(targetRoot, { recursive: true, force: true })
   })
 
-  const llmsIndexUrl = 'https://tossmini-docs.toss.im/tds-react-native/llms.txt'
-  const llmsFullUrl = 'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt'
+  const expectedMetadataContents = await readSourceTdsUiMetadataContents()
+  const metadata = JSON.parse(expectedMetadataContents) as {
+    upstreamSources: string[]
+    installMirrors: Record<string, string>
+  }
   const requestedUrls: string[] = []
 
   for (const skillsRoot of ['skills', '.agents/skills', '.claude/skills']) {
@@ -317,32 +313,6 @@ test('syncInstalledSkillArtifacts reuses canonical tds-ui metadata and fills age
 
     await mkdir(skillRoot, { recursive: true })
     await writeFile(path.join(skillRoot, 'SKILL.md'), '# TDS\n', 'utf8')
-  }
-
-  const canonicalSkillRoot = path.join(targetRoot, 'skills', 'tds-ui')
-
-  await writeFile(
-    path.join(canonicalSkillRoot, 'metadata.json'),
-    `${JSON.stringify(
-      {
-        upstreamSources: [llmsIndexUrl, llmsFullUrl],
-        installMirrors: {
-          [llmsIndexUrl]: 'generated/llms.txt',
-          [llmsFullUrl]: 'generated/llms-full.txt',
-        },
-      },
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  )
-
-  const expectedMetadataContents = await readFile(
-    path.join(canonicalSkillRoot, 'metadata.json'),
-    'utf8',
-  )
-
-  for (const skillsRoot of ['.agents/skills', '.claude/skills']) {
     await assert.rejects(
       readFile(path.join(targetRoot, skillsRoot, 'tds-ui', 'metadata.json'), 'utf8'),
       {
@@ -363,7 +333,7 @@ test('syncInstalledSkillArtifacts reuses canonical tds-ui metadata and fills age
     },
   })
 
-  assert.deepEqual(requestedUrls, [llmsIndexUrl, llmsFullUrl])
+  assert.deepEqual(requestedUrls, metadata.upstreamSources)
 
   for (const skillsRoot of ['skills', '.agents/skills', '.claude/skills']) {
     const skillRoot = path.join(targetRoot, skillsRoot, 'tds-ui')
@@ -375,11 +345,11 @@ test('syncInstalledSkillArtifacts reuses canonical tds-ui metadata and fills age
     )
     assert.equal(
       await readFile(path.join(generatedRoot, 'llms.txt'), 'utf8'),
-      `downloaded:${llmsIndexUrl}`,
+      `downloaded:${metadata.upstreamSources[0]}`,
     )
     assert.equal(
       await readFile(path.join(generatedRoot, 'llms-full.txt'), 'utf8'),
-      `downloaded:${llmsFullUrl}`,
+      `downloaded:${metadata.upstreamSources[1]}`,
     )
   }
 })

@@ -44,6 +44,32 @@ type SkillMirrorMetadataSource = {
   metadataContents: string
 }
 
+const TDS_UI_LLMS_INDEX_URL = 'https://tossmini-docs.toss.im/tds-react-native/llms.txt'
+const TDS_UI_LLMS_FULL_URL = 'https://tossmini-docs.toss.im/tds-react-native/llms-full.txt'
+const TDS_UI_BUNDLED_METADATA = {
+  name: 'tds-ui',
+  version: '2.1.0',
+  package: {
+    name: '@toss/tds-react-native',
+    version: '2.0.2',
+  },
+  lastVerifiedAt: '2026-04-08',
+  truthSources: [TDS_UI_LLMS_INDEX_URL, TDS_UI_LLMS_FULL_URL, 'generated/anomalies.json'],
+  upstreamSources: [TDS_UI_LLMS_INDEX_URL, TDS_UI_LLMS_FULL_URL],
+  installMirrors: {
+    [TDS_UI_LLMS_INDEX_URL]: 'generated/llms.txt',
+    [TDS_UI_LLMS_FULL_URL]: 'generated/llms-full.txt',
+  },
+  notes: [
+    'Use upstreamSources as the canonical TDS docs in the source repository.',
+    'When this skill is scaffolded into a workspace, create-rn-miniapp downloads installMirrors so the installed skill can read local llms snapshots.',
+    'Use anomalies.json only as the local overlay for slug aliases, export gaps, and docs-missing gates.',
+    'When generated llms mirrors exist in the installed workspace, prefer them over remote fetches for section lookup.',
+    'When official docs and local references disagree on semantics, prefer the official docs and keep local files limited to routing and guardrails.',
+    'Update this skill through the repository source and standard `npx skills update` flow.',
+  ],
+} as const
+
 type SyncInstalledSkillArtifactsOptions = {
   fetchImpl?: typeof fetch
   allowDownloadFailureSkillIds?: readonly string[]
@@ -205,7 +231,25 @@ async function resolveSkillMirrorMetadataSource(
     }
   }
 
+  const bundledMetadataContents = renderBundledSkillMirrorMetadataContents(skillId)
+
+  if (bundledMetadataContents) {
+    return {
+      metadataContents: bundledMetadataContents,
+    }
+  }
+
   throw new Error(`${skillId} metadata.json을 찾지 못했어요.`)
+}
+
+function renderBundledSkillMirrorMetadataContents(skillId: string) {
+  if (skillId !== 'tds-ui') {
+    return null
+  }
+
+  // Published CLI builds only ship `dist`, so install-time mirror sync must carry
+  // the metadata contract needed to materialize `tds-ui` locally.
+  return `${JSON.stringify(TDS_UI_BUNDLED_METADATA, null, 2)}\n`
 }
 
 function parseSkillMirrorMetadataContents(
